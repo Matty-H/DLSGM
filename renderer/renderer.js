@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 const https = require('https');
 const { exec } = require('child_process');
+let selectedGenres = [];
 const categoryMap = {
   "ACN": "Action",
   "ADV": "Adventure",
@@ -193,16 +194,10 @@ function showGameInfo(gameId) {
   };
 
   const fields = [
-    //{ label: "Age Category", value: metadata.age_category },
     { label: "Circle", value: metadata.circle },
     { label: "Brand", value: metadata.brand },
     { label: "Publisher", value: metadata.publisher },
-    //{ label: "Label", value: metadata.label },
-    //{ label: "Announce Date", value: formatDate(metadata.announce_date) },
     { label: "Release Date", value: formatDate(metadata.release_date) },
-    //{ label: "Register Date", value: formatDate(metadata.regist_date) },
-    //{ label: "Modified Date", value: formatDate(metadata.modified_date) },
-    //{ label: "File Format", value: metadata.file_format },
     { label: "File Size", value: metadata.file_size },
     { label: "Language", value: metadata.language },
     { label: "Platform", value: metadata.platform },
@@ -224,8 +219,13 @@ function showGameInfo(gameId) {
   });
 
   if (metadata.genre && metadata.genre.length > 0) {
-    detailsHtml += `<p><strong>Genres:</strong> ${metadata.genre.join(', ')}</p>`;
+    detailsHtml += `
+      <p><strong>Genres:</strong> ${metadata.genre.map(genre => `
+        <span class="genre-tag" data-genre="${genre}" style="cursor:pointer; color:blue; text-decoration:underline;">${genre}</span>
+      `).join(', ')}</p>
+    `;
   }
+  
 
   if (metadata.description) {
     detailsHtml += `<p>${metadata.description}</p>`;
@@ -237,6 +237,15 @@ function showGameInfo(gameId) {
       Voir sur DLsite
     </a>
   `;
+  // Ajoute les événements sur les genres
+  document.querySelectorAll('.genre-tag').forEach(tag => {
+    tag.addEventListener('click', function() {
+      const selectedGenre = this.getAttribute('data-genre');
+      selectedGenres = [selectedGenre]; // On filtre directement sur ce genre (mono sélection ici)
+      filterGames(); // Met à jour la liste !
+    });
+  });
+
 
   gameDetails.innerHTML = `${carouselHtml}${detailsHtml}`;
   gameInfoDiv.classList.add("show");
@@ -305,8 +314,34 @@ function updateCategoryDropdown() {
     dropdown.appendChild(option);
   });
 }
+function updateGenreDropdown() {
+  const genres = collectAllGenres();
+  const dropdown = document.getElementById('genre-filter');
+
+  dropdown.innerHTML = ''; // On vide avant de remplir
+  
+  genres.forEach(genre => {
+    const option = document.createElement('option');
+    option.value = genre;
+    option.textContent = genre;
+    dropdown.appendChild(option);
+  });
+}
+
 
 // === FILTRAGE DES JEUX ===
+function collectAllGenres() {
+  const genreSet = new Set();
+
+  Object.values(cache).forEach(game => {
+    if (Array.isArray(game.genre)) {
+      game.genre.forEach(genre => genreSet.add(genre));
+    }
+  });
+
+  return Array.from(genreSet).sort((a, b) => a.localeCompare(b));
+}
+
 function filterGames() {
   const selectedCategoryCode = document.getElementById('category-filter').value;
   const searchTerm = document.getElementById('search-input').value.toLowerCase();
@@ -338,7 +373,16 @@ function filterGames() {
       if (cache[gameId]) {
         const gameName = cache[gameId].work_name || gameId;
         const gameCategory = cache[gameId].category;
-        
+
+        // Filtrer par genre si un ou plusieurs genres sont sélectionnés
+        if (selectedGenres.length > 0) {
+          const gameGenres = cache[gameId].genre || [];
+          const hasMatchingGenre = selectedGenres.some(genre => gameGenres.includes(genre));
+          if (!hasMatchingGenre) {
+            return; // Ce jeu n'a aucun des genres sélectionnés
+          }
+        }
+
         // Filtrer par catégorie si une catégorie spécifique est sélectionnée
         if (selectedCategoryCode !== 'all' && gameCategory !== selectedCategoryCode) {
           return; // Ignorer ce jeu
@@ -442,6 +486,7 @@ function scanGames() {
 
     // Mettre à jour le menu déroulant des catégories
     updateCategoryDropdown();
+    updateGenreDropdown();
     
     // Filtrer et afficher les jeux
     filterGames();
@@ -455,6 +500,12 @@ function scanGames() {
 function initEventListeners() {
   // Écouteur pour le changement de catégorie
   document.getElementById('category-filter').addEventListener('change', filterGames);
+
+  document.getElementById('genre-filter').addEventListener('change', function() {
+    const selectedOptions = Array.from(this.selectedOptions);
+    selectedGenres = selectedOptions.map(opt => opt.value);
+    filterGames(); // On met à jour la liste
+  });
   
   // Écouteur pour la recherche par texte (avec délai)
   let searchTimeout;
@@ -479,10 +530,3 @@ window.addEventListener('DOMContentLoaded', function() {
   // Initialiser les écouteurs d'événements pour le filtrage
   initEventListeners();
 });
-
-
-window.launchGame = launchGame;
-window.showGameInfo = showGameInfo;
-window.scanGames = scanGames;
-
-scanGames();
