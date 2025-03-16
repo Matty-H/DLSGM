@@ -308,3 +308,4 @@ window.scanGames = scanGames;
 
 // Lancer le scan des jeux et charger les données au démarrage
 scanGames();
+// Enjoy
