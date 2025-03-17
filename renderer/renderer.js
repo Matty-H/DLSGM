@@ -1,6 +1,13 @@
 import {fetchGameMetadata} from './scripts/dataFetcher.js';
-import {loadCache, updateCategoryDropdown, updateGenreDropdown, filterGames} from './scripts/cacheSorting.js';
-import { categoryMap } from './scripts/cacheSorting.js';
+import {
+  loadCache, 
+  updateCategoryDropdown, 
+  updateGenreDropdown, 
+  filterGames, 
+  categoryMap, 
+  selectedGenres, 
+  updateSelectedGenres
+} from './scripts/cacheSorting.js';
 
 const fs = require('fs');
 const path = require('path');
@@ -135,7 +142,14 @@ function showGameInfo(gameId) {
   document.querySelectorAll('.genre-tag').forEach(tag => {
     tag.addEventListener('click', function() {
       const selectedGenre = this.getAttribute('data-genre');
-      selectedGenres = [selectedGenre]; // On filtre directement sur ce genre (mono sélection ici)
+      updateSelectedGenres([selectedGenre]); // On filtre directement sur ce genre (mono sélection ici)
+      
+      // Mettre à jour visuellement le sélecteur de genre aussi
+      const genreSelect = document.getElementById('genre-filter');
+      Array.from(genreSelect.options).forEach(option => {
+        option.selected = option.value === selectedGenre;
+      });
+      
       filterGames(); // Met à jour la liste !
     });
   });
@@ -143,7 +157,30 @@ function showGameInfo(gameId) {
 
   gameDetails.innerHTML = `${carouselHtml}${detailsHtml}`;
   gameInfoDiv.classList.add("show");
-
+  
+  // Ajouter les événements sur les genres
+  document.querySelectorAll('.genre-tag').forEach(tag => {
+    tag.addEventListener('click', function() {
+      const selectedGenre = this.getAttribute('data-genre');
+      console.log("Filtrage par genre:", selectedGenre); // Pour débogage
+      
+      // Utiliser updateSelectedGenres au lieu d'assigner directement
+      updateSelectedGenres([selectedGenre]);
+      
+      // Mettre à jour visuellement le sélecteur de genre aussi
+      const genreSelect = document.getElementById('genre-filter');
+      Array.from(genreSelect.options).forEach(option => {
+        option.selected = option.value === selectedGenre;
+      });
+      
+      // Fermer la boîte d'information si nécessaire
+      gameInfoDiv.classList.remove("show");
+      
+      // Mettre à jour la liste
+      filterGames();
+    });
+  });
+  
   // Gestion du carrousel
   const images = document.querySelectorAll(".carousel-img");
   let currentIndex = 0;
@@ -211,20 +248,42 @@ export function scanGames() {
 
 // === INITIALISATION DES ÉCOUTEURS D'ÉVÉNEMENTS ===
 function initEventListeners() {
-  // Écouteur pour le changement de catégorie
+  // Existing category filter event listener
   document.getElementById('category-filter').addEventListener('change', filterGames);
-
-  // document.getElementById('genre-filter').addEventListener('change', function() {
-  //   const selectedOptions = Array.from(this.selectedOptions);
-  //   selectedGenres = selectedOptions.map(opt => opt.value);
-  //   filterGames(); // On met à jour la liste
-  // });
   
-  // Écouteur pour la recherche par texte (avec délai)
+  // Add genre filter event listener (using multi-select)
+  document.getElementById('genre-filter').addEventListener('change', function() {
+    const selectedOptions = Array.from(this.selectedOptions);
+    const newGenres = selectedOptions.map(opt => opt.value);
+    updateSelectedGenres(newGenres);
+    filterGames();
+  });
+  
+  // Existing search input event listener
   let searchTimeout;
   document.getElementById('search-input').addEventListener('input', function() {
     clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(filterGames, 300); // Attendre 300ms après la saisie
+    searchTimeout = setTimeout(filterGames, 300);
+  });
+
+  document.getElementById('reset-filters').addEventListener('click', function() {
+    // Réinitialiser les sélections
+    document.getElementById('category-filter').value = 'all';
+    
+    // Réinitialiser multi-select de genres
+    const genreSelect = document.getElementById('genre-filter');
+    Array.from(genreSelect.options).forEach(option => {
+      option.selected = false;
+    });
+    
+    // Vider la barre de recherche
+    document.getElementById('search-input').value = '';
+    
+    // Réinitialiser les variables de filtrage
+    updateSelectedGenres([]);
+    
+    // Rafraîchir l'affichage
+    filterGames();
   });
 }
 
