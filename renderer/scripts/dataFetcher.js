@@ -3,8 +3,8 @@ const fs = require('fs');
 const https = require('https');
 const { exec } = require('child_process');
 
-import { cacheFilePath, globalCache } from '../renderer.js';
-import { scanGames } from '../renderer.js';
+import { globalCache, scanGames } from '../renderer.js';
+import { cacheFilePath } from './osHandler.js';
 
 // === TELECHARGER UNE IMAGE ===
 function downloadImage(url, outputPath) {
