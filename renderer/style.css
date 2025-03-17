@@ -313,11 +313,13 @@ body {
 }
 
 /* DLsite Link */
-.dlsite-link {
-  display: block;
-  margin: 20px 25px;
+.action-buttons {
+  display: flex;
+  justify-content: space-evenly;
+}
+
+.action-buttons a, .action-buttons button {
   padding: 12px 20px;
-  background: #ff4500;
   color: white;
   text-align: center;
   text-decoration: none;
@@ -327,10 +329,18 @@ body {
   transition: all 0.2s ease;
 }
 
-.dlsite-link:hover {
-  background: #e03e00;
+.action-buttons a:hover, .action-buttons button:hover {
+  background: rgba(255, 69, 0, 0.8);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(255, 69, 0, 0.25);
+}
+
+.dlsite-link {
+  background: #ff4500;
+}
+
+.open-folder-btn{
+  background: #0040ff;
 }
 
 /* Game Info Category Label */
