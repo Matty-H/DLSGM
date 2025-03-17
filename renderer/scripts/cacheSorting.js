@@ -26,7 +26,8 @@ export const categoryMap = {
   "VCM": "Voiced Comic",
   "WBT": "Webtoon"
 };
-import {cacheFilePath, globalCache, gamesFolderPath} from '../renderer.js';
+import {globalCache} from '../renderer.js';
+import {cacheFilePath, gamesFolderPath} from './osHandler.js';
 
 
 // === CHARGEMENT DU CACHE ===
