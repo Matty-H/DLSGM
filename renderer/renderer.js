@@ -15,7 +15,7 @@ window.filterGames = filterGames;
 
 // Initialiser le cache
 let cache = {};
-export const globalCache = loadCache(cache);
+export let globalCache = loadCache(cache);
 
 // Fonction d'initialisation à exécuter au chargement de la page
 window.addEventListener('DOMContentLoaded', function() {
