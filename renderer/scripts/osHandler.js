@@ -16,7 +16,7 @@ if (platform === 'win32' || platform === 'darwin') {
   alert('OS non supporté pour l\'instant.');
 }
 
-export const gamesFolderPath = path.join(desktopPath, 'SCAN');
+export const gamesFolderPath = path.join(desktopPath, 'SCAM');
 export const cacheFilePath = path.join(__dirname, 'cache.json');
 
 console.log('Scanning folder:', gamesFolderPath);

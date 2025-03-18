@@ -26,6 +26,7 @@ export function initEventListeners() {
   document.getElementById('reset-filters').addEventListener('click', function() {
     // Réinitialiser les sélections
     console.log('prout')
+    scanGames()
     document.getElementById("game-info").classList.remove("show");
     document.getElementById('category-filter').value = 'all';
     

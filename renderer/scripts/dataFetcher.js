@@ -5,7 +5,8 @@ const { exec } = require('child_process');
 
 import { globalCache } from '../renderer.js';
 import { scanGames } from './gameScanner.js';
-import { cacheFilePath } from './osHandler.js';
+import { cacheFilePath, gamesFolderPath } from './osHandler.js';
+import { saveCache } from './cacheManager.js';
 
 // === TELECHARGER UNE IMAGE ===
 function downloadImage(url, outputPath) {
@@ -73,4 +74,72 @@ export function fetchGameMetadata(gameId) {
       console.error("Erreur lors du parsing des données:", e);
     }
   });
+}
+
+// Fonction de purge centralisée
+// Fonction de purge centralisée avec nettoyage img_cache
+export function purgeObsoleteGamesFromCache() {
+  console.log('--- DÉBUT DE LA PURGE DES DONNÉES ---');
+
+  // Vérifie si le dossier SCAN existe
+  if (!fs.existsSync(gamesFolderPath)) {
+    console.error('Le dossier SCAN n\'existe pas, aucune purge effectuée.');
+    return;
+  }
+
+  // Liste des dossiers de jeux dans SCAN
+  const files = fs.readdirSync(gamesFolderPath);
+  const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));
+
+  // Set pour vérifier rapidement les jeux présents
+  const gameIdsToKeep = new Set(gameFolders);
+  const cachedGameIds = Object.keys(globalCache);
+
+  // === PURGE DU CACHE ===
+  const purgedCacheEntries = [];
+  cachedGameIds.forEach(gameId => {
+    if (!gameIdsToKeep.has(gameId)) {
+      purgedCacheEntries.push(gameId);
+      delete globalCache[gameId];
+    }
+  });
+
+  if (purgedCacheEntries.length > 0) {
+    console.log(`Purge de ${purgedCacheEntries.length} entrées obsolètes dans le cache:`, purgedCacheEntries);
+    saveCache(globalCache);
+  } else {
+    console.log('Aucune entrée obsolète trouvée dans le cache.');
+  }
+
+  // === NETTOYAGE DES DOSSIERS IMG_CACHE ===
+  const imgCacheDir = path.join(__dirname, 'img_cache');
+
+  if (!fs.existsSync(imgCacheDir)) {
+    console.warn(`Le dossier img_cache n'existe pas à l'emplacement : ${imgCacheDir}`);
+    console.log('--- FIN DE LA PURGE DES DONNÉES ---');
+    return;
+  }
+
+  const imgCacheFolders = fs.readdirSync(imgCacheDir);
+  const purgedImgFolders = [];
+
+  imgCacheFolders.forEach(folderName => {
+    const folderPath = path.join(imgCacheDir, folderName);
+
+    // Si le dossier d'images n'a pas de correspondance dans SCAN ni dans le cache
+    if (!gameIdsToKeep.has(folderName) && !globalCache[folderName]) {
+      purgedImgFolders.push(folderName);
+
+      fs.rmSync(folderPath, { recursive: true, force: true });
+      console.log(`Dossier image supprimé : ${folderName}`);
+    }
+  });
+
+  if (purgedImgFolders.length > 0) {
+    console.log(`Purge de ${purgedImgFolders.length} dossiers images orphelins:`, purgedImgFolders);
+  } else {
+    console.log('Aucun dossier image à purger dans img_cache.');
+  }
+
+  console.log('--- FIN DE LA PURGE DES DONNÉES ---');
 }
