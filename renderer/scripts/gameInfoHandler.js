@@ -91,6 +91,8 @@ export function showGameInfo(gameId, globalCache) {
   gameDetails.innerHTML = `${carouselHtml}${detailsHtml}`;
   gameInfoDiv.classList.add("show");
   
+  // calculateSizeDifference(gameId, metadata.file_size);
+
   attachGameInfoEventListeners(gameId, gameInfoDiv);
 }
 
@@ -139,10 +141,11 @@ function attachGameInfoEventListeners(gameId, gameInfoDiv) {
 
   document.getElementById("close-game-info").addEventListener("click", () => {
     gameInfoDiv.classList.remove("show");
+    console.log("Fermeture de la boîte d'information");
   });
 
   document.querySelector(".open-folder-btn").addEventListener("click", (e) => {
-    e.preventDefault(); // Ça évite que le lien fasse un scroll ou reload
+    e.preventDefault();
     openGameFolder(gameId);
   });
 }
