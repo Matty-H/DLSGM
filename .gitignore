@@ -177,3 +177,5 @@ cache.json
 renderer/img_cache
 node_modules
 TODO
+
+.DS_Store
