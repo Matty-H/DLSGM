@@ -57,7 +57,7 @@ export function filterGames() {
     }
     
     const files = fs.readdirSync(gamesFolderPath);
-    const gameFolders = files.filter(file => /^RJ\d{6,9}$/.test(file));
+    const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));;
     
     if (gameFolders.length === 0) {
       list.innerHTML = '<p>Aucun jeu trouvé dans SCAN.</p>';
