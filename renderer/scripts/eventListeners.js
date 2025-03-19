@@ -1,5 +1,6 @@
 import { scanGames } from './gameScanner.js';
-import { filterGames } from './uiUpdater.js';
+import { filterGames, updateCategoryDropdown, updateGenreDropdown } from './uiUpdater.js';
+import { loadCache } from './cacheManager.js';
 import { updateSelectedGenres} from './filterManager.js';
 
 // Initialise tous les écouteurs d'événements de l'interface utilisateur
@@ -24,11 +25,11 @@ export function initEventListeners() {
 
   // Réinitialisation des filtres
   document.getElementById('reset-filters').addEventListener('click', function() {
-    // Réinitialiser les sélections
+    // Réinitialiser les sélections et barre de recherche
     console.log('prout')
-    scanGames()
     document.getElementById("game-info").classList.remove("show");
     document.getElementById('category-filter').value = 'all';
+    document.getElementById('search-input').value = '';
     
     // Réinitialiser multi-select de genres
     const genreSelect = document.getElementById('genre-filter');
@@ -36,14 +37,11 @@ export function initEventListeners() {
       option.selected = false;
     });
     
-    // Vider la barre de recherche
-    document.getElementById('search-input').value = '';
-    
     // Réinitialiser les variables de filtrage
     updateSelectedGenres([]);
     
     // Rafraîchir l'affichage
-    filterGames();
+    scanGames()
   });
   
   // Bouton de scan
