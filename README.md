@@ -5,14 +5,15 @@ Lite software manager for game downloaded from DLsite.com
 
 ## Features
 
-- Game list
+- Game list, data
 - Game launcher
-- Playtime tracker
-- Data fetch
-- Filtering by name, categories, genre
-- Fetch metadata & image from DLsite
+- Filter by name, author, categories, genres
+- Fetch metadata & images from DLsite
 - Custom rating
-- Purge cache & image cache (at start or dynamically)
+- Custom tag
+- Playtime tracking
+- Block play game button when playing
+- Open dlsite webpage on default browser
 
 ## Roadmap
 
