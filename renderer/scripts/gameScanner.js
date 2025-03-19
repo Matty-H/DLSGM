@@ -1,4 +1,4 @@
-import { updateCategoryDropdown, updateGenreDropdown, updateTagDropdown, filterGames } from './uiUpdater.js';
+import { updateCategoryDropdown, updateGenreDropdown, filterGames } from './uiUpdater.js';
 import { globalCache } from '../renderer.js';
 import { fetchGameMetadata } from './dataFetcher.js';
 import { gamesFolderPath } from './osHandler.js';
@@ -38,7 +38,6 @@ export function scanGames() {
     // Mettre à jour les menus déroulants
     updateCategoryDropdown(globalCache);
     updateGenreDropdown(globalCache);
-    updateTagDropdown(globalCache);
 
     filterGames();
 

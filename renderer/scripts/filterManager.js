@@ -46,10 +46,11 @@ export function matchesFilters(game, selectedCategoryCode, searchTerm) {
     const lowerSearchTerm = searchTerm.toLowerCase();
 
     const nameMatches = gameName.toLowerCase().includes(lowerSearchTerm);
+    const circleMatches = (game.circle || '').toLowerCase().includes(lowerSearchTerm);
     const customTags = game.customTags || [];
     const tagsMatch = customTags.some(tag => tag.toLowerCase().includes(lowerSearchTerm));
 
-    if (!nameMatches && !tagsMatch) {
+    if (!nameMatches && !circleMatches && !tagsMatch) {
       return false;
     }
   }

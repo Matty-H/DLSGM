@@ -116,7 +116,6 @@ let customTagsHtml = `
 document.getElementById('add-custom-tag-btn').addEventListener('click', () => {
   const input = document.getElementById('new-custom-tag-input');
   const newTag = input.value.trim();
-  console.log('BONJOUR'+newTag);
   if (newTag && !customTags.includes(newTag)) {
     customTags.push(newTag);
     metadata.customTags = customTags; // Met à jour le metadata local
