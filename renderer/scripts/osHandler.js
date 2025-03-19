@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const { exec } = require('child_process');
 const { spawn } = require('child_process');
+const diskusage = require('diskusage');
 import { loadCache, updateCacheEntry } from './cacheManager.js';
 import { setGameRunning } from './uiUpdater.js';
 
@@ -18,7 +19,7 @@ if (platform === 'win32' || platform === 'darwin') {
   alert('OS non supporté pour l\'instant.');
 }
 
-export const gamesFolderPath = path.join(desktopPath, 'SCAM');
+export const gamesFolderPath = path.join(desktopPath, 'SCAN');
 export const cacheFilePath = path.join(__dirname, 'cache.json');
 
 console.log('Scanning folder:', gamesFolderPath);
@@ -132,99 +133,69 @@ export function startAutoRefresh(intervalInMinutes = 1) {
   }, intervalInMs);
 }
 
-// // === CALCUL DE LA TAILLE DU DOSSIER ===
-// function getFolderSize(folderName) {
-//   const folderPath = path.join(gamesFolderPath, folderName);
-
-//   if (!fs.existsSync(folderPath)) {
-//     console.warn('Dossier introuvable:', folderPath);
-//     return 0;
-//   }
-
-//   let totalSize = 0;
-
-//   function calculateSize(directory) {
-//     const files = fs.readdirSync(directory);
-
-//     files.forEach(file => {
-//       const filePath = path.join(directory, file);
-//       const stats = fs.lstatSync(filePath);
-
-//       if (stats.isSymbolicLink()) {
-//         console.log(`SymLink ignoré : ${filePath}`);
-//         return;
-//       }
-
-//       if (stats.isFile()) {
-//         console.log(`Fichier: ${filePath} - Taille: ${formatBytes(stats.size)}`);
-//         totalSize += stats.size;
-//       } else if (stats.isDirectory()) {
-//         calculateSize(filePath); // récursif
-//       }
-//     });
-//   }
-
-//   calculateSize(folderPath);
-//   return totalSize;
-// }
-
-// // === CONVERSION DE LA TAILLE DU DOSSIER ===
-// function parseFileSize(fileSizeStr) {
-//   if (!fileSizeStr) return 0;
-
-//   const units = {
-//     'B': 1,
-//     'KB': 1024,
-//     'MB': 1024 * 1024,
-//     'GB': 1024 * 1024 * 1024
-//   };
-
-//   const regex = /([\d.]+)\s*(B|KB|MB|GB)/i;
-//   const match = fileSizeStr.match(regex);
-
-//   if (!match) return 0;
-
-//   const size = parseFloat(match[1]);
-//   const unit = match[2].toUpperCase();
-
-//   return size * (units[unit] || 1);
-// }
-
-// // === CALCUL LA DIFFERENCE DE TAILLE ===
-// export function calculateSizeDifference (gameId, metadata) {
-// const realSize = getFolderSize(gameId);
-// const declaredSize = parseFileSize(metadata);
-
-// console.log(`Taille réelle : ${formatBytes(realSize)}`);
-// console.log(`Taille déclarée : ${formatBytes(declaredSize)}`);
-
-// if (declaredSize > 0) {
-//   const diff = Math.abs(realSize - declaredSize);
-//   const percentDiff = (diff / declaredSize) * 100;
-
-//   if (percentDiff > 10) {
-//     console.warn(`Attention ! La taille réelle diffère de plus de 10% de la taille déclarée.`);
-//     // Tu peux afficher une alerte ou ajouter une info dans ton HTML :
-//     gameDetails.innerHTML += `
-//       <p style="color: red;"><strong>Attention:</strong> La taille réelle (${(realSize / (1024 * 1024)).toFixed(2)} MB) diffère de la taille annoncée.</p>
-//     `;
-//   }
-// }
-// }
-
 // // === FORMATTER LA TAILLE EN TEXTE LISIBLE ===
 // function formatBytes(bytes, decimals = 2) {
 //   if (bytes === 0) return '0 Bytes';
 //   const k = 1024;
 //   const dm = decimals;
 //   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-
 //   const i = Math.floor(Math.log(bytes) / Math.log(k));
-
 //   const size = parseFloat((bytes / Math.pow(k, i)).toFixed(dm));
 //   return `${size} ${sizes[i]}`;
 // }
 
-// const realSize = getFolderSize('ton_dossier');
-// console.log(`Taille réelle : ${formatBytes(realSize)}`);
+// // === CALCUL DE LA TAILLE DU DOSSIER avec diskusage ===
+// async function getFolderSize(folderName) {
+//   const folderPath = path.join(gamesFolderPath, folderName);
+//   if (!fs.existsSync(folderPath)) {
+//     console.warn('Dossier introuvable:', folderPath);
+//     return 0;
+//   }
+  
+//   try {
+//     // Obtenir l'utilisation du disque pour le dossier spécifié
+//     const usage = await diskusage.check(folderPath);
+//     console.log(`Taille du dossier selon diskusage: ${formatBytes(usage.total - usage.free)}`);
+//     return usage.total - usage.free;
+//   } catch (err) {
+//     console.error('Erreur lors du calcul de la taille:', err);
+//     return 0;
+//   }
+// }
 
+// // === CONVERSION DE LA TAILLE DU DOSSIER ===
+// function parseFileSize(fileSizeStr) {
+//   if (!fileSizeStr) return 0;
+//   const units = {
+//     'B': 1,
+//     'KB': 1024,
+//     'MB': 1024 * 1024,
+//     'GB': 1024 * 1024 * 1024
+//   };
+//   const regex = /([\d.]+)\s*(B|KB|MB|GB)/i;
+//   const match = fileSizeStr.match(regex);
+//   if (!match) return 0;
+//   const size = parseFloat(match[1]);
+//   const unit = match[2].toUpperCase();
+//   return size * (units[unit] || 1);
+// }
+
+// // === CALCUL LA DIFFERENCE DE TAILLE ===
+// export async function calculateSizeDifference(gameId, metadata) {
+//   const realSize = await getFolderSize(gameId);
+//   const declaredSize = parseFileSize(metadata);
+//   console.log(`Taille réelle : ${formatBytes(realSize)}`);
+//   console.log(`Taille déclarée : ${formatBytes(declaredSize)}`);
+  
+//   if (declaredSize > 0) {
+//     const diff = Math.abs(realSize - declaredSize);
+//     const percentDiff = (diff / declaredSize) * 100;
+//     if (percentDiff > 10) {
+//       console.warn(`Attention ! La taille réelle diffère de plus de 10% de la taille déclarée.`);
+//       // Tu peux afficher une alerte ou ajouter une info dans ton HTML :
+//       gameDetails.innerHTML += `
+//       <p style="color: red;"><strong>Attention:</strong> La taille réelle (${(realSize / (1024 * 1024)).toFixed(2)} MB) diffère de la taille annoncée.</p>
+//       `;
+//     }
+//   }
+// }

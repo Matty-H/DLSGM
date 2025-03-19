@@ -1,6 +1,6 @@
 const fs = require('fs');
 import { collectAllCategories, collectAllGenres, categoryMap } from './metadataManager.js';
-import { matchesFilters, selectedGenres } from './filterManager.js';
+import { matchesFilters } from './filterManager.js';
 import { saveCache, loadCache } from './cacheManager.js';
 import { gamesFolderPath } from './osHandler.js';
 import { globalCache } from '../renderer.js';
@@ -40,6 +40,41 @@ export function updateGenreDropdown(globalCache) {
     dropdown.appendChild(option);
   });
 }
+
+export function updateTagDropdown(globalCache) {
+  const allCustomTags = new Set();
+
+  // Parcours pour récupérer tous les tags existants
+  Object.values(globalCache).forEach(game => {
+    (game.customTags || []).forEach(tag => allCustomTags.add(tag));
+  });
+
+  const container = document.getElementById('custom-tags-options');
+  // container.innerHTML = '';
+
+  allCustomTags.forEach(tag => {
+    const tagElement = document.createElement('span');
+    tagElement.classList.add('custom-tag-filter');
+    tagElement.textContent = tag;
+
+    tagElement.addEventListener('click', () => {
+      // Sélection/désélection
+      if (selectedCustomTags.includes(tag)) {
+        updateSelectedCustomTags(selectedCustomTags.filter(t => t !== tag));
+        tagElement.classList.remove('selected');
+      } else {
+        updateSelectedCustomTags([...selectedCustomTags, tag]);
+        tagElement.classList.add('selected');
+      }
+
+      // Met à jour la liste des jeux affichés en fonction des filtres
+      filterGames();
+    });
+
+    container.appendChild(tagElement);
+  });
+}
+
 
 // Marque un jeu comme en cours d'exécution
 export function setGameRunning(gameId, isRunning) {
