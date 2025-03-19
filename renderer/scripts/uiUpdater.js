@@ -5,6 +5,9 @@ import { saveCache, loadCache } from './cacheManager.js';
 import { gamesFolderPath } from './osHandler.js';
 import { globalCache } from '../renderer.js';
 
+// Garder trace des jeux en cours d'exécution
+export let isAnyGameRunning = false;
+export const runningGames = new Set();
 
 // Met à jour le menu déroulant des catégories
 export function updateCategoryDropdown(globalCache) {
@@ -38,57 +41,88 @@ export function updateGenreDropdown(globalCache) {
   });
 }
 
-// Filtre et affiche les jeux selon les critères actuels
+// Marque un jeu comme en cours d'exécution
+export function setGameRunning(gameId, isRunning) {
+  if (isRunning) {
+    runningGames.add(gameId);
+    isAnyGameRunning = true;
+  } else {
+    runningGames.delete(gameId);
+    isAnyGameRunning = runningGames.size > 0;
+  }
+  
+  // Mettre à jour tous les boutons
+  updateAllGameButtons();
+}
+
+// Met à jour l'état de tous les boutons de jeu
+function updateAllGameButtons() {
+  const allButtons = document.querySelectorAll('.game-actions button');
+  
+  allButtons.forEach(button => {
+    const gameId = button.getAttribute('data-game-id');
+    const isThisGameRunning = runningGames.has(gameId);
+    
+    if (isAnyGameRunning) {
+      // Si un jeu est en cours, désactiver tous les boutons
+      button.disabled = true;
+      button.classList.add('disabled');
+      
+      // Afficher "En cours" seulement pour le jeu qui est lancé
+      if (isThisGameRunning) {
+        button.innerHTML = '⏳ En cours';
+      } else {
+        button.innerHTML = '▶ Lancer le jeu';
+      }
+    } else {
+      // Aucun jeu en cours, activer tous les boutons
+      button.disabled = false;
+      button.classList.remove('disabled');
+      button.innerHTML = '▶ Lancer le jeu';
+    }
+  });
+}
+
 export function filterGames() {
   const cache = loadCache();
-  console.log('XXXXXXXXXX')
-  console.log("Filtrage des jeux avec genres:", selectedGenres);
-  console.log("globalCache :", cache);
   const selectedCategoryCode = document.getElementById('category-filter').value;
   const searchTerm = document.getElementById('search-input').value.toLowerCase();
   const list = document.getElementById('games-list');
   
-  
-  // Vider la liste
   list.innerHTML = '';
   
   try {
     if (!fs.existsSync(gamesFolderPath)) {
-      console.error('Le dossier SCAN n\'existe pas');
       list.innerHTML = '<p>Dossier SCAN introuvable. Veuillez créer le dossier SCAN sur votre bureau.</p>';
       return;
     }
     
     const files = fs.readdirSync(gamesFolderPath);
-    const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));;
+    const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));
     
     if (gameFolders.length === 0) {
       list.innerHTML = '<p>Aucun jeu trouvé dans SCAN.</p>';
       return;
     }
     
-    // Filtrer et afficher les jeux
     gameFolders.forEach(folder => {
       const gameId = folder;
-      // console.log(String(cache) + " : " + String(gameId))
       
-      // Vérifier si le jeu existe dans le cache
       if (cache[gameId]) {
         const gameData = cache[gameId];
         
-        // Vérifier si le jeu correspond aux critères de filtrage
         if (matchesFilters(gameData, selectedCategoryCode, searchTerm)) {
-          // Créer et ajouter l'élément du jeu à la liste
           const gameElement = createGameElement(gameId, gameData);
           list.appendChild(gameElement);
         }
       }
     });
 
-    // Ajouter les écouteurs d'événements pour la notation
     attachRatingEventListeners();
+    
+    // Mettre à jour l'état de tous les boutons après avoir généré la liste
+    updateAllGameButtons();
 
-    // Afficher un message si aucun jeu ne correspond aux critères
     if (list.children.length === 0) {
       list.innerHTML = '<p>Aucun jeu ne correspond aux critères de recherche.</p>';
     }
@@ -108,7 +142,6 @@ function createGameElement(gameId, gameData) {
   const gameCategoryLabel = categoryMap[gameCategory] || "Inconnu";
   const gameRating = gameData.rating || 0;
   
-  // Récupérer les données de temps de jeu depuis le cache
   const totalPlayTime = gameData.totalPlayTime || 0;
   const lastPlayed = gameData.lastPlayed || null;
   
@@ -149,20 +182,20 @@ function createGameElement(gameId, gameData) {
   
   // Ajouter l'image principale si disponible
   let gameImageHtml = '';
-if (gameData.work_image) {
-  const workImagePath = `img_cache/${gameId}/work_image.jpg`;
-  gameImageHtml = `
-    <div class="game-container">
-      <img src="${workImagePath}" alt="${gameName}" class="game-thumbnail" onclick="window.showGameInfo('${gameId}')" />
-      ${totalPlayTime > 0 || lastPlayed ? `
-        <div class="play-time-info">
-          <div class="total-time">Temps de jeu: ${playTimeText}</div>
-          ${lastPlayed ? `<div class="last-played">Dernier lancement: ${lastPlayedText}</div>` : ''}
-        </div>
-      ` : ''}
-    </div>
-  `;
-}
+  if (gameData.work_image) {
+    const workImagePath = `img_cache/${gameId}/work_image.jpg`;
+    gameImageHtml = `
+      <div class="game-container">
+        <img src="${workImagePath}" alt="${gameName}" class="game-thumbnail" onclick="window.showGameInfo('${gameId}')" />
+        ${totalPlayTime > 0 || lastPlayed ? `
+          <div class="play-time-info">
+            <div class="total-time">Temps de jeu: ${playTimeText}</div>
+            ${lastPlayed ? `<div class="last-played">Dernier lancement: ${lastPlayedText}</div>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
   
   // Générer les étoiles
   let ratingHtml = '<div class="rating" data-game-id="' + gameId + '">';
@@ -171,16 +204,11 @@ if (gameData.work_image) {
   }
   ratingHtml += '</div>';
   
-  // Créer l'encart de temps de jeu (seulement s'il y a des données)
-  let playTimeHtml = '';
-  if (totalPlayTime > 0 || lastPlayed) {
-    playTimeHtml = `
-      <div class="play-time-info">
-        <div class="total-time">Temps de jeu: ${playTimeText}</div>
-        ${lastPlayed ? `<div class="last-played">Dernier lancement: ${lastPlayedText}</div>` : ''}
-      </div>
-    `;
-  }
+  // Vérifier si ce jeu est en cours d'exécution
+  const isThisGameRunning = runningGames.has(gameId);
+  const buttonText = isThisGameRunning ? '⏳ En cours' : '▶ Lancer le jeu';
+  const buttonClass = isAnyGameRunning ? 'disabled' : '';
+  const buttonDisabled = isAnyGameRunning ? 'disabled' : '';
   
   gameDiv.innerHTML = `
   ${gameImageHtml}
@@ -191,8 +219,8 @@ if (gameData.work_image) {
   </div>
   ${ratingHtml}
   <div class="game-actions">
-    <button onclick="window.launchGame('${gameId}')">
-      ▶ Lancer le jeu
+    <button onclick="window.launchGame('${gameId}')" data-game-id="${gameId}" class="${buttonClass}" ${buttonDisabled}>
+      ${buttonText}
     </button>
   </div>
 `;
@@ -207,11 +235,9 @@ function attachRatingEventListeners() {
       const gameId = this.parentNode.getAttribute('data-game-id');
       const rating = parseInt(this.getAttribute('data-value'));
       
-      // Mettre à jour la note dans le cache
       globalCache[gameId].rating = rating;
       saveCache(globalCache);
       
-      // Mettre à jour l'affichage des étoiles
       const stars = this.parentNode.querySelectorAll('.star');
       stars.forEach((s, index) => {
         s.style.color = index < rating ? 'gold' : 'gray';

@@ -360,6 +360,11 @@
     padding-top: 20px;
   }
   
+  .game-actions button.disabled {
+    background-color: #888;
+    cursor: not-allowed;
+  }
+  
   .action-buttons a {
     padding: 12px 20px;
     color: white;

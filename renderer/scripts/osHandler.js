@@ -3,8 +3,8 @@ const os = require('os');
 const path = require('path');
 const { exec } = require('child_process');
 const { spawn } = require('child_process');
-
 import { loadCache, updateCacheEntry } from './cacheManager.js';
+import { setGameRunning } from './uiUpdater.js';
 
 // === DETECTION OS & CHEMIN DU DOSSIER ===
 const platform = os.platform();
@@ -18,7 +18,7 @@ if (platform === 'win32' || platform === 'darwin') {
   alert('OS non supporté pour l\'instant.');
 }
 
-export const gamesFolderPath = path.join(desktopPath, 'SCAN');
+export const gamesFolderPath = path.join(desktopPath, 'SCAM');
 export const cacheFilePath = path.join(__dirname, 'cache.json');
 
 console.log('Scanning folder:', gamesFolderPath);
@@ -65,19 +65,27 @@ export function launchGame(folder) {
     }
     console.log(`Binaire trouvé : ${binaryName}`);
     const executablePath = path.join(macOSFolderPath, binaryName);
+    
+    // Marquer le jeu comme en cours d'exécution
+    setGameRunning(folder, true);
+    
     // Lancer le binaire
     const startTime = Date.now();
     const gameProcess = spawn(executablePath);
+    
     gameProcess.on('error', (error) => {
       console.error('Erreur de lancement:', error.message);
       alert('Impossible de lancer le jeu.');
+      // Marquer le jeu comme terminé en cas d'erreur
+      setGameRunning(folder, false);
     });
+    
     gameProcess.on('close', (code) => {
       const endTime = Date.now();
       const durationInSeconds = Math.round((endTime - startTime) / 1000);
       console.log(`Le jeu s'est fermé après ${durationInSeconds} secondes.`);
-      //alert(`Le jeu s'est fermé après ${durationInSeconds} secondes.`);
-      
+      // Marquer le jeu comme terminé
+      setGameRunning(folder, false);
       // Mettre à jour le temps de jeu
       updateGameTime(folder, durationInSeconds);
     });
@@ -111,6 +119,17 @@ export function updateGameTime(gameId, sessionTimeInSeconds) {
   } catch (error) {
     console.error('Erreur lors de la mise à jour du temps de jeu:', error);
   }
+}
+
+// === AUTO-REFRESH ===
+export function startAutoRefresh(intervalInMinutes = 1) {
+  const intervalInMs = intervalInMinutes * 60 * 1000;
+  console.log(`Auto-refresh activé toutes les ${intervalInMinutes} minute(s).`);
+  
+  setInterval(() => {
+    console.log('Rafraîchissement automatique de la liste des jeux...');
+    filterGames();
+  }, intervalInMs);
 }
 
 // // === CALCUL DE LA TAILLE DU DOSSIER ===
