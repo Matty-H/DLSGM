@@ -1,11 +1,15 @@
 // État des filtres actuels
 export let selectedGenres = [];
+export let selectedCustomTags = [];
+
+export function updateSelectedCustomTags(newTags) {
+  selectedCustomTags.length = 0;
+  newTags.forEach(tag => selectedCustomTags.push(tag));
+}
 
 // Met à jour la liste des genres sélectionnés
 export function updateSelectedGenres(newGenres) {
-  // Vider le tableau existant
   selectedGenres.length = 0;
-  // Ajouter les nouveaux genres
   newGenres.forEach(genre => selectedGenres.push(genre));
 }
 
@@ -23,14 +27,31 @@ export function matchesFilters(game, selectedCategoryCode, searchTerm) {
     if (!hasMatchingGenre) return false;
   }
   
+  // // Filtrer par custom tags
+  // if (selectedCustomTags.length > 0) {
+  //   const gameCustomTags = game.customTags || [];
+  //   const hasMatchingCustomTag = selectedCustomTags.some(tag => 
+  //     gameCustomTags.includes(tag)
+  //   );
+  //   if (!hasMatchingCustomTag) return false;
+  // }
+
   // Filtrer par catégorie si une catégorie est sélectionnée
   if (selectedCategoryCode !== 'all' && game.category !== selectedCategoryCode) {
     return false;
   }
   
-  // Filtrer par terme de recherche
-  if (searchTerm && !gameName.toLowerCase().includes(searchTerm.toLowerCase())) {
-    return false;
+  // Filtrer par terme de recherche (dans le nom ou dans les custom tags)
+  if (searchTerm) {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+
+    const nameMatches = gameName.toLowerCase().includes(lowerSearchTerm);
+    const customTags = game.customTags || [];
+    const tagsMatch = customTags.some(tag => tag.toLowerCase().includes(lowerSearchTerm));
+
+    if (!nameMatches && !tagsMatch) {
+      return false;
+    }
   }
   
   return true;

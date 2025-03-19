@@ -1,4 +1,6 @@
 import { attachGameInfoEventListeners } from './eventListeners.js';
+import { updateCacheEntry } from './cacheManager.js';
+// import { calculateSizeDifference } from  './osHandler.js';
 
 // Affiche les informations détaillées d'un jeu
 export function showGameInfo(gameId, globalCache) {
@@ -86,9 +88,62 @@ export function showGameInfo(gameId, globalCache) {
   </div>
   `;
 
-  gameDetails.innerHTML = `${carouselHtml}${detailsHtml}`;
+  // Récupère les tags custom
+const customTags = metadata.customTags || [];
+
+// Zone d'affichage des tags et champ d'ajout
+let customTagsHtml = `
+  <div class="custom-tags-section">
+    <h4>Custom Tags:</h4>
+    <div id="custom-tags-list">
+      ${customTags.map(tag => `
+        <span class="custom-tag">
+          ${tag} <button class="remove-tag-btn" data-tag="${tag}">x</button>
+        </span>
+      `).join('')}
+    </div>
+    <input type="text" id="new-custom-tag-input" placeholder="Ajouter un tag" />
+    <button id="add-custom-tag-btn">Ajouter</button>
+  </div>
+`;
+
+  gameDetails.innerHTML = `${carouselHtml}${detailsHtml}${customTagsHtml}`;
   gameInfoDiv.classList.add("show");
   
   attachGameInfoEventListeners(gameInfoDiv);
-  // calculateSizeDifference(gameId, metadata.file_size);
+
+// Ajout d'un nouveau tag custom
+document.getElementById('add-custom-tag-btn').addEventListener('click', () => {
+  const input = document.getElementById('new-custom-tag-input');
+  const newTag = input.value.trim();
+  console.log('BONJOUR'+newTag);
+  if (newTag && !customTags.includes(newTag)) {
+    customTags.push(newTag);
+    metadata.customTags = customTags; // Met à jour le metadata local
+    
+    // Mise à jour du cache et sauvegarde
+    updateCacheEntry(globalCache, gameId, { customTags });
+    
+    showGameInfo(gameId, globalCache); // Recharge l'affichage
+  }
+  input.value = '';
+});
+
+// Suppression d'un tag existant
+document.querySelectorAll('.remove-tag-btn').forEach(button => {
+  button.addEventListener('click', () => {
+    const tagToRemove = button.getAttribute('data-tag');
+    const index = customTags.indexOf(tagToRemove);
+    if (index > -1) {
+      customTags.splice(index, 1);
+      metadata.customTags = customTags; // Mets à jour le globalCache
+      showGameInfo(gameId, globalCache); // Recharge l'affichage
+    }
+  });
+});
+  // Ajoutez cette ligne pour exécuter le calcul de taille
+//   calculateSizeDifference(gameId, metadata.file_size).then(result => {
+//     // Optionnel : afficher le résultat ou faire quelque chose avec
+//     console.log("Différence de taille calculée");
+// });
 }
