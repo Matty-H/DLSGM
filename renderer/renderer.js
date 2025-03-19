@@ -17,11 +17,19 @@ window.filterGames = filterGames;
 let cache = {};
 export let globalCache = loadCache(cache);
 
+
 // Fonction d'initialisation à exécuter au chargement de la page
 window.addEventListener('DOMContentLoaded', function() {
   // Initialiser les écouteurs d'événements pour le filtrage
   initEventListeners();
-  
-  // Lancer le scan des jeux et charger les données au démarrage
+
+  // Écoute de la fermeture de jeu
+  window.addEventListener('game-closed', () => {
+    console.log('Événement game-closed capté !');
+    globalCache = loadCache(); // Recharge les données fraîches
+    filterGames(); // Rafraîchis l'affichage
+  });
+
+  // Scan initial des jeux
   scanGames();
 });

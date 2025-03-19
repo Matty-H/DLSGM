@@ -1,7 +1,7 @@
 const fs = require('fs');
 import { collectAllCategories, collectAllGenres, categoryMap } from './metadataManager.js';
 import { matchesFilters, selectedGenres } from './filterManager.js';
-import { saveCache } from './cacheManager.js';
+import { saveCache, loadCache } from './cacheManager.js';
 import { gamesFolderPath } from './osHandler.js';
 import { globalCache } from '../renderer.js';
 
@@ -40,7 +40,10 @@ export function updateGenreDropdown(globalCache) {
 
 // Filtre et affiche les jeux selon les critères actuels
 export function filterGames() {
+  const cache = loadCache();
+  console.log('XXXXXXXXXX')
   console.log("Filtrage des jeux avec genres:", selectedGenres);
+  console.log("globalCache :", cache);
   const selectedCategoryCode = document.getElementById('category-filter').value;
   const searchTerm = document.getElementById('search-input').value.toLowerCase();
   const list = document.getElementById('games-list');
@@ -67,11 +70,11 @@ export function filterGames() {
     // Filtrer et afficher les jeux
     gameFolders.forEach(folder => {
       const gameId = folder;
-      console.log(String(globalCache) + " : " + String(gameId))
+      // console.log(String(cache) + " : " + String(gameId))
       
       // Vérifier si le jeu existe dans le cache
-      if (globalCache[gameId]) {
-        const gameData = globalCache[gameId];
+      if (cache[gameId]) {
+        const gameData = cache[gameId];
         
         // Vérifier si le jeu correspond aux critères de filtrage
         if (matchesFilters(gameData, selectedCategoryCode, searchTerm)) {
@@ -99,41 +102,100 @@ export function filterGames() {
 function createGameElement(gameId, gameData) {
   const gameDiv = document.createElement('div');
   gameDiv.className = 'game';
-  
   const gameName = gameData.work_name || gameId;
   const gameCircle = gameData.circle || 'Inconnu';
   const gameCategory = gameData.category;
   const gameCategoryLabel = categoryMap[gameCategory] || "Inconnu";
   const gameRating = gameData.rating || 0;
   
+  // Récupérer les données de temps de jeu depuis le cache
+  const totalPlayTime = gameData.totalPlayTime || 0;
+  const lastPlayed = gameData.lastPlayed || null;
+  
+  // Formatter le temps de jeu total
+  let playTimeText = 'Jamais joué';
+  if (totalPlayTime > 0) {
+    if (totalPlayTime < 60) {
+      playTimeText = `${totalPlayTime} secondes`;
+    } else if (totalPlayTime < 3600) {
+      const minutes = Math.floor(totalPlayTime / 60);
+      playTimeText = `${minutes} minute${minutes > 1 ? 's' : ''}`;
+    } else {
+      const hours = Math.floor(totalPlayTime / 3600);
+      playTimeText = `${hours} heure${hours > 1 ? 's' : ''}`;
+    }
+  }
+  
+  // Formatter la dernière fois jouée
+  let lastPlayedText = '';
+  if (lastPlayed) {
+    const lastPlayedDate = new Date(lastPlayed);
+    const now = new Date();
+    const diffTime = Math.abs(now - lastPlayedDate);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    
+    if (diffDays > 0) {
+      lastPlayedText = `il y a ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
+    } else if (diffHours > 0) {
+      lastPlayedText = `il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
+    } else if (diffMinutes > 0) {
+      lastPlayedText = `il y a ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
+    } else {
+      lastPlayedText = 'à l\'instant';
+    }
+  }
+  
   // Ajouter l'image principale si disponible
   let gameImageHtml = '';
-  if (gameData.work_image) {
-    const workImagePath = `img_cache/${gameId}/work_image.jpg`;
-    gameImageHtml = `<img src="${workImagePath}" alt="${gameName}" class="game-thumbnail" onclick="window.showGameInfo('${gameId}')" />`;
-  }
-
+if (gameData.work_image) {
+  const workImagePath = `img_cache/${gameId}/work_image.jpg`;
+  gameImageHtml = `
+    <div class="game-container">
+      <img src="${workImagePath}" alt="${gameName}" class="game-thumbnail" onclick="window.showGameInfo('${gameId}')" />
+      ${totalPlayTime > 0 || lastPlayed ? `
+        <div class="play-time-info">
+          <div class="total-time">Temps de jeu: ${playTimeText}</div>
+          ${lastPlayed ? `<div class="last-played">Dernier lancement: ${lastPlayedText}</div>` : ''}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+  
   // Générer les étoiles
   let ratingHtml = '<div class="rating" data-game-id="' + gameId + '">';
   for (let i = 1; i <= 5; i++) {
     ratingHtml += `<span class="star" data-value="${i}" style="cursor: pointer; color: ${i <= gameRating ? 'gold' : 'gray'};">★</span>`;
   }
   ratingHtml += '</div>';
-
-  gameDiv.innerHTML = `
-    ${gameImageHtml}
-    <div class="category-label">${gameCategoryLabel}</div>
-      <div class="game_title">
-        <h3>${gameName}</h3>
-        <p>${gameCircle}</p>
+  
+  // Créer l'encart de temps de jeu (seulement s'il y a des données)
+  let playTimeHtml = '';
+  if (totalPlayTime > 0 || lastPlayed) {
+    playTimeHtml = `
+      <div class="play-time-info">
+        <div class="total-time">Temps de jeu: ${playTimeText}</div>
+        ${lastPlayed ? `<div class="last-played">Dernier lancement: ${lastPlayedText}</div>` : ''}
       </div>
-      ${ratingHtml}
-      <div class="game-actions">
-        <button onclick="window.launchGame('${gameId}')">
-          ▶ Lancer le jeu
-        </button>
-    </div>
-  `;
+    `;
+  }
+  
+  gameDiv.innerHTML = `
+  ${gameImageHtml}
+  <div class="category-label">${gameCategoryLabel}</div>
+  <div class="game_title">
+    <h3>${gameName}</h3>
+    <p>${gameCircle}</p>
+  </div>
+  ${ratingHtml}
+  <div class="game-actions">
+    <button onclick="window.launchGame('${gameId}')">
+      ▶ Lancer le jeu
+    </button>
+  </div>
+`;
   
   return gameDiv;
 }

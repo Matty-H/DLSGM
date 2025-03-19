@@ -163,6 +163,43 @@
     margin: 0 2px;
   }
   
+  .game-container {
+    position: relative;
+    width: 100%;
+    display: block;
+  }
+  
+  .game-thumbnail {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  
+  .play-time-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(50, 50, 50, 0.8) 100%);
+    color: white;
+    padding: 8px 5px 5px 5px;
+    font-size: 0.8rem;
+    text-align: center;
+    margin: 0;
+    border: none;
+    z-index: 2;
+  }
+  
+  .total-time {
+    margin-bottom: 2px;
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.7);
+  }
+  
+  .last-played {
+    font-style: italic;
+    font-size: 0.75rem;
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.7);
+  }
   /* Game Info Panel */
   #game-info {
     display: table-column;
@@ -260,12 +297,12 @@
   #prev-btn, #next-btn {
     position: absolute;
     top: 50%;
+    height: 100%;
     transform: translateY(-50%);
-    background: rgba(0, 0, 0, 0.25);
+    background: rgba(0, 0, 0, 0);
     color: white;
     border: none;
-    width: 40px;
-    height: 60px;
+    width: 100px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -277,21 +314,22 @@
   
   #prev-btn {
     left: 0;
-    border-radius: 0 5px 5px 0;
-    height: 95%;
   }
   
   #next-btn {
     right: 0;
-    border-radius: 5px 0 0 5px;
-    height: 95%;
   }
   
-  #prev-btn:hover, #next-btn:hover {
-    background: rgba(255, 69, 0, 0.7);
-    width: 50px;
+  #prev-btn:hover {
+    background: linear-gradient(to left, rgba(0, 0, 0, 0) 0%, rgba(50, 50, 50, 0.5) 50%);
+    width: 120px;
   }
   
+  #next-btn:hover {
+    background: linear-gradient(to right, rgba(0, 0, 0, 0) 0%, rgba(50, 50, 50, 0.5) 50%);
+    width: 120px;
+  }
+
   /* Game Info Content */
   #game-details h3 {
     padding: 15px 25px 15px;

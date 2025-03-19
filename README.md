@@ -7,6 +7,7 @@ Lite software manager for game downloaded from DLsite.com
 
 - Game list
 - Game launcher
+- Playtime tracker
 - Data fetch
 - Filtering by name, categories, genre
 - Fetch metadata & image from DLsite
