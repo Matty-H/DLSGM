@@ -1,7 +1,7 @@
 import { scanGames } from './gameScanner.js';
-import { filterGames, updateCategoryDropdown, updateGenreDropdown } from './uiUpdater.js';
-import { loadCache } from './cacheManager.js';
+import { filterGames } from './uiUpdater.js';
 import { updateSelectedGenres} from './filterManager.js';
+const { shell } = require('electron');
 
 // Initialise tous les écouteurs d'événements de l'interface utilisateur
 export function initEventListeners() {
@@ -15,7 +15,8 @@ export function initEventListeners() {
     updateSelectedGenres(newGenres);
     filterGames();
   });
-  
+
+
   // Recherche avec délai
   let searchTimeout;
   document.getElementById('search-input').addEventListener('input', function() {
@@ -46,4 +47,18 @@ export function initEventListeners() {
   
   // Bouton de scan
   document.getElementById('scan-button')?.addEventListener('click', scanGames);
+}
+
+// Ouvre lien dans navigateur
+export function attachGameInfoEventListeners(gameInfoDiv) {
+  // Close button
+  document.getElementById('close-game-info').addEventListener('click', () => {
+    gameInfoDiv.classList.remove("show");
+  });
+
+  // DLsite link handler
+  document.querySelector('.dlsite-link').addEventListener('click', (event) => {
+    event.preventDefault();
+    shell.openExternal(event.target.href);
+  });
 }

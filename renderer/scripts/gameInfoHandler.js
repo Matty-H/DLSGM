@@ -1,6 +1,4 @@
-import { openGameFolder } from './osHandler.js';
-import { updateSelectedGenres } from './filterManager.js';
-import { filterGames } from './uiUpdater.js';
+import { attachGameInfoEventListeners } from './eventListeners.js';
 
 // Affiche les informations détaillées d'un jeu
 export function showGameInfo(gameId, globalCache) {
@@ -91,61 +89,6 @@ export function showGameInfo(gameId, globalCache) {
   gameDetails.innerHTML = `${carouselHtml}${detailsHtml}`;
   gameInfoDiv.classList.add("show");
   
+  attachGameInfoEventListeners(gameInfoDiv);
   // calculateSizeDifference(gameId, metadata.file_size);
-
-  attachGameInfoEventListeners(gameId, gameInfoDiv);
-}
-
-// Attache tous les événements liés à l'affichage des infos du jeu
-function attachGameInfoEventListeners(gameId, gameInfoDiv) {
-  // Ajouter les événements sur les genres
-  document.querySelectorAll('.genre-tag').forEach(tag => {
-    tag.addEventListener('click', function() {
-      const selectedGenre = this.getAttribute('data-genre');
-      console.log("Filtrage par genre:", selectedGenre);
-      
-      // Utiliser updateSelectedGenres au lieu d'assigner directement
-      updateSelectedGenres([selectedGenre]);
-      
-      // Mettre à jour visuellement le sélecteur de genre aussi
-      const genreSelect = document.getElementById('genre-filter');
-      Array.from(genreSelect.options).forEach(option => {
-        option.selected = option.value === selectedGenre;
-      });
-      
-      // Fermer la boîte d'information
-      gameInfoDiv.classList.remove("show");
-      
-      // Mettre à jour la liste
-      filterGames();
-    });
-  });
-  
-  // Gestion du carrousel
-  const images = document.querySelectorAll(".carousel-img");
-  let currentIndex = 0;
-
-  function updateCarousel(index) {
-    images.forEach((img, i) => img.classList.toggle("active", i === index));
-  }
-
-  document.getElementById("prev-btn").addEventListener("click", () => {
-    currentIndex = (currentIndex - 1 + images.length) % images.length;
-    updateCarousel(currentIndex);
-  });
-
-  document.getElementById("next-btn").addEventListener("click", () => {
-    currentIndex = (currentIndex + 1) % images.length;
-    updateCarousel(currentIndex);
-  });
-
-  document.getElementById("close-game-info").addEventListener("click", () => {
-    gameInfoDiv.classList.remove("show");
-    console.log("Fermeture de la boîte d'information");
-  });
-
-  document.querySelector(".open-folder-btn").addEventListener("click", (e) => {
-    e.preventDefault();
-    openGameFolder(gameId);
-  });
 }

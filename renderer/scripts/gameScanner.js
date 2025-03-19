@@ -2,7 +2,6 @@ import { updateCategoryDropdown, updateGenreDropdown, filterGames } from './uiUp
 import { globalCache } from '../renderer.js';
 import { fetchGameMetadata } from './dataFetcher.js';
 import { gamesFolderPath } from './osHandler.js';
-import { saveCache } from './cacheManager.js';
 import { purgeObsoleteGamesFromCache } from './dataFetcher.js';
 const fs = require('fs');
 
