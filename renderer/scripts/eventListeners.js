@@ -61,4 +61,25 @@ export function attachGameInfoEventListeners(gameInfoDiv) {
     event.preventDefault();
     shell.openExternal(event.target.href);
   });
+
+  // Carousel navigation
+  const carouselImages = gameInfoDiv.querySelectorAll('.carousel-img');
+  let currentIndex = 0;
+
+  const showImage = (index) => {
+    carouselImages.forEach((img, i) => {
+      img.classList.toggle('active', i === index);
+    });
+  };
+
+  gameInfoDiv.querySelector('#prev-btn')?.addEventListener('click', () => {
+    currentIndex = (currentIndex - 1 + carouselImages.length) % carouselImages.length;
+    showImage(currentIndex);
+
+  });
+
+  gameInfoDiv.querySelector('#next-btn')?.addEventListener('click', () => {
+    currentIndex = (currentIndex + 1) % carouselImages.length;
+    showImage(currentIndex);
+  });
 }
