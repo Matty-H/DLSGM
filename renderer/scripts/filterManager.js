@@ -26,15 +26,6 @@ export function matchesFilters(game, selectedCategoryCode, searchTerm) {
     );
     if (!hasMatchingGenre) return false;
   }
-  
-  // // Filtrer par custom tags
-  // if (selectedCustomTags.length > 0) {
-  //   const gameCustomTags = game.customTags || [];
-  //   const hasMatchingCustomTag = selectedCustomTags.some(tag => 
-  //     gameCustomTags.includes(tag)
-  //   );
-  //   if (!hasMatchingCustomTag) return false;
-  // }
 
   // Filtrer par catégorie si une catégorie est sélectionnée
   if (selectedCategoryCode !== 'all' && game.category !== selectedCategoryCode) {

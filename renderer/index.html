@@ -11,23 +11,23 @@
   <div class="header-content">
     <h1>DLS Manager</h1>
     <div class="search-container">
-      <select id="category-filter">
+      <select class="category-filter">
         <option value="all">Toutes les catégories</option>
         <!-- Les options seront remplies dynamiquement -->
       </select>
-      <button id="reset-filters">Réinitialiser</button>
-      <select id="genre-filter" multiple size="3" style="width:200px;">
+      <button class="reset-filters">Réinitialiser</button>
+      <select class="genre-filter" multiple size="3" style="width:200px;">
         <!-- Les genres seront remplis dynamiquement -->
       </select>
-      <input type="text" id="search-input" placeholder="Look by name or tag...">
+      <input type="text" class="search-input" placeholder="Look by name or tag...">
     </div>
   </div>
 </header>
-<main id="main-container">
+<main class="main-container">
   <!-- Liste des jeux -->
-  <div id="games-list"></div>
-  <div id="game-info">
-    <div id="game-details"></div>
+  <div class="games-list"></div>
+  <div class="game-info">
+    <div class="game-details"></div>
   </div>
 </main>
 <script type="module" src="renderer.js"></script>

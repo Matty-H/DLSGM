@@ -11,7 +11,7 @@ export function scanGames() {
   try {
     if (!fs.existsSync(gamesFolderPath)) {
       console.error('Le dossier SCAN n\'existe pas');
-      document.getElementById('games-list').innerHTML = '<p>Dossier SCAN introuvable. Veuillez créer le dossier SCAN sur votre bureau.</p>';
+      document.querySelector('.games-list').innerHTML = '<p>Dossier SCAN introuvable. Veuillez créer le dossier SCAN sur votre bureau.</p>';
       return;
     }
 
@@ -21,7 +21,7 @@ export function scanGames() {
     const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));
     
     if (gameFolders.length === 0) {
-      document.getElementById('games-list').innerHTML = '<p>Aucun jeu trouvé dans SCAN.</p>';
+      document.querySelector('.games-list').innerHTML = '<p>Aucun jeu trouvé dans SCAN.</p>';
       return;
     }
     
@@ -43,6 +43,6 @@ export function scanGames() {
 
   } catch (error) {
     console.error('Erreur lors du scan des jeux:', error);
-    document.getElementById('games-list').innerHTML = '<p>Erreur lors du scan des jeux.</p>';
+    document.querySelector('.games-list').innerHTML = '<p>Erreur lors du scan des jeux.</p>';
   }
 }
