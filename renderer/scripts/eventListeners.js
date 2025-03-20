@@ -1,5 +1,5 @@
 import { scanGames } from './gameScanner.js';
-import { filterGames } from './uiUpdater.js';
+import { refreshInterface } from './uiUpdater.js';
 import { updateSelectedGenres} from './filterManager.js';
 import { openGameFolder } from './osHandler.js';
 const { shell } = require('electron');
@@ -7,14 +7,14 @@ const { shell } = require('electron');
 // Initialise tous les écouteurs d'événements de l'interface utilisateur
 export function initEventListeners() {
   // Filtre par catégorie
-  document.querySelector('.category-filter').addEventListener('change', filterGames);
+  document.querySelector('.category-filter').addEventListener('change', refreshInterface);
   
   // Filtre par genre (multi-select)
   document.querySelector('.genre-filter').addEventListener('change', function() {
     const selectedOptions = Array.from(this.selectedOptions);
     const newGenres = selectedOptions.map(opt => opt.value);
     updateSelectedGenres(newGenres);
-    filterGames();
+    refreshInterface();
   });
 
 
@@ -22,7 +22,7 @@ export function initEventListeners() {
   let searchTimeout;
   document.querySelector('.search-input').addEventListener('input', function() {
     clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(filterGames, 300);
+    searchTimeout = setTimeout(refreshInterface, 300);
   });
 
   // Réinitialisation des filtres
@@ -92,7 +92,7 @@ export function attachGameInfoEventListeners(gameInfoDiv, gameId) {
       const genre = tag.dataset.genre;
       console.log('PIMPON', genre);
       updateSelectedGenres([genre]);
-      filterGames();
+      refreshInterface();
     });
   });
 }
