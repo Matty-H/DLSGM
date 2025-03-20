@@ -7,22 +7,23 @@
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<header class="header">
-  <div class="header-content">
-    <h1>DLS Manager</h1>
-    <div class="search-container">
-      <select class="category-filter">
-        <option value="all">Toutes les catégories</option>
-        <!-- Les options seront remplies dynamiquement -->
-      </select>
-      <button class="reset-filters">Réinitialiser</button>
-      <select class="genre-filter" multiple size="3" style="width:200px;">
-        <!-- Les genres seront remplis dynamiquement -->
-      </select>
-      <input type="text" class="search-input" placeholder="Look by name or tag...">
+  <header class="header">
+    <div class="header-content">
+      <h1>DLS Manager</h1>
+      <div class="search-container">
+        <select class="category-filter">
+          <option value="all">Toutes les catégories</option>
+          <!-- Les options seront remplies dynamiquement -->
+        </select>
+        <button class="reset-filters">Réinitialiser</button>
+        <select class="genre-filter" multiple size="3" style="width:200px;">
+          <!-- Les genres seront remplis dynamiquement -->
+        </select>
+        <input type="text" class="search-input" placeholder="Look by name or tag...">
+      </div>
+      <button class="settings-button">⚙️</button>
     </div>
-  </div>
-</header>
+  </header>
 <main class="main-container">
   <!-- Liste des jeux -->
   <div class="games-list"></div>

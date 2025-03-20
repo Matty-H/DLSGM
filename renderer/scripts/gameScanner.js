@@ -1,4 +1,4 @@
-import { updateCategoryDropdown, updateGenreDropdown, filterGames } from './uiUpdater.js';
+import { updateCategoryDropdown, updateGenreDropdown, refreshInterface } from './uiUpdater.js';
 import { globalCache } from '../renderer.js';
 import { fetchGameMetadata } from './dataFetcher.js';
 import { gamesFolderPath } from './osHandler.js';
@@ -39,7 +39,7 @@ export function scanGames() {
     updateCategoryDropdown(globalCache);
     updateGenreDropdown(globalCache);
 
-    filterGames();
+    refreshInterface();
 
   } catch (error) {
     console.error('Erreur lors du scan des jeux:', error);

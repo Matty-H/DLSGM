@@ -19,7 +19,7 @@ if (platform === 'win32' || platform === 'darwin') {
   alert('OS non supporté pour l\'instant.');
 }
 
-export const gamesFolderPath = path.join(desktopPath, 'SCAN');
+export const gamesFolderPath = path.join(desktopPath, 'SCAM');
 export const cacheFilePath = path.join(__dirname, 'cache.json');
 
 console.log('Scanning folder:', gamesFolderPath);
@@ -116,20 +116,34 @@ export function updateGameTime(gameId, sessionTimeInSeconds) {
     console.log(`Temps de jeu mis à jour pour ${gameId}: ${newTotalTime} secondes au total`);
     
     // Rafraîchir l'UI pour afficher les nouvelles informations
-    filterGames();
+    refreshInterface();
   } catch (error) {
     console.error('Erreur lors de la mise à jour du temps de jeu:', error);
   }
 }
 
+let refreshInterval = null;
+
 // === AUTO-REFRESH ===
 export function startAutoRefresh(intervalInMinutes = 1) {
+  // Annuler l'intervalle précédent s'il existe
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
+  
+  // N'active pas le refresh si l'intervalle est 0
+  if (intervalInMinutes <= 0) {
+    console.log('Auto-refresh désactivé (intervalle = 0).');
+    return;
+  }
+  
   const intervalInMs = intervalInMinutes * 60 * 1000;
   console.log(`Auto-refresh activé toutes les ${intervalInMinutes} minute(s).`);
   
-  setInterval(() => {
+  // Créer un nouvel intervalle
+  refreshInterval = setInterval(() => {
     console.log('Rafraîchissement automatique de la liste des jeux...');
-    filterGames();
+    refreshInterface();
   }, intervalInMs);
 }
 

@@ -83,7 +83,7 @@ function updateAllGameButtons() {
   });
 }
 
-export function filterGames() {
+export function refreshInterface() {
   const cache = loadCache();
   const selectedCategoryCode = document.querySelector('.category-filter').value;
   const searchTerm = document.querySelector('.search-input').value.toLowerCase();
