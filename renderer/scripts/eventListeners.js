@@ -1,15 +1,16 @@
 import { scanGames } from './gameScanner.js';
 import { filterGames } from './uiUpdater.js';
 import { updateSelectedGenres} from './filterManager.js';
+import { openGameFolder } from './osHandler.js';
 const { shell } = require('electron');
 
 // Initialise tous les écouteurs d'événements de l'interface utilisateur
 export function initEventListeners() {
   // Filtre par catégorie
-  document.getElementById('category-filter').addEventListener('change', filterGames);
+  document.querySelector('.category-filter').addEventListener('change', filterGames);
   
   // Filtre par genre (multi-select)
-  document.getElementById('genre-filter').addEventListener('change', function() {
+  document.querySelector('.genre-filter').addEventListener('change', function() {
     const selectedOptions = Array.from(this.selectedOptions);
     const newGenres = selectedOptions.map(opt => opt.value);
     updateSelectedGenres(newGenres);
@@ -19,21 +20,21 @@ export function initEventListeners() {
 
   // Recherche avec délai
   let searchTimeout;
-  document.getElementById('search-input').addEventListener('input', function() {
+  document.querySelector('.search-input').addEventListener('input', function() {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(filterGames, 300);
   });
 
   // Réinitialisation des filtres
-  document.getElementById('reset-filters').addEventListener('click', function() {
+  document.querySelector('.reset-filters').addEventListener('click', function() {
     // Réinitialiser les sélections et barre de recherche
     console.log('prout')
-    document.getElementById("game-info").classList.remove("show");
-    document.getElementById('category-filter').value = 'all';
-    document.getElementById('search-input').value = '';
+    document.querySelector('.game-info').classList.remove("show");
+    document.querySelector('.category-filter').value = 'all';
+    document.querySelector('.search-input').value = '';
     
     // Réinitialiser multi-select de genres
-    const genreSelect = document.getElementById('genre-filter');
+    const genreSelect = document.querySelector('.genre-filter');
     Array.from(genreSelect.options).forEach(option => {
       option.selected = false;
     });
@@ -44,15 +45,12 @@ export function initEventListeners() {
     // Rafraîchir l'affichage
     scanGames()
   });
-  
-  // Bouton de scan
-  document.getElementById('scan-button')?.addEventListener('click', scanGames);
-}
+  }
 
 // Ouvre lien dans navigateur
-export function attachGameInfoEventListeners(gameInfoDiv) {
+export function attachGameInfoEventListeners(gameInfoDiv, gameId) {
   // Close button
-  document.getElementById('close-game-info').addEventListener('click', () => {
+  document.querySelector('.close-game-info').addEventListener('click', () => {
     gameInfoDiv.classList.remove("show");
   });
 
@@ -72,14 +70,29 @@ export function attachGameInfoEventListeners(gameInfoDiv) {
     });
   };
 
-  gameInfoDiv.querySelector('#prev-btn')?.addEventListener('click', () => {
+  gameInfoDiv.querySelector('.prev-btn')?.addEventListener('click', () => {
     currentIndex = (currentIndex - 1 + carouselImages.length) % carouselImages.length;
     showImage(currentIndex);
 
   });
 
-  gameInfoDiv.querySelector('#next-btn')?.addEventListener('click', () => {
+  gameInfoDiv.querySelector('.next-btn')?.addEventListener('click', () => {
     currentIndex = (currentIndex + 1) % carouselImages.length;
     showImage(currentIndex);
+  });
+
+  gameInfoDiv.querySelector('.open-folder-btn')?.addEventListener('click', () => {
+    openGameFolder(gameId);
+
+  });
+
+  const genreTags = gameInfoDiv.querySelectorAll('.genre-tag');
+  genreTags.forEach(tag => {
+    tag.addEventListener('click', () => {
+      const genre = tag.dataset.genre;
+      console.log('PIMPON', genre);
+      updateSelectedGenres([genre]);
+      filterGames();
+    });
   });
 }

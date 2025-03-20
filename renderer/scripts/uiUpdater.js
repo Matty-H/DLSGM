@@ -12,7 +12,7 @@ export const runningGames = new Set();
 // Met à jour le menu déroulant des catégories
 export function updateCategoryDropdown(globalCache) {
   const categories = collectAllCategories(globalCache);
-  const dropdown = document.getElementById('category-filter');
+  const dropdown = document.querySelector('.category-filter');
   
   // Conserver l'option "Toutes les catégories"
   dropdown.innerHTML = '<option value="all">Toutes les catégories</option>';
@@ -29,7 +29,7 @@ export function updateCategoryDropdown(globalCache) {
 // Met à jour le menu déroulant des genres
 export function updateGenreDropdown(globalCache) {
   const genres = collectAllGenres(globalCache);
-  const dropdown = document.getElementById('genre-filter');
+  const dropdown = document.querySelector('.genre-filter');
 
   dropdown.innerHTML = ''; // On vide avant de remplir
   
@@ -85,9 +85,9 @@ function updateAllGameButtons() {
 
 export function filterGames() {
   const cache = loadCache();
-  const selectedCategoryCode = document.getElementById('category-filter').value;
-  const searchTerm = document.getElementById('search-input').value.toLowerCase();
-  const list = document.getElementById('games-list');
+  const selectedCategoryCode = document.querySelector('.category-filter').value;
+  const searchTerm = document.querySelector('.search-input').value.toLowerCase();
+  const list = document.querySelector('.games-list');
   
   list.innerHTML = '';
   

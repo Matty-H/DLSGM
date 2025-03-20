@@ -6,8 +6,8 @@ import { updateCacheEntry } from './cacheManager.js';
 export function showGameInfo(gameId, globalCache) {
   console.log("function showGameInfo", gameId);
   
-  const gameInfoDiv = document.getElementById("game-info");
-  const gameDetails = document.getElementById("game-details");
+  const gameInfoDiv = document.querySelector('.game-info');
+  const gameDetails = document.querySelector('.game-details');
   
   const metadata = globalCache[gameId];
   if (!metadata) {
@@ -21,14 +21,14 @@ export function showGameInfo(gameId, globalCache) {
   
   let carouselHtml = `
     <div class="carousel-container">
-      <button id="close-game-info">✖</button>
+      <button class="close-game-info">✖</button>
       <div class="carousel">
-        <button id="prev-btn">❮</button>
+        <button class="prev-btn">❮</button>
         <div class="carousel-images">
           <img src="${imagePath}" class="carousel-img active" />
-          ${sampleImages.map((img, i) => `<img src="img_cache/${gameId}/sample_${i + 1}.jpg" class="carousel-img" />`).join('')}
+          ${sampleImages.map((_img, i) => `<img src="img_cache/${gameId}/sample_${i + 1}.jpg" class="carousel-img" />`).join('')}
         </div>
-        <button id="next-btn">❯</button>
+        <button class="next-btn">❯</button>
       </div>
     </div>
     <div class="category-label">${categoryLabel}</div>
@@ -67,7 +67,7 @@ export function showGameInfo(gameId, globalCache) {
   if (metadata.genre && metadata.genre.length > 0) {
     detailsHtml += `
       <p><strong>Genres:</strong> ${metadata.genre.map(genre => `
-        <span class="genre-tag" data-genre="${genre}" style="cursor:pointer; color:blue; text-decoration:underline;">${genre}</span>
+        <span class="genre-tag" data-genre="${genre}">${genre}</span>
       `).join(', ')}</p>
     `;
   }
@@ -95,26 +95,25 @@ const customTags = metadata.customTags || [];
 let customTagsHtml = `
   <div class="custom-tags-section">
     <h4>Custom Tags:</h4>
-    <div id="custom-tags-list">
+    <div class="custom-tags-list">
       ${customTags.map(tag => `
         <span class="custom-tag">
           ${tag} <button class="remove-tag-btn" data-tag="${tag}">x</button>
         </span>
       `).join('')}
     </div>
-    <input type="text" id="new-custom-tag-input" placeholder="Ajouter un tag" />
-    <button id="add-custom-tag-btn">Ajouter</button>
+    <input type="text" class="new-custom-tag-input" placeholder="Ajouter un tag" />
+    <button class="add-custom-tag-btn">Ajouter</button>
   </div>
 `;
-
   gameDetails.innerHTML = `${carouselHtml}${detailsHtml}${customTagsHtml}`;
   gameInfoDiv.classList.add("show");
   
-  attachGameInfoEventListeners(gameInfoDiv);
+  attachGameInfoEventListeners(gameInfoDiv, gameId);
 
 // Ajout d'un nouveau tag custom
-document.getElementById('add-custom-tag-btn').addEventListener('click', () => {
-  const input = document.getElementById('new-custom-tag-input');
+document.querySelector('.add-custom-tag-btn').addEventListener('click', () => {
+  const input = document.querySelector('.new-custom-tag-input');
   const newTag = input.value.trim();
   if (newTag && !customTags.includes(newTag)) {
     customTags.push(newTag);
