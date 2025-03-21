@@ -143,3 +143,61 @@ export function purgeObsoleteGamesFromCache() {
 
   console.log('--- FIN DE LA PURGE DES DONNÉES ---');
 }
+
+// === RESET ET RE-DOWNLOAD DES IMAGES ===
+export async function resetAndRedownloadImages() {
+  const imgCacheDir = path.join(__dirname, 'img_cache');
+
+  console.log('--- DÉBUT DU RESET DES IMAGES ---');
+
+  // 1. Vérifier si img_cache existe
+  if (!fs.existsSync(imgCacheDir)) {
+    console.warn(`Le dossier img_cache n'existe pas à l'emplacement : ${imgCacheDir}`);
+    console.log('Création du dossier img_cache...');
+    fs.mkdirSync(imgCacheDir, { recursive: true });
+  }
+
+  // 2. Lire tous les dossiers dans img_cache
+  const imgCacheFolders = fs.readdirSync(imgCacheDir);
+
+  // 3. Supprimer chaque dossier de jeu dans img_cache
+  for (const folderName of imgCacheFolders) {
+    const folderPath = path.join(imgCacheDir, folderName);
+    try {
+      fs.rmSync(folderPath, { recursive: true, force: true });
+      console.log(`Dossier supprimé : ${folderName}`);
+    } catch (error) {
+      console.error(`Erreur en supprimant ${folderName} :`, error);
+    }
+  }
+
+  console.log('Tous les dossiers images ont été supprimés.');
+
+  // 4. Re-télécharger les images pour chaque jeu dans le cache
+  const gameIds = Object.keys(globalCache);
+
+  if (gameIds.length === 0) {
+    console.log('Aucun jeu dans le cache. Rien à re-télécharger.');
+    console.log('--- FIN DU RESET DES IMAGES ---');
+    return;
+  }
+
+  console.log(`Re-téléchargement des images pour ${gameIds.length} jeux...`);
+
+  for (const gameId of gameIds) {
+    const metadata = globalCache[gameId];
+    if (!metadata) {
+      console.warn(`Pas de metadata pour ${gameId}, saut...`);
+      continue;
+    }
+
+    try {
+      await downloadGameImages(gameId, metadata);
+      console.log(`Images re-téléchargées pour ${gameId}`);
+    } catch (error) {
+      console.error(`Erreur lors du téléchargement des images pour ${gameId} :`, error);
+    }
+  }
+
+  console.log('--- FIN DU RESET DES IMAGES ---');
+}
