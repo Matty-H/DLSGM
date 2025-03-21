@@ -19,10 +19,51 @@ if (platform === 'win32' || platform === 'darwin') {
   alert('OS non supporté pour l\'instant.');
 }
 
-export const gamesFolderPath = path.join(desktopPath, 'SCAM');
 export const cacheFilePath = path.join(__dirname, 'cache.json');
+export const settingsPath = path.join(__dirname, 'settings.json');
 
-console.log('Scanning folder:', gamesFolderPath);
+// === UTILISER LE CHEMIN DEPUIS LES SETTINGS ===
+let settings = {};
+export let gamesFolderPath = loadSettings(settings);
+
+// function loadSettings(settings) {
+//   let gamesFolderPath = settings.destinationFolder;
+//   try {
+//     const settingsData = fs.readFileSync(settingsPath, 'utf-8');
+//     return JSON.parse(settingsData);
+//   } catch (error) {
+//     console.error('Erreur lors de la lecture de settings.json :', error);
+//     alert('Impossible de charger les paramètres depuis settings.json');
+//     return {}; // fallback en cas d'erreur
+//   }
+// }
+
+export function loadSettings(settings = {}) {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const settingsData = fs.readFileSync(settingsPath, 'utf8');
+      settings = JSON.parse(settingsData);
+      console.log('settings chargé:', Object.keys(settings).length, 'entrées');
+      
+      // Retourne la valeur de destinationFolder si elle existe
+      return settings.destinationFolder || null;
+    } else {
+      console.log('Aucun settings trouvé, création du settings...');
+      fs.writeFileSync(settingsPath, JSON.stringify({}, null, 2));
+      return null;
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement du settings:', error);
+    fs.writeFileSync(settingsPath, JSON.stringify({}, null, 2));
+    return null;
+  }
+}
+
+export function getGamesFolderPath() {
+  const settings = loadSettings();
+  return settings.destinationFolder; // toujours à jour !
+}
+
 
 // === OUVERTURE DU DOSSIER DU JEU ===
 export function openGameFolder(folder) {

@@ -1,4 +1,6 @@
 import { startAutoRefresh } from './osHandler.js';
+import { resetAndRedownloadImages } from './dataFetcher.js';
+import { reloadCacheAndUI } from '../renderer.js';
 const { ipcRenderer } = require('electron');
 const fs = require('fs');
 
@@ -41,6 +43,9 @@ export function initSettingsUI() {
       <div class="setting-item">
         <button class="save-button">Enregistrer les paramètres</button>
       </div>
+      <div class="setting-item">
+        <button class="reset-img-cache">Reset image cache</button>
+      </div>
     </div>
   `;
 
@@ -49,6 +54,10 @@ export function initSettingsUI() {
   settingsButton.addEventListener('click', () => {
     mainContainer.style.display = 'none';
     settingsContainer.style.display = 'block';
+  });
+
+  document.querySelector('.reset-img-cache').addEventListener('click', () => {
+    resetAndRedownloadImages();
   });
 
   document.querySelector('.back-button').addEventListener('click', () => {
@@ -77,7 +86,8 @@ export function initSettingsUI() {
 
   document.querySelector('.save-button').addEventListener('click', () => {
     saveSettings();
-    alert('Paramètres enregistrés !');
+    reloadCacheAndUI();
+    // alert('Paramètres enregistrés !');
   });
 }
 
@@ -123,3 +133,4 @@ export function getDestinationFolder() {
 export function getRefreshRate() {
   return parseInt(refreshRate);
 }
+

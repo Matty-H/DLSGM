@@ -1,12 +1,11 @@
 import { categoryMap } from './scripts/metadataManager.js';
 import { refreshInterface } from './scripts/uiUpdater.js';
 import { loadCache } from './scripts/cacheManager.js';
-import { launchGame, startAutoRefresh } from './scripts/osHandler.js';
+import { launchGame, startAutoRefresh, loadSettings } from './scripts/osHandler.js';
 import { showGameInfo } from './scripts/gameInfoHandler.js';
 import { scanGames } from './scripts/gameScanner.js';
 import { initEventListeners } from './scripts/eventListeners.js';
-import { initSettingsUI } from './scripts/settings.js';
-import { getRefreshRate } from './scripts/settings.js';
+import { initSettingsUI, getRefreshRate } from './scripts/settings.js';
 
 // Exposer les variables et fonctions nécessaires globalement
 window.categoryMap = categoryMap;
@@ -18,6 +17,17 @@ window.refreshInterface = refreshInterface;
 // Initialiser le cache
 let cache = {};
 export let globalCache = loadCache(cache);
+
+export function reloadCacheAndUI() {
+  loadSettings();
+  console.log('AAAAA');
+  console.log(globalCache);
+  globalCache = loadCache(cache);
+  scanGames();
+  refreshInterface();
+  console.log('BBBBB');
+  console.log(globalCache);
+}
 
 
 // Fonction d'initialisation à exécuter au chargement de la page
