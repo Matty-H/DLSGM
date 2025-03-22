@@ -3,15 +3,15 @@ import { collectAllCategories, collectAllGenres, categoryMap } from './metadataM
 import { matchesFilters } from './filterManager.js';
 import { saveCache, loadCache } from './cacheManager.js';
 import { getGamesFolderPath } from './osHandler.js';
-import { globalCache } from '../renderer.js';
+import { formatPlayTime, formatLastPlayed } from './timeFormatter.js';
 
-// Garder trace des jeux en cours d'exécution
+// === STATE MANAGEMENT ===
 export let isAnyGameRunning = false;
 export const runningGames = new Set();
 
-// Met à jour le menu déroulant des catégories
-export function updateCategoryDropdown(globalCache) {
-  const categories = collectAllCategories(globalCache);
+// === DROPDOWNS MANAGEMENT ===
+export function updateCategoryDropdown(cache) {
+  const categories = collectAllCategories(cache);
   const dropdown = document.querySelector('.category-filter');
   
   // Conserver l'option "Toutes les catégories"
@@ -26,9 +26,8 @@ export function updateCategoryDropdown(globalCache) {
   });
 }
 
-// Met à jour le menu déroulant des genres
-export function updateGenreDropdown(globalCache) {
-  const genres = collectAllGenres(globalCache);
+export function updateGenreDropdown(cache) {
+  const genres = collectAllGenres(cache);
   const dropdown = document.querySelector('.genre-filter');
 
   dropdown.innerHTML = ''; // On vide avant de remplir
@@ -41,7 +40,7 @@ export function updateGenreDropdown(globalCache) {
   });
 }
 
-// Marque un jeu comme en cours d'exécution
+// === GAME RUNNING STATE ===
 export function setGameRunning(gameId, isRunning) {
   if (isRunning) {
     runningGames.add(gameId);
@@ -83,8 +82,9 @@ function updateAllGameButtons() {
   });
 }
 
-export function refreshInterface() {
-  const cache = loadCache();
+// === MAIN INTERFACE REFRESH ===
+export function refreshInterface(globalCache) {
+  const cache = globalCache || loadCache();
   const selectedCategoryCode = document.querySelector('.category-filter').value;
   const searchTerm = document.querySelector('.search-input').value.toLowerCase();
   const list = document.querySelector('.games-list');
@@ -92,18 +92,22 @@ export function refreshInterface() {
   list.innerHTML = '';
   
   try {
-    if (!fs.existsSync(getGamesFolderPath())) {
-      list.innerHTML = '<p>Dossier SCAN introuvable. Veuillez créer le dossier SCAN sur votre bureau.</p>';
+    const gamesFolderPath = getGamesFolderPath();
+    
+    if (!gamesFolderPath || !fs.existsSync(gamesFolderPath)) {
+      list.innerHTML = '<p>Dossier de jeux introuvable. Veuillez configurer le dossier dans les paramètres.</p>';
       return;
     }
     
-    const files = fs.readdirSync(getGamesFolderPath());
+    const files = fs.readdirSync(gamesFolderPath);
     const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));
     
     if (gameFolders.length === 0) {
-      list.innerHTML = '<p>Aucun jeu trouvé dans SCAN.</p>';
+      list.innerHTML = '<p>Aucun jeu trouvé dans le dossier configuré.</p>';
       return;
     }
+    
+    let matchCount = 0;
     
     gameFolders.forEach(folder => {
       const gameId = folder;
@@ -114,95 +118,49 @@ export function refreshInterface() {
         if (matchesFilters(gameData, selectedCategoryCode, searchTerm)) {
           const gameElement = createGameElement(gameId, gameData);
           list.appendChild(gameElement);
+          matchCount++;
         }
       }
     });
 
-    attachRatingEventListeners();
+    // Attacher les événements après avoir généré la liste complète
+    attachRatingEventListeners(cache);
     
-    // Mettre à jour l'état de tous les boutons après avoir généré la liste
+    // Mettre à jour l'état de tous les boutons
     updateAllGameButtons();
 
-    if (list.children.length === 0) {
+    if (matchCount === 0) {
       list.innerHTML = '<p>Aucun jeu ne correspond aux critères de recherche.</p>';
     }
   } catch (error) {
     console.error('Erreur lors du filtrage des jeux:', error);
-    list.innerHTML = '<p>Erreur lors du filtrage des jeux.</p>';
+    list.innerHTML = `<p>Erreur lors du filtrage des jeux: ${error.message}</p>`;
   }
 }
 
-// Crée l'élément HTML pour un jeu
+// === GAME ELEMENT CREATION ===
 function createGameElement(gameId, gameData) {
   const gameDiv = document.createElement('div');
   gameDiv.className = 'game';
+  
+  // Récupération des données du jeu
   const gameName = gameData.work_name || gameId;
-  const gameCircle = gameData.circle || 'Inconnu';
+  const gameCircle = gameData.circle || gameData.author || 'Inconnu';
   const gameCategory = gameData.category;
   const gameCategoryLabel = categoryMap[gameCategory] || "Inconnu";
   const gameRating = gameData.rating || 0;
-  
   const totalPlayTime = gameData.totalPlayTime || 0;
   const lastPlayed = gameData.lastPlayed || null;
   
-  // Formatter le temps de jeu total
-  let playTimeText = 'Jamais joué';
-  if (totalPlayTime > 0) {
-    if (totalPlayTime < 60) {
-      playTimeText = `${totalPlayTime} secondes`;
-    } else if (totalPlayTime < 3600) {
-      const minutes = Math.floor(totalPlayTime / 60);
-      playTimeText = `${minutes} minute${minutes > 1 ? 's' : ''}`;
-    } else {
-      const hours = Math.floor(totalPlayTime / 3600);
-      playTimeText = `${hours} heure${hours > 1 ? 's' : ''}`;
-    }
-  }
+  // Formatage des informations de temps
+  const playTimeText = formatPlayTime(totalPlayTime);
+  const lastPlayedText = formatLastPlayed(lastPlayed);
   
-  // Formatter la dernière fois jouée
-  let lastPlayedText = '';
-  if (lastPlayed) {
-    const lastPlayedDate = new Date(lastPlayed);
-    const now = new Date();
-    const diffTime = Math.abs(now - lastPlayedDate);
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
-    const diffMinutes = Math.floor(diffTime / (1000 * 60));
-    
-    if (diffDays > 0) {
-      lastPlayedText = `il y a ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
-    } else if (diffHours > 0) {
-      lastPlayedText = `il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
-    } else if (diffMinutes > 0) {
-      lastPlayedText = `il y a ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
-    } else {
-      lastPlayedText = 'à l\'instant';
-    }
-  }
+  // Gestion de l'image du jeu
+  const gameImageHtml = createGameImageHtml(gameId, gameName, totalPlayTime, playTimeText, lastPlayed, lastPlayedText, gameData);  
   
-  // Ajouter l'image principale si disponible
-  let gameImageHtml = '';
-  if (gameData.work_image) {
-    const workImagePath = `img_cache/${gameId}/work_image.jpg`;
-    gameImageHtml = `
-      <div class="game-container">
-        <img src="${workImagePath}" alt="${gameName}" class="game-thumbnail" onclick="window.showGameInfo('${gameId}')" />
-        ${totalPlayTime > 0 || lastPlayed ? `
-          <div class="play-time-info">
-            <div class="total-time">Temps de jeu: ${playTimeText}</div>
-            ${lastPlayed ? `<div class="last-played">Dernier lancement: ${lastPlayedText}</div>` : ''}
-          </div>
-        ` : ''}
-      </div>
-    `;
-  }
-  
-  // Générer les étoiles
-  let ratingHtml = '<div class="rating" data-game-id="' + gameId + '">';
-  for (let i = 1; i <= 5; i++) {
-    ratingHtml += `<span class="star" data-value="${i}" style="cursor: pointer; color: ${i <= gameRating ? 'gold' : 'gray'};">★</span>`;
-  }
-  ratingHtml += '</div>';
+  // Génération des étoiles de notation
+  const ratingHtml = createRatingHtml(gameId, gameRating);
   
   // Vérifier si ce jeu est en cours d'exécution
   const isThisGameRunning = runningGames.has(gameId);
@@ -211,37 +169,67 @@ function createGameElement(gameId, gameData) {
   const buttonDisabled = isAnyGameRunning ? 'disabled' : '';
   
   gameDiv.innerHTML = `
-  ${gameImageHtml}
-  <div class="category-label">${gameCategoryLabel}</div>
-  <div class="game_title">
-    <h3>${gameName}</h3>
-    <p>${gameCircle}</p>
-  </div>
-  ${ratingHtml}
-  <div class="game-actions">
-    <button onclick="window.launchGame('${gameId}')" data-game-id="${gameId}" class="${buttonClass}" ${buttonDisabled}>
-      ${buttonText}
-    </button>
-  </div>
-`;
+    ${gameImageHtml}
+    <div class="category-label">${gameCategoryLabel}</div>
+    <div class="game_title">
+      <h3>${gameName}</h3>
+      <p>${gameCircle}</p>
+    </div>
+    ${ratingHtml}
+    <div class="game-actions">
+      <button onclick="window.launchGame('${gameId}')" data-game-id="${gameId}" class="${buttonClass}" ${buttonDisabled}>
+        ${buttonText}
+      </button>
+    </div>
+  `;
   
   return gameDiv;
 }
 
-// Attache les écouteurs d'événements pour la notation par étoiles
-function attachRatingEventListeners() {
+function createGameImageHtml(gameId, gameName, totalPlayTime, playTimeText, lastPlayed, lastPlayedText, gameData) {
+  if (!gameData || !gameData.work_image) {
+    return '';
+  }
+  
+  const workImagePath = `img_cache/${gameId}/work_image.jpg`;
+  return `
+    <div class="game-container">
+      <img src="${workImagePath}" alt="${gameName}" class="game-thumbnail" onclick="window.showGameInfo('${gameId}')" />
+      ${totalPlayTime > 0 || lastPlayed ? `
+        <div class="play-time-info">
+          <div class="total-time">Temps de jeu: ${playTimeText}</div>
+          ${lastPlayed ? `<div class="last-played">Dernier lancement: ${lastPlayedText}</div>` : ''}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function createRatingHtml(gameId, gameRating) {
+  let ratingHtml = '<div class="rating" data-game-id="' + gameId + '">';
+  for (let i = 1; i <= 5; i++) {
+    ratingHtml += `<span class="star" data-value="${i}" style="cursor: pointer; color: ${i <= gameRating ? 'gold' : 'gray'};">★</span>`;
+  }
+  ratingHtml += '</div>';
+  return ratingHtml;
+}
+
+// === EVENT HANDLERS ===
+function attachRatingEventListeners(cache) {
   document.querySelectorAll('.rating .star').forEach(star => {
     star.addEventListener('click', function() {
       const gameId = this.parentNode.getAttribute('data-game-id');
       const rating = parseInt(this.getAttribute('data-value'));
       
-      globalCache[gameId].rating = rating;
-      saveCache(globalCache);
-      
-      const stars = this.parentNode.querySelectorAll('.star');
-      stars.forEach((s, index) => {
-        s.style.color = index < rating ? 'gold' : 'gray';
-      });
+      if (cache[gameId]) {
+        cache[gameId].rating = rating;
+        saveCache(cache);
+        
+        const stars = this.parentNode.querySelectorAll('.star');
+        stars.forEach((s, index) => {
+          s.style.color = index < rating ? 'gold' : 'gray';
+        });
+      }
     });
   });
 }

@@ -1,4 +1,4 @@
-import { updateCategoryDropdown, updateGenreDropdown, refreshInterface } from './uiUpdater.js';
+import { updateCategoryDropdown, updateGenreDropdown, refreshInterface } from './uiManager.js';
 import { globalCache } from '../renderer.js';
 import { fetchGameMetadata } from './dataFetcher.js';
 import { getGamesFolderPath } from './osHandler.js';

@@ -23,7 +23,6 @@ export function initSettingsUI() {
   settingsContainer.innerHTML = `
     <div class="settings-header">
       <h2>Paramètres</h2>
-      <button class="back-button">← Retour</button>
     </div>
     <div class="settings-content">
       <div class="setting-item">
@@ -51,16 +50,28 @@ export function initSettingsUI() {
 
   document.body.appendChild(settingsContainer);
 
+  // Transformer le bouton settings en toggle
   settingsButton.addEventListener('click', () => {
-    mainContainer.style.display = 'none';
-    settingsContainer.style.display = 'block';
+    // Si les paramètres sont visibles, on les cache
+    if (settingsContainer.style.display === 'block') {
+      mainContainer.style.display = 'flex';
+      settingsContainer.style.display = 'none';
+      settingsButton.classList.remove('active'); // Retire la classe active
+    } else {
+      // Sinon, on affiche les paramètres
+      mainContainer.style.display = 'none';
+      settingsContainer.style.display = 'block';
+      settingsButton.classList.add('active'); // Ajoute la classe active
+    }
   });
 
   document.querySelector('.reset-img-cache').addEventListener('click', () => {
     resetAndRedownloadImages();
   });
 
-  document.querySelector('.back-button').addEventListener('click', () => {
+  // On supprime le bouton "Retour" qui n'est plus nécessaire
+
+  document.querySelector('header h1').addEventListener('click', () => {
     mainContainer.style.display = 'flex';
     settingsContainer.style.display = 'none';
   });
@@ -86,8 +97,7 @@ export function initSettingsUI() {
 
   document.querySelector('.save-button').addEventListener('click', () => {
     saveSettings();
-    reloadCacheAndUI();
-    // alert('Paramètres enregistrés !');
+    scanGames()
   });
 }
 
@@ -133,4 +143,3 @@ export function getDestinationFolder() {
 export function getRefreshRate() {
   return parseInt(refreshRate);
 }
-

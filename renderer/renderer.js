@@ -1,6 +1,6 @@
 // Importations des modules
 import { categoryMap } from './scripts/metadataManager.js';
-import { refreshInterface } from './scripts/uiUpdater.js';
+import { refreshInterface } from './scripts/uiManager.js';
 import { loadCache } from './scripts/cacheManager.js';
 import { launchGame, startAutoRefresh, loadSettings } from './scripts/osHandler.js';
 import { showGameInfo } from './scripts/gameInfoHandler.js';
@@ -23,7 +23,7 @@ window.showGameInfo = (gameId) => showGameInfo(gameId, globalCache);
 // 🔄 Recharge le cache et met à jour l'interface utilisateur
 export function reloadCacheAndUI() {
   loadSettings();
-  
+
   console.log('[reloadCacheAndUI] Avant rechargement du cache :', globalCache);
   globalCache = loadCache(cache);
   console.log('[reloadCacheAndUI] Après rechargement du cache :', globalCache);

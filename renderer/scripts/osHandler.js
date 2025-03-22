@@ -4,7 +4,7 @@ const path = require('path');
 const { exec, spawn } = require('child_process');
 const diskusage = require('diskusage');
 import { loadCache, updateCacheEntry } from './cacheManager.js';
-import { setGameRunning, refreshInterface } from './uiUpdater.js';
+import { setGameRunning, refreshInterface } from './uiManager.js';
 
 // === CONFIGURATION PATHS ===
 const homeDir = os.homedir();
