@@ -173,7 +173,7 @@ function createGameElement(gameId, gameData) {
     <div class="category-label">${gameCategoryLabel}</div>
     <div class="game_title">
       <h3>${gameName}</h3>
-      <p>${gameCircle}</p>
+      <p><a href="#" class="circle-link" data-circle="${gameCircle}">${gameCircle}</a></p>
     </div>
     ${ratingHtml}
     <div class="game-actions">
@@ -182,6 +182,8 @@ function createGameElement(gameId, gameData) {
       </button>
     </div>
   `;
+  
+  return gameDiv;
   
   return gameDiv;
 }
@@ -230,6 +232,16 @@ function attachRatingEventListeners(cache) {
           s.style.color = index < rating ? 'gold' : 'gray';
         });
       }
+    });
+  });
+  // Ajouter l'event listener pour les liens de circle
+  document.querySelectorAll('.circle-link').forEach(link => {
+    link.addEventListener('click', function(e) {
+      e.preventDefault(); // Empêcher le comportement par défaut du lien
+      const circleName = this.getAttribute('data-circle');
+      const searchInput = document.querySelector('.search-input');
+      searchInput.value = circleName;
+      searchInput.dispatchEvent(new Event('input')); // Déclencher l'événement input pour filtrer immédiatement
     });
   });
 }
