@@ -7,6 +7,20 @@ body {
   padding: 0;
 }
 
+.settings-container {
+  position: fixed;
+  top: 97px; /* commence sous le header */
+  left: 0;
+  width: 100%;
+  height: calc(100% - 60px); /* prend la place restante */
+  background: rgba(30, 30, 30, 0.95);
+  z-index: 1000;
+  display: none;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+
 /* Header */
 .header {
   background-color: #1a1a1a;
@@ -359,6 +373,10 @@ body {
   text-decoration: underline;
 }
 
+.circle-link {
+  color: rgb(81, 81, 232);
+  text-decoration: none;
+}
 
 /* DLsite Link */
 .action-buttons {

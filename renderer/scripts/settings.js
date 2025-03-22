@@ -52,17 +52,10 @@ export function initSettingsUI() {
 
   // Transformer le bouton settings en toggle
   settingsButton.addEventListener('click', () => {
-    // Si les paramètres sont visibles, on les cache
-    if (settingsContainer.style.display === 'block') {
-      mainContainer.style.display = 'flex';
-      settingsContainer.style.display = 'none';
-      settingsButton.classList.remove('active'); // Retire la classe active
-    } else {
-      // Sinon, on affiche les paramètres
-      mainContainer.style.display = 'none';
-      settingsContainer.style.display = 'block';
-      settingsButton.classList.add('active'); // Ajoute la classe active
-    }
+    const isVisible = settingsContainer.style.display === 'block';
+  
+    settingsContainer.style.display = isVisible ? 'none' : 'block';
+    settingsButton.classList.toggle('active', !isVisible);
   });
 
   document.querySelector('.reset-img-cache').addEventListener('click', () => {
@@ -72,8 +65,8 @@ export function initSettingsUI() {
   // On supprime le bouton "Retour" qui n'est plus nécessaire
 
   document.querySelector('header h1').addEventListener('click', () => {
-    mainContainer.style.display = 'flex';
     settingsContainer.style.display = 'none';
+    settingsButton.classList.remove('active');
   });
 
   document.querySelector('.browse-button').addEventListener('click', async () => {

@@ -1,41 +1,47 @@
 
 # DLSITE Game (&Stuff) Manager
+[![License: CC BY-NC-SA 4.0](https://licensebuttons.net/l/by-nc-sa/4.0/80x15.png)](http://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-Lite software manager for game downloaded from DLsite.com
 
 ## Features
 
-- Game list, data
-- Game launcher
-- Filter by name, author, categories, genres
-- Fetch metadata & images from DLsite
-- Custom rating
-- Custom tag
-- Playtime tracking
-- Block play game button when playing
-- Open dlsite webpage on default browser
+- [X]  Game list, data
+- [X]  Game launcher
+- [X]  Filter by name, author, categories, genres
+- [X]  Fetch metadata & images from DLsite
+- [X]  Custom rating
+- [X]  Custom tag
+- [X]  Playtime tracking
+- [X]  Block play game button when playing
+- [X]  Open dlsite webpage on default browser
 
 ## Roadmap
 
-- time tracking
-- Add custom tag
-- open save files (unity, rpgmaker, godot)
+- [ ]  Fully translated in english
+- [ ]  Windows compatibility
+- [ ]  open save files (unity, rpgmaker, godot)
+- [ ]  FR/JP support
+- [ ]  EN-JP DLSite informations switch 
+- [ ]  Horizontal display
+- [ ]  Find name
+- [ ]  Beautiful design & logo
+- [ ]  Make the perfect README
+- [ ]  Delete this line
 
 
-### Implemented but not reliable
-- File size checker (between local and fetch from DLSite)
+### Implemented but not reliable [?]
+
+- ~~File size checker (between local and fetch from DLSite)~~
 
 ## Dependencies
 
 Builded with Electron.
 
 ```bash
-  npm install electron --save-dev
-  npm i electron-builder
+  npm install
 ```
 
-Use dlsite-async to fetch metadata.
-https://github.com/bhrevol/dlsite-async
+Use [dlsite-async](https://github.com/bhrevol/dlsite-async) to fetch metadata.
 
 ```bash
   pip install dlsite-async
