@@ -1,5 +1,5 @@
 import { scanGames } from './gameScanner.js';
-import { refreshInterface } from './uiUpdater.js';
+import { refreshInterface } from './uiManager.js';
 import { updateSelectedGenres} from './filterManager.js';
 import { openGameFolder } from './osHandler.js';
 const { shell } = require('electron');
