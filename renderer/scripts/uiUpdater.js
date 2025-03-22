@@ -2,7 +2,7 @@ const fs = require('fs');
 import { collectAllCategories, collectAllGenres, categoryMap } from './metadataManager.js';
 import { matchesFilters } from './filterManager.js';
 import { saveCache, loadCache } from './cacheManager.js';
-import { gamesFolderPath } from './osHandler.js';
+import { getGamesFolderPath } from './osHandler.js';
 import { globalCache } from '../renderer.js';
 
 // Garder trace des jeux en cours d'exécution
@@ -92,12 +92,12 @@ export function refreshInterface() {
   list.innerHTML = '';
   
   try {
-    if (!fs.existsSync(gamesFolderPath)) {
+    if (!fs.existsSync(getGamesFolderPath())) {
       list.innerHTML = '<p>Dossier SCAN introuvable. Veuillez créer le dossier SCAN sur votre bureau.</p>';
       return;
     }
     
-    const files = fs.readdirSync(gamesFolderPath);
+    const files = fs.readdirSync(getGamesFolderPath());
     const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));
     
     if (gameFolders.length === 0) {
