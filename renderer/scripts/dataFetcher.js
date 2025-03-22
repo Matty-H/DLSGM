@@ -5,7 +5,7 @@ const { exec } = require('child_process');
 
 import { globalCache } from '../renderer.js';
 import { scanGames } from './gameScanner.js';
-import { cacheFilePath, gamesFolderPath } from './osHandler.js';
+import { cacheFilePath, getGamesFolderPath } from './osHandler.js';
 import { saveCache } from './cacheManager.js';
 
 // === TELECHARGER UNE IMAGE ===
@@ -82,13 +82,13 @@ export function purgeObsoleteGamesFromCache() {
   console.log('--- DÉBUT DE LA PURGE DES DONNÉES ---');
 
   // Vérifie si le dossier SCAN existe
-  if (!fs.existsSync(gamesFolderPath)) {
+  if (!fs.existsSync(getGamesFolderPath())) {
     console.error('Le dossier SCAN n\'existe pas, aucune purge effectuée.');
     return;
   }
 
   // Liste des dossiers de jeux dans SCAN
-  const files = fs.readdirSync(gamesFolderPath);
+  const files = fs.readdirSync(getGamesFolderPath());
   const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));
 
   // Set pour vérifier rapidement les jeux présents

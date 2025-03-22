@@ -1,7 +1,7 @@
 import { updateCategoryDropdown, updateGenreDropdown, refreshInterface } from './uiUpdater.js';
 import { globalCache } from '../renderer.js';
 import { fetchGameMetadata } from './dataFetcher.js';
-import { gamesFolderPath } from './osHandler.js';
+import { getGamesFolderPath } from './osHandler.js';
 import { purgeObsoleteGamesFromCache } from './dataFetcher.js';
 const fs = require('fs');
 
@@ -9,7 +9,7 @@ const fs = require('fs');
 export function scanGames() {
   console.log('function scanGames');
   try {
-    if (!fs.existsSync(gamesFolderPath)) {
+    if (!fs.existsSync(getGamesFolderPath())) {
       console.error('Le dossier SCAN n\'existe pas');
       document.querySelector('.games-list').innerHTML = '<p>Dossier SCAN introuvable. Veuillez créer le dossier SCAN sur votre bureau.</p>';
       return;
@@ -17,7 +17,7 @@ export function scanGames() {
 
     purgeObsoleteGamesFromCache();
     
-    const files = fs.readdirSync(gamesFolderPath);
+    const files = fs.readdirSync(getGamesFolderPath());
     const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));
     
     if (gameFolders.length === 0) {

@@ -1,154 +1,164 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { exec } = require('child_process');
-const { spawn } = require('child_process');
+const { exec, spawn } = require('child_process');
 const diskusage = require('diskusage');
 import { loadCache, updateCacheEntry } from './cacheManager.js';
-import { setGameRunning } from './uiUpdater.js';
+import { setGameRunning, refreshInterface } from './uiUpdater.js';
 
-// === DETECTION OS & CHEMIN DU DOSSIER ===
-const platform = os.platform();
+// === CONFIGURATION PATHS ===
 const homeDir = os.homedir();
-
-let desktopPath = '';
-
-if (platform === 'win32' || platform === 'darwin') {
-  desktopPath = path.join(homeDir, 'Desktop');
-} else {
-  alert('OS non supporté pour l\'instant.');
-}
-
+const platform = os.platform();
 export const cacheFilePath = path.join(__dirname, 'cache.json');
 export const settingsPath = path.join(__dirname, 'settings.json');
 
-// === UTILISER LE CHEMIN DEPUIS LES SETTINGS ===
-let settings = {};
-export let gamesFolderPath = loadSettings(settings);
+// === PLATFORM SPECIFIC UTILS ===
+const platformUtils = {
+  isSupported: () => ['win32', 'darwin'].includes(platform),
+  getDesktopPath: () => platform === 'win32' || platform === 'darwin' ? path.join(homeDir, 'Desktop') : null,
+  openFolder: (folderPath) => {
+    if (!fs.existsSync(folderPath)) {
+      throw new Error('Dossier introuvable');
+    }
+    
+    const commands = {
+      win32: `explorer "${folderPath}"`,
+      darwin: `open "${folderPath}"`
+    };
+    
+    if (commands[platform]) {
+      exec(commands[platform]);
+    } else {
+      throw new Error('Ouverture de dossier non supportée sur cet OS');
+    }
+  }
+};
 
-// function loadSettings(settings) {
-//   let gamesFolderPath = settings.destinationFolder;
-//   try {
-//     const settingsData = fs.readFileSync(settingsPath, 'utf-8');
-//     return JSON.parse(settingsData);
-//   } catch (error) {
-//     console.error('Erreur lors de la lecture de settings.json :', error);
-//     alert('Impossible de charger les paramètres depuis settings.json');
-//     return {}; // fallback en cas d'erreur
-//   }
-// }
-
-export function loadSettings(settings = {}) {
+// === SETTINGS MANAGEMENT ===
+export function loadSettings() {
   try {
     if (fs.existsSync(settingsPath)) {
       const settingsData = fs.readFileSync(settingsPath, 'utf8');
-      settings = JSON.parse(settingsData);
+      const settings = JSON.parse(settingsData);
       console.log('settings chargé:', Object.keys(settings).length, 'entrées');
-      
-      // Retourne la valeur de destinationFolder si elle existe
-      return settings.destinationFolder || null;
+      return settings;
     } else {
       console.log('Aucun settings trouvé, création du settings...');
-      fs.writeFileSync(settingsPath, JSON.stringify({}, null, 2));
-      return null;
+      const defaultSettings = {};
+      fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
+      return defaultSettings;
     }
   } catch (error) {
     console.error('Erreur lors du chargement du settings:', error);
-    fs.writeFileSync(settingsPath, JSON.stringify({}, null, 2));
-    return null;
+    const defaultSettings = {};
+    fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
+    return defaultSettings;
   }
 }
 
 export function getGamesFolderPath() {
   const settings = loadSettings();
-  return settings.destinationFolder; // toujours à jour !
+  return settings.destinationFolder || null;
 }
 
-
-// === OUVERTURE DU DOSSIER DU JEU ===
+// === GAME FUNCTIONS ===
 export function openGameFolder(folder) {
-  let folderPath = path.join(gamesFolderPath, folder);
-  
-  if (fs.existsSync(folderPath)) {
-    if (platform === 'win32') {
-      exec(`explorer "${folderPath}"`);
-    } else if (platform === 'darwin') {
-      exec(`open "${folderPath}"`);
-    } else {
-      alert('Ouverture de dossier non supportée sur cet OS.');
+  try {
+    if (!platformUtils.isSupported()) {
+      throw new Error('OS non supporté pour l\'instant');
     }
-  } else {
-    alert('Dossier du jeu introuvable.');
+    
+    const gamesFolderPath = getGamesFolderPath();
+    if (!gamesFolderPath) {
+      throw new Error('Dossier de jeux non configuré');
+    }
+    
+    const folderPath = path.join(gamesFolderPath, folder);
+    platformUtils.openFolder(folderPath);
+  } catch (error) {
+    alert(error.message);
+    console.error('Erreur lors de l\'ouverture du dossier:', error);
   }
 }
 
-// === LANCEMENT DU JEU ===
 export function launchGame(folder) {
   console.log('Lancement du jeu...');
-  if (platform === 'darwin') {
-    // Chemin complet du dossier du jeu
+  try {
+    if (platform !== 'darwin') {
+      throw new Error('Lancement de jeu supporté uniquement sur macOS pour l\'instant');
+    }
+    
+    const gamesFolderPath = getGamesFolderPath();
+    if (!gamesFolderPath) {
+      throw new Error('Dossier de jeux non configuré');
+    }
+    
     const gameFolderPath = path.join(gamesFolderPath, folder);
-    // Étape 1 : Trouver le fichier .app dans le dossier du jeu
+    
+    // Trouver le fichier .app
     const files = fs.readdirSync(gameFolderPath);
     const appFolderName = files.find(file => file.endsWith('.app'));
     if (!appFolderName) {
-      alert('Aucun fichier .app trouvé dans ce dossier !');
-      return;
+      throw new Error('Aucun fichier .app trouvé dans ce dossier');
     }
     console.log(`App trouvée : ${appFolderName}`);
-    // Étape 2 : Accéder au dossier Contents/MacOS/
+    
+    // Trouver le binaire exécutable
     const macOSFolderPath = path.join(gameFolderPath, appFolderName, 'Contents', 'MacOS');
-    // Étape 3 : Trouver le binaire à l'intérieur de MacOS/
     const macOSFiles = fs.readdirSync(macOSFolderPath);
-    const binaryName = macOSFiles[0]; // on prend le premier fichier trouvé
+    const binaryName = macOSFiles[0];
     if (!binaryName) {
-      alert('Aucun binaire trouvé dans Contents/MacOS/');
-      return;
+      throw new Error('Aucun binaire trouvé dans Contents/MacOS/');
     }
     console.log(`Binaire trouvé : ${binaryName}`);
+    
     const executablePath = path.join(macOSFolderPath, binaryName);
     
-    // Marquer le jeu comme en cours d'exécution
-    setGameRunning(folder, true);
-    
-    // Lancer le binaire
-    const startTime = Date.now();
-    const gameProcess = spawn(executablePath);
-    
-    gameProcess.on('error', (error) => {
-      console.error('Erreur de lancement:', error.message);
-      alert('Impossible de lancer le jeu.');
-      // Marquer le jeu comme terminé en cas d'erreur
-      setGameRunning(folder, false);
-    });
-    
-    gameProcess.on('close', (code) => {
-      const endTime = Date.now();
-      const durationInSeconds = Math.round((endTime - startTime) / 1000);
-      console.log(`Le jeu s'est fermé après ${durationInSeconds} secondes.`);
-      // Marquer le jeu comme terminé
-      setGameRunning(folder, false);
-      // Mettre à jour le temps de jeu
-      updateGameTime(folder, durationInSeconds);
-    });
+    // Lancer le jeu et suivre son exécution
+    return runGameProcess(folder, executablePath);
+  } catch (error) {
+    alert(error.message);
+    console.error('Erreur lors du lancement du jeu:', error);
+    return null;
   }
 }
 
-// === MISE à JOUR DU TEMPS DE JEU ===
-// Fonction mise à jour pour mettre à jour le temps de jeu et rafraîchir l'UI
+function runGameProcess(gameId, executablePath) {
+  // Marquer le jeu comme en cours d'exécution
+  setGameRunning(gameId, true);
+  
+  // Lancer le binaire et suivre le temps de jeu
+  const startTime = Date.now();
+  const gameProcess = spawn(executablePath);
+  
+  gameProcess.on('error', (error) => {
+    console.error('Erreur de lancement:', error.message);
+    alert('Impossible de lancer le jeu.');
+    setGameRunning(gameId, false);
+  });
+  
+  gameProcess.on('close', (code) => {
+    const endTime = Date.now();
+    const durationInSeconds = Math.round((endTime - startTime) / 1000);
+    console.log(`Le jeu s'est fermé après ${durationInSeconds} secondes.`);
+    
+    setGameRunning(gameId, false);
+    updateGameTime(gameId, durationInSeconds);
+  });
+  
+  return gameProcess;
+}
+
+// === GAME STATS MANAGEMENT ===
 export function updateGameTime(gameId, sessionTimeInSeconds) {
   try {
-    // Charger le cache actuel
     const cache = loadCache();
-    
-    // Récupérer l'entrée existante ou créer une nouvelle
     const gameEntry = cache[gameId] || {};
     
     // Mettre à jour le temps total de jeu
     const currentTotalTime = gameEntry.totalPlayTime || 0;
     const newTotalTime = currentTotalTime + sessionTimeInSeconds;
     
-    // Mettre à jour l'entrée dans le cache avec le nouveau temps total
     updateCacheEntry(cache, gameId, {
       totalPlayTime: newTotalTime,
       lastPlayed: new Date().toISOString()
@@ -163,9 +173,9 @@ export function updateGameTime(gameId, sessionTimeInSeconds) {
   }
 }
 
+// === UI REFRESH MANAGEMENT ===
 let refreshInterval = null;
 
-// === AUTO-REFRESH ===
 export function startAutoRefresh(intervalInMinutes = 1) {
   // Annuler l'intervalle précédent s'il existe
   if (refreshInterval) {
@@ -181,7 +191,6 @@ export function startAutoRefresh(intervalInMinutes = 1) {
   const intervalInMs = intervalInMinutes * 60 * 1000;
   console.log(`Auto-refresh activé toutes les ${intervalInMinutes} minute(s).`);
   
-  // Créer un nouvel intervalle
   refreshInterval = setInterval(() => {
     console.log('Rafraîchissement automatique de la liste des jeux...');
     refreshInterface();

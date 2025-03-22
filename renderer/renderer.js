@@ -1,3 +1,4 @@
+// Importations des modules
 import { categoryMap } from './scripts/metadataManager.js';
 import { refreshInterface } from './scripts/uiUpdater.js';
 import { loadCache } from './scripts/cacheManager.js';
@@ -7,45 +8,41 @@ import { scanGames } from './scripts/gameScanner.js';
 import { initEventListeners } from './scripts/eventListeners.js';
 import { initSettingsUI, getRefreshRate } from './scripts/settings.js';
 
-// Exposer les variables et fonctions nécessaires globalement
-window.categoryMap = categoryMap;
-window.launchGame = launchGame;
-window.showGameInfo = (gameId) => showGameInfo(gameId, globalCache);
-window.scanGames = scanGames;
-window.refreshInterface = refreshInterface;
-
-// Initialiser le cache
+// Cache global & Map de catégories disponibles dans la fenêtre globale
 let cache = {};
 export let globalCache = loadCache(cache);
 
+window.categoryMap = categoryMap;
+window.launchGame = launchGame;
+window.scanGames = scanGames;
+window.refreshInterface = refreshInterface;
+
+// Fonction pour afficher les informations d'un jeu spécifique
+window.showGameInfo = (gameId) => showGameInfo(gameId, globalCache);
+
+// 🔄 Recharge le cache et met à jour l'interface utilisateur
 export function reloadCacheAndUI() {
   loadSettings();
-  console.log('AAAAA');
-  console.log(globalCache);
+  
+  console.log('[reloadCacheAndUI] Avant rechargement du cache :', globalCache);
   globalCache = loadCache(cache);
-  scanGames();
+  console.log('[reloadCacheAndUI] Après rechargement du cache :', globalCache);
+
   refreshInterface();
-  console.log('BBBBB');
-  console.log(globalCache);
 }
 
-
-// Fonction d'initialisation à exécuter au chargement de la page
-window.addEventListener('DOMContentLoaded', function() {
-  // Initialiser les écouteurs d'événements pour le filtrage
+// Fonction d'initialisation principale
+function initApp() {
   initEventListeners();
-  
-  // Écoute de la fermeture de jeu
   window.addEventListener('game-closed', () => {
-    console.log('Événement game-closed capté !');
-    globalCache = loadCache(); // Recharge les données fraîches
-    refreshInterface(); // Rafraîchis l'affichage
+    console.log('[event] game-closed capté !');
+    globalCache = loadCache(); // Recharge le cache
+    refreshInterface(); // Met à jour l'interface
   });
-  
-  // Scan initial des jeux
   scanGames();
   initSettingsUI();
-});
+  startAutoRefresh(getRefreshRate());
+}
 
-// set autorefresh toutes les X minutes
-startAutoRefresh(getRefreshRate());
+// Lance l'application une fois le DOM chargé
+window.addEventListener('DOMContentLoaded', initApp);
