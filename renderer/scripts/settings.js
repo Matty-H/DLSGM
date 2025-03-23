@@ -1,6 +1,5 @@
-import { startAutoRefresh } from './osHandler.js';
+import { startAutoRefresh, settingsPath } from './osHandler.js';
 import { resetAndRedownloadImages } from './dataFetcher.js';
-import { reloadCacheAndUI } from '../renderer.js';
 const { ipcRenderer } = require('electron');
 const fs = require('fs');
 
@@ -102,7 +101,7 @@ function saveSettings() {
       refreshRate: parseInt(refreshRate),
     };
 
-    fs.writeFileSync('renderer/settings.json', JSON.stringify(settings, null, 2));
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
     startAutoRefresh(settings.refreshRate);
   } catch (error) {
     console.error('Erreur lors de l\'enregistrement des paramètres:', error);
@@ -111,22 +110,22 @@ function saveSettings() {
 
 function loadSettings() {
   try {
-    if (fs.existsSync('renderer/settings.json')) {
-      const data = fs.readFileSync('renderer/settings.json', 'utf8');
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf8');
       const settings = JSON.parse(data);
 
       destinationFolder = settings.destinationFolder || '';
-      refreshRate = (typeof settings.refreshRate === 'number') ? settings.refreshRate : 42;
+      refreshRate = (typeof settings.refreshRate === 'number') ? settings.refreshRate : 5;
 
     } else {
       // Si le fichier n'existe pas, on utilise les valeurs par défaut
       destinationFolder = '';
-      refreshRate = 42;
+      refreshRate = 5;
     }
   } catch (error) {
     console.error('Erreur lors du chargement des paramètres:', error);
     destinationFolder = '';
-    refreshRate = 42;
+    refreshRate = 5;
   }
 }
 
