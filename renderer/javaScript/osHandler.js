@@ -5,6 +5,7 @@ const { exec, spawn } = require('child_process');
 const diskusage = require('diskusage');
 import { loadCache, updateCacheEntry } from './cacheManager.js';
 import { setGameRunning, refreshInterface } from './uiManager.js';
+import { detectGameEngine } from './engineDetector.js';
 
 // === CONFIGURATION PATHS ===
 const homeDir = os.homedir();
@@ -62,24 +63,32 @@ export function getGamesFolderPath() {
 }
 
 // === GAME FUNCTIONS ===
-export function openGameFolder(folder) {
+export async function openGameFolder(folder) {
   try {
     if (!platformUtils.isSupported()) {
       throw new Error('OS non supporté pour l\'instant');
     }
-    
+
     const gamesFolderPath = getGamesFolderPath();
     if (!gamesFolderPath) {
       throw new Error('Dossier de jeux non configuré');
     }
-    
+
     const folderPath = path.join(gamesFolderPath, folder);
+
+    // Ouvre le dossier
     platformUtils.openFolder(folderPath);
+
+    // Détecte l'engine en appelant detectGameEngine
+    const detectionResult = await detectGameEngine(folder, gamesFolderPath);
+
+    console.log(`Moteur détecté pour ${folder} :`, detectionResult.engineType);
   } catch (error) {
     alert(error.message);
     console.error('Erreur lors de l\'ouverture du dossier:', error);
   }
 }
+
 
 export function launchGame(folder) {
   console.log('Lancement du jeu...');

@@ -4,7 +4,7 @@ const { ipcRenderer } = require('electron');
 const fs = require('fs');
 
 let destinationFolder = '';
-let refreshRate = 42; // Valeur par défaut, mais ça sera écrasé si on charge le JSON
+let refreshRate = 5; // Valeur par défaut, mais ça sera écrasé si on charge le JSON
 
 export function initSettingsUI() {
   const settingsButton = document.querySelector('.settings-button');
