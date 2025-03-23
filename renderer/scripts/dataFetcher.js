@@ -52,9 +52,13 @@ async function downloadGameImages(gameId, metadata) {
 // === RECUPERATION DES METADONNEES DU JEU ===
 export function fetchGameMetadata(gameId) {
   const pythonScriptPath = path.join(__dirname, 'fetch_dlsite.py');
-  // console.log('function fetchGameMetadata');
-
-  exec(`python "${pythonScriptPath}" "${gameId}"`, async (error, stdout, stderr) => {
+  
+  // Option 1: Utiliser des options d'environnement pour forcer l'encodage UTF-8
+  const options = {
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+  };
+  
+  exec(`python "${pythonScriptPath}" "${gameId}"`, options, async (error, stdout, stderr) => {
     if (error) {
       console.error(`Erreur d'exécution: ${error.message}`);
       return;
@@ -65,6 +69,7 @@ export function fetchGameMetadata(gameId) {
     }
 
     try {
+      // Option 2: S'assurer que stdout est traité comme UTF-8
       const metadata = JSON.parse(stdout);
       globalCache[gameId] = metadata;
       fs.writeFileSync(cacheFilePath, JSON.stringify(globalCache, null, 2));
@@ -72,10 +77,10 @@ export function fetchGameMetadata(gameId) {
       scanGames();
     } catch (e) {
       console.error("Erreur lors du parsing des données:", e);
+      console.error("Données reçues:", stdout); // Pour déboguer
     }
   });
 }
-
 // Fonction de purge centralisée
 // Fonction de purge centralisée avec nettoyage img_cache
 export function purgeObsoleteGamesFromCache() {

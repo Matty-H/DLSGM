@@ -9,8 +9,8 @@ import { setGameRunning, refreshInterface } from './uiManager.js';
 // === CONFIGURATION PATHS ===
 const homeDir = os.homedir();
 const platform = os.platform();
-export const cacheFilePath = path.join(__dirname, 'cache.json');
-export const settingsPath = path.join(__dirname, 'settings.json');
+export const cacheFilePath = path.join(__dirname, 'data_base', 'cache.json');
+export const settingsPath = path.join(__dirname, 'data_base', 'settings.json');
 
 // === PLATFORM SPECIFIC UTILS ===
 const platformUtils = {

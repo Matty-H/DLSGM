@@ -173,10 +173,8 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-cache.json
-settings.json
+renderer/data_base
 renderer/img_cache
 node_modules
 TODO
-
 .DS_Store

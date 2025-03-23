@@ -2,7 +2,10 @@ import asyncio
 from dlsite_async import DlsiteAPI
 import sys
 import json
+import io
 from datetime import datetime
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # Fonction pour convertir les objets en JSON-friendly format
 def serialize(obj):
