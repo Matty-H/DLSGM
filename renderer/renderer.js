@@ -1,12 +1,12 @@
 // Importations des modules
-import { categoryMap } from './scripts/metadataManager.js';
-import { refreshInterface } from './scripts/uiManager.js';
-import { loadCache } from './scripts/cacheManager.js';
-import { launchGame, startAutoRefresh, loadSettings } from './scripts/osHandler.js';
-import { showGameInfo } from './scripts/gameInfoHandler.js';
-import { scanGames } from './scripts/gameScanner.js';
-import { initEventListeners } from './scripts/eventListeners.js';
-import { initSettingsUI, getRefreshRate } from './scripts/settings.js';
+import { categoryMap } from './javaScript/metadataManager.js';
+import { refreshInterface } from './javaScript/uiManager.js';
+import { loadCache } from './javaScript/cacheManager.js';
+import { launchGame, startAutoRefresh, loadSettings } from './javaScript/osHandler.js';
+import { showGameInfo } from './javaScript/gameInfoHandler.js';
+import { scanGames } from './javaScript/gameScanner.js';
+import { initEventListeners } from './javaScript/eventListeners.js';
+import { initSettingsUI, getRefreshRate } from './javaScript/settings.js';
 
 // Cache global & Map de catégories disponibles dans la fenêtre globale
 let cache = {};
