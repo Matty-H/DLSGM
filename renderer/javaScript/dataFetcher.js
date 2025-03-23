@@ -51,7 +51,7 @@ async function downloadGameImages(gameId, metadata) {
 
 // === RECUPERATION DES METADONNEES DU JEU ===
 export function fetchGameMetadata(gameId) {
-  const pythonScriptPath = path.join(__dirname, 'fetch_dlsite.py');
+  const pythonScriptPath = path.join(__dirname, 'pythonScript', 'fetch_dlsite.py');
   
   // Option 1: Utiliser des options d'environnement pour forcer l'encodage UTF-8
   const options = {
