@@ -34,10 +34,10 @@ export function initSettingsUI() {
       </div>
       <div class="setting-item">
         <label for="refresh-rate">Refresh rate (in min):</label>
-        <div class="slider-container">
-          <input type="range" class="refresh-rate" min="0" max="120" value="${refreshRate}">
-          <span class="refresh-value">${refreshRate}</span>
+        <div class="number-input-container">
+          <input type="number" class="refresh-rate-input" min="0" max="120" value="${refreshRate}" step="1">
         </div>
+      </div>
       </div>
       <div class="setting-item">
         <button class="save-button">Enregistrer les paramètres</button>
@@ -80,12 +80,13 @@ export function initSettingsUI() {
     }
   });
 
-  const refreshSlider = document.querySelector('.refresh-rate');
-  const refreshValue = document.querySelector('.refresh-value');
+  const refreshInput = document.querySelector('.refresh-rate-input');
 
-  refreshSlider.addEventListener('input', () => {
-    refreshRate = refreshSlider.value;
-    refreshValue.textContent = refreshRate;
+  refreshInput.addEventListener('input', () => {
+    const value = parseInt(refreshInput.value);
+    if (!isNaN(value)) {
+      refreshRate = value;
+    }
   });
 
   document.querySelector('.save-button').addEventListener('click', () => {

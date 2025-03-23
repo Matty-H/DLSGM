@@ -28,7 +28,6 @@ export function initEventListeners() {
   // Réinitialisation des filtres
   document.querySelector('.reset-filters').addEventListener('click', function() {
     // Réinitialiser les sélections et barre de recherche
-    console.log('prout')
     document.querySelector('.game-info').classList.remove("show");
     document.querySelector('.category-filter').value = 'all';
     document.querySelector('.search-input').value = '';
