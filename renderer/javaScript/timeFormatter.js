@@ -5,17 +5,17 @@
  */
 export function formatPlayTime(totalPlayTime) {
     if (!totalPlayTime || totalPlayTime <= 0) {
-      return 'Jamais joué';
+      return '';
     }
     
     if (totalPlayTime < 60) {
-      return `${totalPlayTime} secondes`;
+      return `${totalPlayTime} sec.`;
     } else if (totalPlayTime < 3600) {
       const minutes = Math.floor(totalPlayTime / 60);
-      return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+      return `${minutes} min`;
     } else {
       const hours = Math.floor(totalPlayTime / 3600);
-      return `${hours} heure${hours > 1 ? 's' : ''}`;
+      return `${hours} hour${hours > 1 ? 's' : ''}`;
     }
   }
   
@@ -37,12 +37,12 @@ export function formatPlayTime(totalPlayTime) {
     const diffMinutes = Math.floor(diffTime / (1000 * 60));
     
     if (diffDays > 0) {
-      return `il y a ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
+      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
     } else if (diffHours > 0) {
-      return `il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
     } else if (diffMinutes > 0) {
-      return `il y a ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
+      return `${diffMinutes} min ago`;
     } else {
-      return 'à l\'instant';
+      return 'right now';
     }
   }
