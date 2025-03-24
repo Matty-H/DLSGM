@@ -54,33 +54,7 @@ export function setGameRunning(gameId, isRunning) {
   updateAllGameButtons();
 }
 
-// Met à jour l'état de tous les boutons de jeu
-function updateAllGameButtons() {
-  const allButtons = document.querySelectorAll('.game-actions button');
-  
-  allButtons.forEach(button => {
-    const gameId = button.getAttribute('data-game-id');
-    const isThisGameRunning = runningGames.has(gameId);
-    
-    if (isAnyGameRunning) {
-      // Si un jeu est en cours, désactiver tous les boutons
-      button.disabled = true;
-      button.classList.add('disabled');
-      
-      // Afficher "En cours" seulement pour le jeu qui est lancé
-      if (isThisGameRunning) {
-        button.innerHTML = '⏳ En cours';
-      } else {
-        button.innerHTML = '▶ Lancer le jeu';
-      }
-    } else {
-      // Aucun jeu en cours, activer tous les boutons
-      button.disabled = false;
-      button.classList.remove('disabled');
-      button.innerHTML = '▶ Lancer le jeu';
-    }
-  });
-}
+
 
 // === MAIN INTERFACE REFRESH ===
 export function refreshInterface(globalCache) {
@@ -139,6 +113,7 @@ export function refreshInterface(globalCache) {
 }
 
 // === GAME ELEMENT CREATION ===
+// Modification de la fonction createGameElement pour restructurer le bouton et les informations de temps
 function createGameElement(gameId, gameData) {
   const gameDiv = document.createElement('div');
   gameDiv.className = 'game';
@@ -157,38 +132,47 @@ function createGameElement(gameId, gameData) {
   const lastPlayedText = formatLastPlayed(lastPlayed);
   
   // Gestion de l'image du jeu
-  const gameImageHtml = createGameImageHtml(gameId, gameName, totalPlayTime, playTimeText, lastPlayed, lastPlayedText, gameData);  
+  const gameImageHtml = createGameImageHtml(gameId, gameName, gameData);
   
   // Génération des étoiles de notation
   const ratingHtml = createRatingHtml(gameId, gameRating);
   
+  // Gestion des custom tags
+  const customTags = gameData.customTags || [];
+  const customTagsHtml = customTags.length > 0 
+    ? `<div class="custom-tags">
+        ${customTags.map(tag => `<span class="custom-tag">${tag}</span>`).join('')}
+       </div>` 
+    : '';
+  
   // Vérifier si ce jeu est en cours d'exécution
   const isThisGameRunning = runningGames.has(gameId);
-  const buttonText = isThisGameRunning ? '⏳ En cours' : '▶ Lancer le jeu';
+  const buttonText = isThisGameRunning ? '⏳' : '▶';
   const buttonClass = isAnyGameRunning ? 'disabled' : '';
   const buttonDisabled = isAnyGameRunning ? 'disabled' : '';
   
   gameDiv.innerHTML = `
     ${gameImageHtml}
-    <div class="category-label">${gameCategoryLabel}</div>
-    <div class="game_title">
-      <h3>${gameName}</h3>
-      <p><a href="#" class="circle-link" data-circle="${gameCircle}">${gameCircle}</a></p>
-    </div>
-    ${ratingHtml}
     <div class="game-actions">
-      <button onclick="window.launchGame('${gameId}')" data-game-id="${gameId}" class="${buttonClass}" ${buttonDisabled}>
-        ${buttonText}
-      </button>
+      <div class="action-container">
+        <button onclick="window.launchGame('${gameId}')" data-game-id="${gameId}" class="play-button ${buttonClass}" ${buttonDisabled}>
+          ${buttonText}
+        </button>
+      </div>
+    </div>
+    <div class="category-label">${gameCategoryLabel}</div>
+    ${customTagsHtml}
+    <div class="rating-container">
+      ${totalPlayTime > 0 ? `<div class="total-time">⏳ ${playTimeText}</div>` : ''}
+      ${ratingHtml}
     </div>
   `;
   
   return gameDiv;
-  
-  return gameDiv;
-}
+ }
 
-function createGameImageHtml(gameId, gameName, totalPlayTime, playTimeText, lastPlayed, lastPlayedText, gameData) {
+// Modification de la fonction createGameImageHtml pour retirer les infos de temps de jeu
+function createGameImageHtml(gameId, gameName, gameData) {
   if (!gameData || !gameData.work_image) {
     return '';
   }
@@ -197,20 +181,42 @@ function createGameImageHtml(gameId, gameName, totalPlayTime, playTimeText, last
   return `
     <div class="game-container">
       <img src="${workImagePath}" alt="${gameName}" class="game-thumbnail" onclick="window.showGameInfo('${gameId}')" />
-      ${totalPlayTime > 0 || lastPlayed ? `
-        <div class="play-time-info">
-          <div class="total-time">Temps de jeu: ${playTimeText}</div>
-          ${lastPlayed ? `<div class="last-played">Dernier lancement: ${lastPlayedText}</div>` : ''}
-        </div>
-      ` : ''}
     </div>
   `;
+}
+
+// Modification de la fonction updateAllGameButtons pour mettre à jour juste l'icône
+function updateAllGameButtons() {
+  const allButtons = document.querySelectorAll('.game-actions button');
+  
+  allButtons.forEach(button => {
+    const gameId = button.getAttribute('data-game-id');
+    const isThisGameRunning = runningGames.has(gameId);
+    
+    if (isAnyGameRunning) {
+      // Si un jeu est en cours, désactiver tous les boutons
+      button.disabled = true;
+      button.classList.add('disabled');
+      
+      // Afficher "En cours" seulement pour le jeu qui est lancé
+      if (isThisGameRunning) {
+        button.innerHTML = '⏳';
+      } else {
+        button.innerHTML = '▶';
+      }
+    } else {
+      // Aucun jeu en cours, activer tous les boutons
+      button.disabled = false;
+      button.classList.remove('disabled');
+      button.innerHTML = '▶';
+    }
+  });
 }
 
 function createRatingHtml(gameId, gameRating) {
   let ratingHtml = '<div class="rating" data-game-id="' + gameId + '">';
   for (let i = 1; i <= 5; i++) {
-    ratingHtml += `<span class="star" data-value="${i}" style="cursor: pointer; color: ${i <= gameRating ? 'gold' : 'gray'};">★</span>`;
+    ratingHtml += `<span class="star" data-value="${i}" style="cursor: pointer; color: ${i <= gameRating ? 'crimson' : 'gray'};">★</span>`;
   }
   ratingHtml += '</div>';
   return ratingHtml;
