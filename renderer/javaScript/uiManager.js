@@ -15,7 +15,7 @@ export function updateCategoryDropdown(cache) {
   const dropdown = document.querySelector('.category-filter');
   
   // Conserver l'option "Toutes les catégories"
-  dropdown.innerHTML = '<option value="all">Toutes les catégories</option>';
+  dropdown.innerHTML = '<option value="all">Sort by</option>';
   
   // Ajouter uniquement les catégories présentes dans la bibliothèque
   categories.forEach(category => {
