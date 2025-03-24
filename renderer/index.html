@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Game Manager</title>
-<link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Game Manager</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="styles/header.css">
 </head>
 <body>
   <header class="header">
@@ -12,14 +13,14 @@
       <h1>DLS Manager</h1>
       <div class="search-container">
         <select class="category-filter">
-          <option value="all">Toutes les catégories</option>
+          <option value="all">Sort by</option>
           <!-- Les options seront remplies dynamiquement -->
         </select>
-        <button class="reset-filters">Réinitialiser</button>
-        <select class="genre-filter" multiple size="3" style="width:200px;">
+        <select class="genre-filter" multiple size="1" style="width:200px;">
           <!-- Les genres seront remplis dynamiquement -->
         </select>
         <input type="text" class="search-input" placeholder="Look by name or tag...">
+        <button class="reset-filters">X</button>
       </div>
       <button class="settings-button">⚙️</button>
     </div>

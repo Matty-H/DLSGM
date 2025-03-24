@@ -1,6 +1,6 @@
 import { attachGameInfoEventListeners } from './eventListeners.js';
 import { updateCacheEntry } from './cacheManager.js';
-// import { calculateSizeDifference } from  './osHandler.js';
+import { refreshInterface } from './uiManager.js';
 
 // Affiche les informations détaillées d'un jeu
 export function showGameInfo(gameId, globalCache) {
@@ -34,7 +34,34 @@ export function showGameInfo(gameId, globalCache) {
     <div class="category-label">${categoryLabel}</div>
   `;
 
-  let detailsHtml = `<h3>${metadata.work_name || "Nom non disponible"}</h3>`;
+  // Determine the creator (circle or author)
+  const creator = metadata.circle || metadata.author || "Créateur non disponible";
+
+  // Custom tags section moved up
+  const customTags = metadata.customTags || [];
+  let customTagsHtml = `
+    <div class="custom-tags-section">
+      <div class="custom-tags-list">
+        ${customTags.map(tag => `
+          <span class="custom-tag">
+            ${tag} <button class="remove-tag-btn" data-tag="${tag}">x</button>
+          </span>
+        `).join('')}
+      </div>
+      <div class="custom-tag-input-container">
+        <input type="text" class="new-custom-tag-input" placeholder="Add custom tag" />
+        <button class="add-custom-tag-btn">+</button>
+      </div>
+    </div>
+  `;
+
+  let detailsHtml = `
+    <div class="header-info">
+      <h3>${metadata.work_name || "Nom non disponible"}</h3>
+      <h4>by ${creator}</h4>
+      ${customTagsHtml}
+    </div>
+  `;
 
   const formatDate = (dateString) => {
     return dateString ? dateString.split("T")[0] : "Inconnue"; // Supprime `T00:00:00`
@@ -76,7 +103,6 @@ export function showGameInfo(gameId, globalCache) {
     detailsHtml += `<p>${metadata.description}</p>`;
   }
 
-  // Ajout du lien DLsite à la toute fin
   detailsHtml += `
     <div class="action-buttons">
     <a href="https://www.dlsite.com/maniax/work/=/product_id/${gameId}.html" target="_blank" class="dlsite-link">
@@ -88,60 +114,44 @@ export function showGameInfo(gameId, globalCache) {
   </div>
   `;
 
-  // Récupère les tags custom
-const customTags = metadata.customTags || [];
-
-// Zone d'affichage des tags et champ d'ajout
-let customTagsHtml = `
-  <div class="custom-tags-section">
-    <h4>Custom Tags:</h4>
-    <div class="custom-tags-list">
-      ${customTags.map(tag => `
-        <span class="custom-tag">
-          ${tag} <button class="remove-tag-btn" data-tag="${tag}">x</button>
-        </span>
-      `).join('')}
-    </div>
-    <input type="text" class="new-custom-tag-input" placeholder="Ajouter un tag" />
-    <button class="add-custom-tag-btn">Ajouter</button>
-  </div>
-`;
-  gameDetails.innerHTML = `${carouselHtml}${detailsHtml}${customTagsHtml}`;
+  gameDetails.innerHTML = `${carouselHtml}${detailsHtml}`;
   gameInfoDiv.classList.add("show");
   
   attachGameInfoEventListeners(gameInfoDiv, gameId);
 
-// Ajout d'un nouveau tag custom
-document.querySelector('.add-custom-tag-btn').addEventListener('click', () => {
-  const input = document.querySelector('.new-custom-tag-input');
-  const newTag = input.value.trim();
-  if (newTag && !customTags.includes(newTag)) {
-    customTags.push(newTag);
-    metadata.customTags = customTags; // Met à jour le metadata local
-    
-    // Mise à jour du cache et sauvegarde
-    updateCacheEntry(globalCache, gameId, { customTags });
-    
-    showGameInfo(gameId, globalCache); // Recharge l'affichage
-  }
-  input.value = '';
-});
-
-// Suppression d'un tag existant
-document.querySelectorAll('.remove-tag-btn').forEach(button => {
-  button.addEventListener('click', () => {
-    const tagToRemove = button.getAttribute('data-tag');
-    const index = customTags.indexOf(tagToRemove);
-    if (index > -1) {
-      customTags.splice(index, 1);
-      metadata.customTags = customTags; // Mets à jour le globalCache
+  // Ajout d'un nouveau tag custom
+  document.querySelector('.add-custom-tag-btn').addEventListener('click', () => {
+    const input = document.querySelector('.new-custom-tag-input');
+    const newTag = input.value.trim();
+    if (newTag && !customTags.includes(newTag)) {
+      customTags.push(newTag);
+      metadata.customTags = customTags; // Met à jour le metadata local
+      
+      // Mise à jour du cache et sauvegarde
+      updateCacheEntry(globalCache, gameId, { customTags });
       showGameInfo(gameId, globalCache); // Recharge l'affichage
+      refreshInterface();
     }
+    input.value = '';
   });
-});
+
+  // Suppression d'un tag existant
+  document.querySelectorAll('.remove-tag-btn').forEach(button => {
+    button.addEventListener('click', () => {
+      const tagToRemove = button.getAttribute('data-tag');
+      const index = customTags.indexOf(tagToRemove);
+      if (index > -1) {
+        customTags.splice(index, 1);
+        metadata.customTags = customTags; // Mets à jour le globalCache
+        showGameInfo(gameId, globalCache); // Recharge l'affichage
+      }
+    });
+  });
+}
+
   // Ajoutez cette ligne pour exécuter le calcul de taille
 //   calculateSizeDifference(gameId, metadata.file_size).then(result => {
 //     // Optionnel : afficher le résultat ou faire quelque chose avec
 //     console.log("Différence de taille calculée");
 // });
-}
+
