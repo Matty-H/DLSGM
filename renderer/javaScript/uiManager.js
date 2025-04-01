@@ -11,18 +11,18 @@ export const runningGames = new Set();
 
 // === DROPDOWNS MANAGEMENT ===
 export function updateCategoryDropdown(cache) {
-  const categories = collectAllCategories(cache);
-  const dropdown = document.querySelector('.category-filter');
+  const categoryList = collectAllCategories(cache);
+  const categoryDropdown = document.querySelector('.category-filter');
   
-  // Conserver l'option "Toutes les catégories"
-  dropdown.innerHTML = '<option value="all">Sort by</option>';
+  // Preserve the "All Categories" option
+  categoryDropdown.innerHTML = '<option value="all">Sort by</option>';
   
-  // Ajouter uniquement les catégories présentes dans la bibliothèque
-  categories.forEach(category => {
-    const option = document.createElement('option');
-    option.value = category.code;
-    option.textContent = category.name;
-    dropdown.appendChild(option);
+  // Add only the categories present in the library
+  categoryList.forEach(({ code, name }) => {
+    const optionElement = document.createElement('option');
+    optionElement.value = code;
+    optionElement.textContent = name;
+    categoryDropdown.appendChild(optionElement);
   });
 }
 
@@ -231,7 +231,7 @@ function attachRatingEventListeners(cache) {
       
       if (cache[gameId]) {
         cache[gameId].rating = rating;
-        saveCache(cache);
+        saveCache();
         
         const stars = this.parentNode.querySelectorAll('.star');
         stars.forEach((s, index) => {
