@@ -14,6 +14,8 @@
 - [X]  Playtime tracking
 - [X]  Block play game button when playing
 - [X]  Open dlsite webpage on default browser
+- [X]  Panic button (double space or alt+space to o/f)
+- [X]  EN-JP DLSite informations switch
 
 ## Roadmap
 
@@ -21,7 +23,6 @@
 - [ ]  Windows compatibility
 - [ ]  open save files (unity, rpgmaker, godot)
 - [ ]  FR/JP support
-- [ ]  EN-JP DLSite informations switch 
 - [ ]  Horizontal display
 - [ ]  Find name
 - [ ]  Beautiful design & logo

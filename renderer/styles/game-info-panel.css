@@ -1,0 +1,144 @@
+/* Game Info Panel */
+.game-info {
+    display: table-column;
+    right: 0;
+    top: 0;
+    background: rgba(25, 25, 25, 0.98);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+    border-left: 1px solid #333;
+    overflow-y: auto;
+    z-index: 200;
+    padding: 0;
+    transition: width 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+    backdrop-filter: blur(10px);
+  }
+  
+  .game-info.show {
+    position: fixed;
+    width: 445px;
+    height: 100vh;
+    transform: translateX(0);
+    visibility: visible;
+  }
+  
+  .game-details {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    padding: 0;
+  }
+  
+  .game-info.show .game-details {
+    padding-top: 97px;
+    padding-bottom: 30px;
+    opacity: 1;
+    animation: fadeIn 0.5s ease forwards;
+  }
+  
+  /* Close Button */
+  .close-game-info {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(255, 69, 0, 0.8);
+    color: white;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  .close-game-info:hover {
+    background: #e03e00;
+    transform: scale(1.1);
+  }
+  
+  /* Game Details Content */
+  .header-info {
+    border-bottom: 1px solid #333;
+    padding: 10px 25px;
+    margin-bottom: 10px;
+  }
+  
+  .game-details h3 {
+    margin: 0px 0px 5px;
+    font-size: 1.6rem;
+    line-height: 1.3;
+    color: white;
+  }
+  
+  .game-details h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.3;
+    color: white;
+  }
+  
+  .game-details p {
+    padding: 2px 25px;
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  
+  .game-details p strong {
+    color: #ff4500;
+    font-weight: 500;
+  }
+  
+  .game-details .category-label {
+    margin: 15px 25px 0px;
+    background-color: #6200ee;
+    font-size: 0.9rem;
+  }
+  
+  /* Action Buttons */
+  .action-buttons {
+    display: flex;
+    justify-content: space-evenly;
+    padding-top: 20px;
+  }
+  
+  .action-buttons a {
+    padding: 12px 20px;
+    color: white;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+  }
+  
+  .action-buttons a:hover {
+    background: rgba(255, 69, 0, 0.8);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 69, 0, 0.25);
+  }
+  
+  .dlsite-link {
+    background: #ff4500;
+  }
+  
+  .open-folder-btn {
+    background: #0040ff;
+  }
+  
+  /* Links */
+  .genre-tag {
+    cursor: pointer;
+    color: rgb(47, 255, 0);
+    text-decoration: underline;
+  }
+  
+  .circle-link {
+    color: rgb(81, 81, 232);
+    text-decoration: none;
+  }

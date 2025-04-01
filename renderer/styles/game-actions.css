@@ -1,0 +1,59 @@
+/* Game Actions */
+.game-actions {
+    display: flex;
+    padding: 1em 10px 10px;
+    flex-flow: column;
+    margin-top: -1.5em;
+    z-index: 1;
+    background: linear-gradient(0deg, #1e1e1e 60%, transparent 100%);
+  }
+  
+  .game-actions button {
+    width: 100%;
+    padding: 0.5rem;
+    background: #ff4500;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: background 0.2s ease;
+  }
+  
+  .game-actions button:hover {
+    background: #e03e00;
+  }
+  
+  .game-actions button.disabled {
+    background-color: #888;
+    cursor: not-allowed;
+  }
+  
+  /* Play Info Section */
+  .play-info {
+    flex: 3;
+    font-size: 0.7em;
+    padding-right: 10px;
+  }
+  
+  .last-played {
+    margin: 2px 0;
+  }
+  
+  /* Play Button */
+  .play-button {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .play-button:hover {
+    background-color: #45a049;
+  }
+  
+  .play-button.disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }

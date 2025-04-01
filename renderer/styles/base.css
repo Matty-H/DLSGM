@@ -1,0 +1,46 @@
+/* Base Styles */
+body {
+    font-family: 'Poppins', 'Segoe UI', Arial, sans-serif;
+    background-color: #121212;
+    color: #e0e0e0;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .main-container {
+    flex-direction: row;
+    min-height: calc(100vh - 61px);
+    transition: all 0.3s ease;
+  }
+  
+  .main-container:has(.game-info.show) .games-list {
+    padding-right: 441px;
+  }
+  
+  /* Animations */
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  /* Utilities */
+  .number-input-container input[type="number"] {
+    width: 60px;
+    padding: 5px;
+    font-size: 1rem;
+  }

@@ -7,6 +7,19 @@ from datetime import datetime
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
+settings_path = "renderer/data_base/settings.json"
+
+def get_language():
+    try:
+        with open(settings_path, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+            return settings.get("language", "en_US")  # Valeur par défaut
+    except Exception as e:
+        print(f"Erreur lecture paramètres: {e}")
+        return "en_US"  # Valeur de secours
+
+lang = get_language()
+
 # Fonction pour convertir les objets en JSON-friendly format
 def serialize(obj):
     if isinstance(obj, datetime):
@@ -19,7 +32,7 @@ def serialize(obj):
 
 # Fonction principale pour récupérer les infos du jeu
 async def fetch_game_data(game_id):
-    async with DlsiteAPI() as api:
+    async with DlsiteAPI(locale=lang) as api:
         work_data = await api.get_work(game_id)
 
         # Création du dictionnaire des données

@@ -4,6 +4,7 @@ const path = require('path');
 const { exec, spawn } = require('child_process');
 const diskusage = require('diskusage');
 import { loadCache, updateCacheEntry } from './cacheManager.js';
+import { loadSettings } from './settings.js';
 import { setGameRunning, refreshInterface } from './uiManager.js';
 import { detectGameEngine } from './engineDetector.js';
 
@@ -35,27 +36,6 @@ const platformUtils = {
   }
 };
 
-// === SETTINGS MANAGEMENT ===
-export function loadSettings() {
-  try {
-    if (fs.existsSync(settingsPath)) {
-      const settingsData = fs.readFileSync(settingsPath, 'utf8');
-      const settings = JSON.parse(settingsData);
-      console.log('settings chargé:', Object.keys(settings).length, 'entrées');
-      return settings;
-    } else {
-      console.log('Aucun settings trouvé, création du settings...');
-      const defaultSettings = {};
-      fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
-      return defaultSettings;
-    }
-  } catch (error) {
-    console.error('Erreur lors du chargement du settings:', error);
-    const defaultSettings = {};
-    fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
-    return defaultSettings;
-  }
-}
 
 export function getGamesFolderPath() {
   const settings = loadSettings();

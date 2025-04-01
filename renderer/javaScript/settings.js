@@ -4,6 +4,7 @@ const { ipcRenderer } = require('electron');
 const fs = require('fs');
 
 let destinationFolder = '';
+let language = 'en_US'; // Valeur par défaut
 let refreshRate = 5; // Valeur par défaut, mais ça sera écrasé si on charge le JSON
 
 export function initSettingsUI() {
@@ -37,13 +38,17 @@ export function initSettingsUI() {
           <input type="number" class="refresh-rate-input" min="0" max="120" value="${refreshRate}" step="1">
         </div>
       </div>
+      <div class="setting-item">
+        <button class="reset-img-cache">Reset image cache</button>
+      </div>
+      <div class="setting-item">
+        <label for="language-toggle">Langue :</label>
+        <button class="language-toggle">🇬🇧 English</button>
       </div>
       <div class="setting-item">
         <button class="save-button">Enregistrer les paramètres</button>
       </div>
-      <div class="setting-item">
-        <button class="reset-img-cache">Reset image cache</button>
-      </div>
+
     </div>
   `;
 
@@ -92,40 +97,50 @@ export function initSettingsUI() {
     saveSettings();
     scanGames()
   });
+
+  document.querySelector('.language-toggle').addEventListener('click', (event) => {
+    language = language === 'en_US' ? 'ja_JP' : 'en_US';
+    event.target.textContent = language === 'en_US' ? '🇬🇧 English' : '🇯🇵 日本語';
+  });
 }
 
+
+
+// === SETTINGS MANAGEMENT ===
 function saveSettings() {
   try {
     const settings = {
       destinationFolder,
       refreshRate: parseInt(refreshRate),
+      language
     };
 
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
     startAutoRefresh(settings.refreshRate);
+    ipcRenderer.send('update-language', language);
   } catch (error) {
     console.error('Erreur lors de l\'enregistrement des paramètres:', error);
   }
 }
 
-function loadSettings() {
+export function loadSettings() {
   try {
     if (fs.existsSync(settingsPath)) {
-      const data = fs.readFileSync(settingsPath, 'utf8');
-      const settings = JSON.parse(data);
-
-      destinationFolder = settings.destinationFolder || '';
-      refreshRate = (typeof settings.refreshRate === 'number') ? settings.refreshRate : 5;
-
+      const settingsData = fs.readFileSync(settingsPath, 'utf8');
+      const settings = JSON.parse(settingsData);
+      console.log('settings chargé:', Object.keys(settings).length, 'entrées');
+      return settings;
     } else {
-      // Si le fichier n'existe pas, on utilise les valeurs par défaut
-      destinationFolder = '';
-      refreshRate = 5;
+      console.log('Aucun settings trouvé, création du settings...');
+      const defaultSettings = {};
+      fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
+      return defaultSettings;
     }
   } catch (error) {
-    console.error('Erreur lors du chargement des paramètres:', error);
-    destinationFolder = '';
-    refreshRate = 5;
+    console.error('Erreur lors du chargement du settings:', error);
+    const defaultSettings = {};
+    fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
+    return defaultSettings;
   }
 }
 
