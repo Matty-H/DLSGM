@@ -13,7 +13,7 @@ const { ipcRenderer } = require('electron');
 
 // Cache global & Map de catégories disponibles dans la fenêtre globale
 let cache = {};
-export let globalCache = loadCache(cache);
+export let globalCache = loadCache();
 window.categoryMap = categoryMap;
 window.launchGame = launchGame;
 window.scanGames = scanGames;
@@ -24,10 +24,7 @@ window.showGameInfo = (gameId) => showGameInfo(gameId, globalCache);
 
 // 🔄 Recharge le cache et met à jour l'interface utilisateur
 export function reloadCacheAndUI() {
-  loadSettings();
-  console.log('[reloadCacheAndUI] Avant rechargement du cache :', globalCache);
-  globalCache = loadCache(cache);
-  console.log('[reloadCacheAndUI] Après rechargement du cache :', globalCache);
+  globalCache = loadCache();
   refreshInterface();
 }
 
@@ -36,17 +33,19 @@ const originalTitle = document.title;
 
 // Création d'un div de couverture blanche pour le "panic button"
 const panicOverlay = document.createElement('div');
-panicOverlay.style.position = 'fixed';
-panicOverlay.style.top = '0';
-panicOverlay.style.left = '0';
-panicOverlay.style.width = '100%';
-panicOverlay.style.height = '100%';
-panicOverlay.style.backgroundColor = 'white';
-panicOverlay.style.zIndex = '9998';  // Juste en dessous de l'iframe
-panicOverlay.style.display = 'flex';
-panicOverlay.style.alignItems = 'center';
-panicOverlay.style.justifyContent = 'center';
-panicOverlay.style.flexDirection = 'column';
+Object.assign(panicOverlay.style, {
+  position: 'fixed',
+  top: '0',
+  left: '0',
+  width: '100%',
+  height: '100%',
+  backgroundColor: 'white',
+  zIndex: '9998',  // Juste en dessous de l'iframe
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexDirection: 'column',
+});
 document.body.appendChild(panicOverlay);
 
 // Création de l'animation de chargement
@@ -68,50 +67,45 @@ panicOverlay.appendChild(loaderContainer);
 
 // Création d'un iframe pour le "panic button"
 const panicIframe = document.createElement('iframe');
-panicIframe.style.position = 'fixed';
-panicIframe.style.top = '0';
-panicIframe.style.left = '0';
-panicIframe.style.width = '100%';
-panicIframe.style.height = '100%';
-panicIframe.style.border = 'none';
-panicIframe.style.zIndex = '9999';
-panicIframe.style.display = 'none';
+Object.assign(panicIframe.style, {
+  position: 'fixed',
+  top: '0',
+  left: '0',
+  width: '100%',
+  height: '100%',
+  border: 'none',
+  zIndex: '9999',
+  display: 'none',
+});
 document.body.appendChild(panicIframe);
 
-// Fonction pour gérer l'activation et désactivation du panic button
-function togglePanicMode(activate) {
-  if (activate) {
-    // Change le titre de la page
-    document.title = "Wikipédia - L'encyclopédie libre";
-    
-    // Affiche d'abord la couverture blanche avec l'animation de chargement
+// Function to toggle panic mode
+function togglePanicMode(active) {
+  const panicModeClassName = 'panic-mode';
+  const delay = 500;
+
+  if (active) {
+    document.title = 'Wikipedia - The Free Encyclopedia';
+    document.body.classList.add(panicModeClassName);
     panicOverlay.style.display = 'flex';
-    
-    // Attend un moment puis active l'iframe de Wikipédia
+
     setTimeout(() => {
       panicIframe.style.display = 'block';
-      panicIframe.src = 'https://fr.wikipedia.org/wiki/Spécial:Page_au_hasard';
-      
-      // Après le chargement de l'iframe, cache la couverture blanche
+      panicIframe.src = 'https://fr.wikipedia.org/wiki/Special:Random';
       panicIframe.onload = () => {
         panicOverlay.style.display = 'none';
       };
-    }, 500);
+    }, delay);
   } else {
-    // Réaffiche brièvement la couverture blanche
+    document.body.classList.remove(panicModeClassName);
     panicOverlay.style.display = 'flex';
-    
-    // Vide et cache l'iframe
-    panicIframe.src = 'about:blank';
-    panicIframe.style.display = 'none';
-    
-    // Restaure le titre original
-    document.title = originalTitle;
-    
-    // Cache la couverture blanche après un court délai
+
     setTimeout(() => {
+      panicIframe.src = 'about:blank';
+      panicIframe.style.display = 'none';
+      document.title = originalTitle;
       panicOverlay.style.display = 'none';
-    }, 200);
+    }, delay);
   }
 }
 
@@ -124,7 +118,7 @@ let panicActive = false;
 if (typeof ipcRenderer !== 'undefined') {
   // Mise en place de la communication IPC pour le panic button
   ipcRenderer.on('panic-button-triggered', () => {
-    console.log('[panicButton] Triggered via IPC');
+    // console.log('[panicButton] Triggered via IPC');
     panicActive = !panicActive;
     togglePanicMode(panicActive);
   });
@@ -136,10 +130,10 @@ if (typeof ipcRenderer !== 'undefined') {
 // Version navigateur : utilise l'approche standard pour les événements clavier
 function handleKeyDown(event) {
   if (event.code === 'Space') {
-    console.log('[panicButton] Hit');
+    // console.log('[panicButton] Hit');
     const currentTime = new Date().getTime();
     if (currentTime - lastPressTime < 300) { // Double appui rapide
-      console.log('[panicButton] Double appui détecté');
+      // console.log('[panicButton] Double appui détecté');
       panicActive = !panicActive;
       togglePanicMode(panicActive);
     }
@@ -155,8 +149,6 @@ function initApp() {
   initEventListeners();
   window.addEventListener('game-closed', () => {
     console.log('[event] game-closed capté !');
-    globalCache = loadCache(); // Recharge le cache
-    refreshInterface(); // Met à jour l'interface
   });
   scanGames();
   initSettingsUI();

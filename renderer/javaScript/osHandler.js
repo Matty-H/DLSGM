@@ -43,147 +43,177 @@ export function getGamesFolderPath() {
 }
 
 // === GAME FUNCTIONS ===
-export async function openGameFolder(folder) {
+export async function openGameFolder(gameId) {
   try {
+    // Check if the user is trying to open a game folder on an unsupported OS.
     if (!platformUtils.isSupported()) {
-      throw new Error('OS non supporté pour l\'instant');
+      throw new Error('Unsupported OS');
     }
 
-    const gamesFolderPath = getGamesFolderPath();
-    if (!gamesFolderPath) {
-      throw new Error('Dossier de jeux non configuré');
+    // Get the path to the folder where all the games are stored.
+    const gamesDirPath = getGamesFolderPath();
+    // If the user hasn't configured the game directory, throw an error.
+    if (!gamesDirPath) {
+      throw new Error('Game directory not configured');
     }
 
-    const folderPath = path.join(gamesFolderPath, folder);
+    // Construct the path to the folder of the game that the user wants to open.
+    const targetFolderPath = path.join(gamesDirPath, gameId);
 
-    // Ouvre le dossier
-    platformUtils.openFolder(folderPath);
+    // Open the folder using the platform-specific function.
+    platformUtils.openFolder(targetFolderPath);
 
-    // Détecte l'engine en appelant detectGameEngine
-    const detectionResult = await detectGameEngine(folder, gamesFolderPath);
+    // Detect the game engine that the game is using.
+    const engineInfo = await detectGameEngine(gameId, gamesDirPath);
 
-    console.log(`Moteur détecté pour ${folder} :`, detectionResult.engineType);
+    // Log the detected engine type to the console.
+    console.log(`Engine detected for ${gameId}:`, engineInfo.engineType);
   } catch (error) {
+    // If there's an error, alert the user and log the error to the console.
     alert(error.message);
-    console.error('Erreur lors de l\'ouverture du dossier:', error);
+    console.error('Error opening game folder:', error);
   }
 }
 
 
-export function launchGame(folder) {
-  console.log('Lancement du jeu...');
+export function launchGame(gameId) {
   try {
+    // For now, we only support launching games on macOS.
+    // TODO: Implement support for launching games on Windows.
     if (platform !== 'darwin') {
-      throw new Error('Lancement de jeu supporté uniquement sur macOS pour l\'instant');
+      throw new Error('Game launch is only supported on macOS for now');
     }
     
-    const gamesFolderPath = getGamesFolderPath();
-    if (!gamesFolderPath) {
-      throw new Error('Dossier de jeux non configuré');
+    // Try to get the path to the games directory.
+    // If it's not configured, we can't launch the game.
+    const gamesDirPath = getGamesFolderPath();
+    if (!gamesDirPath) {
+      throw new Error('Games directory not configured');
     }
     
-    const gameFolderPath = path.join(gamesFolderPath, folder);
+    // Get the path to the directory containing the game we want to launch.
+    const gameDirPath = path.join(gamesDirPath, gameId);
     
-    // Trouver le fichier .app
-    const files = fs.readdirSync(gameFolderPath);
-    const appFolderName = files.find(file => file.endsWith('.app'));
-    if (!appFolderName) {
-      throw new Error('Aucun fichier .app trouvé dans ce dossier');
+    // Find the .app file in the game directory.
+    // macOS apps are packaged as .app directories, so this is the entry point to the app.
+    const files = fs.readdirSync(gameDirPath);
+    const appDirName = files.find(file => file.endsWith('.app'));
+    if (!appDirName) {
+      throw new Error('No .app file found in the directory');
     }
-    console.log(`App trouvée : ${appFolderName}`);
     
-    // Trouver le binaire exécutable
-    const macOSFolderPath = path.join(gameFolderPath, appFolderName, 'Contents', 'MacOS');
-    const macOSFiles = fs.readdirSync(macOSFolderPath);
+    // Find the executable binary inside the .app directory.
+    // On macOS, the binary is stored in Contents/MacOS/.
+    const macOSDirPath = path.join(gameDirPath, appDirName, 'Contents', 'MacOS');
+    const macOSFiles = fs.readdirSync(macOSDirPath);
     const binaryName = macOSFiles[0];
     if (!binaryName) {
-      throw new Error('Aucun binaire trouvé dans Contents/MacOS/');
+      throw new Error('No executable binary found in Contents/MacOS/');
     }
-    console.log(`Binaire trouvé : ${binaryName}`);
     
-    const executablePath = path.join(macOSFolderPath, binaryName);
+    // Get the full path to the executable binary.
+    const executablePath = path.join(macOSDirPath, binaryName);
     
-    // Lancer le jeu et suivre son exécution
-    return runGameProcess(folder, executablePath);
+    // Launch the game and track its execution.
+    // We use spawn() to launch the game, and set up some event listeners to track the game's execution.
+    // We also set the game as "running" in the UI, so that the user knows that the game is currently running.
+    return runGameProcess(gameId, executablePath);
   } catch (error) {
+    // If there's an error, alert the user and log the error to the console.
     alert(error.message);
-    console.error('Erreur lors du lancement du jeu:', error);
+    console.error('Error launching game:', error);
     return null;
   }
 }
 
-function runGameProcess(gameId, executablePath) {
-  // Marquer le jeu comme en cours d'exécution
+function launchGameProcess(gameId, executablePath) {
+  // Lorsqu'un utilisateur clique sur le bouton "Lancer" pour un jeu,
+  // nous devons lancer le jeu et le suivre pour enregistrer le temps passé.
+  // Nous utilisons spawn() pour lancer le jeu en tant que processus externe,
+  // et nous utilisons des gestionnaires d'événement pour suivre l'exécution du jeu.
+  // Nous mettons également à jour l'état du jeu dans l'interface utilisateur,
+  // pour que l'utilisateur sache que le jeu est actuellement en cours d'exécution.
+
+  // Indiquez que le jeu est en cours d'exécution
   setGameRunning(gameId, true);
-  
-  // Lancer le binaire et suivre le temps de jeu
+
+  // Lancer le jeu et enregistrer le temps de jeu
   const startTime = Date.now();
   const gameProcess = spawn(executablePath);
-  
+
+  // Si le lancement du jeu échoue, affichez un message d'erreur
   gameProcess.on('error', (error) => {
-    console.error('Erreur de lancement:', error.message);
+    console.error(`Failed to launch game: ${error.message}`);
     alert('Impossible de lancer le jeu.');
     setGameRunning(gameId, false);
   });
-  
+
+  // Lorsque le jeu se termine, mettez à jour le temps total de jeu
   gameProcess.on('close', (code) => {
     const endTime = Date.now();
-    const durationInSeconds = Math.round((endTime - startTime) / 1000);
-    console.log(`Le jeu s'est fermé après ${durationInSeconds} secondes.`);
-    
+    const playTimeInSeconds = Math.round((endTime - startTime) / 1000);
+
     setGameRunning(gameId, false);
-    updateGameTime(gameId, durationInSeconds);
+    updateGameTime(gameId, playTimeInSeconds);
   });
-  
+
+  // Retournez le processus du jeu, au cas où nous devions le stopper manuellement
   return gameProcess;
 }
 
 // === GAME STATS MANAGEMENT ===
+// This function is called whenever a game is launched or closed.
+// It updates the total play time for the game in the cache.
 export function updateGameTime(gameId, sessionTimeInSeconds) {
-  try {
-    const cache = loadCache();
-    const gameEntry = cache[gameId] || {};
-    
-    // Mettre à jour le temps total de jeu
-    const currentTotalTime = gameEntry.totalPlayTime || 0;
-    const newTotalTime = currentTotalTime + sessionTimeInSeconds;
-    
-    updateCacheEntry(cache, gameId, {
-      totalPlayTime: newTotalTime,
-      lastPlayed: new Date().toISOString()
-    });
-    
-    console.log(`Temps de jeu mis à jour pour ${gameId}: ${newTotalTime} secondes au total`);
-    
-    // Rafraîchir l'UI pour afficher les nouvelles informations
-    refreshInterface();
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour du temps de jeu:', error);
-  }
+  // Load the cache from the file system
+  const cache = loadCache();
+
+  // Get the entry for this game in the cache,
+  // or create a new one if it doesn't exist
+  const gameEntry = cache[gameId] || {};
+
+  // Update the total play time
+  // Get the current total play time for this game
+  const currentTotalTime = gameEntry.totalPlayTime || 0;
+
+  // Calculate the new total play time by adding the time spent in this session
+  const newTotalTime = currentTotalTime + sessionTimeInSeconds;
+
+  // Update the entry in the cache with the new total play time
+  updateCacheEntry(cache, gameId, {
+    // Set the total play time to the new value
+    totalPlayTime: newTotalTime,
+
+    // Set the last played time to the current timestamp
+    lastPlayed: new Date().toISOString()
+  });
+
+  // Refresh the UI to show the updated information
+  refreshInterface();
 }
 
 // === UI REFRESH MANAGEMENT ===
 let refreshInterval = null;
 
 export function startAutoRefresh(intervalInMinutes = 1) {
-  // Annuler l'intervalle précédent s'il existe
+  // Check if there's an existing refresh interval and clear it to avoid multiple intervals running
   if (refreshInterval) {
     clearInterval(refreshInterval);
   }
-  
-  // N'active pas le refresh si l'intervalle est 0
+
+  // If the interval is set to 0 or negative, disable the auto-refresh functionality
   if (intervalInMinutes <= 0) {
-    console.log('Auto-refresh désactivé (intervalle = 0).');
     return;
   }
-  
-  const intervalInMs = intervalInMinutes * 60 * 1000;
-  console.log(`Auto-refresh activé toutes les ${intervalInMinutes} minute(s).`);
-  
-  refreshInterval = setInterval(() => {
-    console.log('Rafraîchissement automatique de la liste des jeux...');
-    refreshInterface();
-  }, intervalInMs);
+
+  // Convert the interval from minutes to milliseconds for the setInterval function
+  const intervalInMilliseconds = intervalInMinutes * 60 * 1000;
+
+  // Set up a new interval that will call the refreshInterface function at the specified interval
+  refreshInterval = setInterval(
+    () => refreshInterface(),
+    intervalInMilliseconds
+  );
 }
 
 // // === FORMATTER LA TAILLE EN TEXTE LISIBLE ===
