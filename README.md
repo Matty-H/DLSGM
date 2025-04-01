@@ -19,6 +19,7 @@
 
 ## Roadmap
 
+- [ ]  Json first boot initialisation
 - [ ]  Fully translated in english
 - [ ]  Windows compatibility
 - [ ]  open save files (unity, rpgmaker, godot)

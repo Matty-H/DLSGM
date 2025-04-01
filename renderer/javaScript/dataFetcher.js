@@ -111,7 +111,7 @@ export function purgeObsoleteGamesFromCache() {
 
   if (purgedCacheEntries.length > 0) {
     console.log(`Purge de ${purgedCacheEntries.length} entrées obsolètes dans le cache:`, purgedCacheEntries);
-    saveCache(globalCache);
+    saveCache();
   } else {
     console.log('Aucune entrée obsolète trouvée dans le cache.');
   }

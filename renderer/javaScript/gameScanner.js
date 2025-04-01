@@ -5,44 +5,54 @@ import { getGamesFolderPath } from './osHandler.js';
 import { purgeObsoleteGamesFromCache } from './dataFetcher.js';
 const fs = require('fs');
 
-// Scanne le dossier des jeux, purge les entrées obsolètes et met à jour l'interface
 export function scanGames() {
-  console.log('function scanGames');
+  // Scans the SCAN folder for new games and updates the game list
+  // 1. Purge obsolete games from the cache
+  // 2. Find all folders in the SCAN folder
+  // 3. Check which ones are not in the cache yet
+  // 4. Fetch metadata for uncached games
+  // 5. Update the category and genre dropdown menus
+  // 6. Refresh the game list
+
   try {
-    if (!fs.existsSync(getGamesFolderPath())) {
-      console.error('Le dossier SCAN n\'existe pas');
-      document.querySelector('.games-list').innerHTML = '<p>Dossier SCAN introuvable. Veuillez créer le dossier SCAN sur votre bureau.</p>';
+    const gamesFolderPath = getGamesFolderPath();
+    if (!fs.existsSync(gamesFolderPath)) {
+      console.error('Games folder does not exist');
+      // If the SCAN folder does not exist, show an error message
+      document.querySelector('.games-list').innerHTML = '<p>Games folder not found. Please create a folder named "SCAN" on your desktop.</p>';
       return;
     }
 
+    // Purge obsolete games from the cache
     purgeObsoleteGamesFromCache();
-    
-    const files = fs.readdirSync(getGamesFolderPath());
+
+    const files = fs.readdirSync(gamesFolderPath);
     const gameFolders = files.filter(file => /^[A-Z]{2}\d{6,9}$/.test(file));
-    
+
     if (gameFolders.length === 0) {
-      document.querySelector('.games-list').innerHTML = '<p>Aucun jeu trouvé dans SCAN.</p>';
+      // If there are no games in the SCAN folder, show an error message
+      document.querySelector('.games-list').innerHTML = '<p>No games found in SCAN folder.</p>';
       return;
     }
-    
-    // Vérifier et récupérer les métadonnées pour les jeux non-cachés
-    gameFolders.forEach(folder => {
-      const gameId = folder;
-      // Vérifier si le jeu n'est pas dans le cache pour récupérer ses infos
+
+    // Check and retrieve metadata for uncached games
+    gameFolders.forEach(gameFolder => {
+      const gameId = gameFolder;
       if (!globalCache[gameId]) {
-        console.log(`Jeu non-caché trouvé: ${gameId}, récupération des métadonnées...`);
-        fetchGameMetadata(gameId); // Récupérer les métadonnées
+        // If the game is not in the cache, retrieve its metadata
+        fetchGameMetadata(gameId); // Retrieve metadata
       }
     });
-    
-    // Mettre à jour les menus déroulants
+
+    // Update dropdown menus
     updateCategoryDropdown(globalCache);
     updateGenreDropdown(globalCache);
 
     refreshInterface();
 
   } catch (error) {
-    console.error('Erreur lors du scan des jeux:', error);
-    document.querySelector('.games-list').innerHTML = '<p>Erreur lors du scan des jeux.</p>';
+    console.error('Error scanning games:', error);
+    // If there is an error, show an error message
+    document.querySelector('.games-list').innerHTML = '<p>Error scanning games.</p>';
   }
 }

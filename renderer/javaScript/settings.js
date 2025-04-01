@@ -3,9 +3,11 @@ import { resetAndRedownloadImages } from './dataFetcher.js';
 const { ipcRenderer } = require('electron');
 const fs = require('fs');
 
+// Charger les paramètres avant de créer l'interface !
+let settings = {};
 let destinationFolder = '';
-let language = 'en_US'; // Valeur par défaut
-let refreshRate = 5; // Valeur par défaut, mais ça sera écrasé si on charge le JSON
+let refreshRate = 5;
+let language = 'en_US';
 
 export function initSettingsUI() {
   const settingsButton = document.querySelector('.settings-button');
@@ -15,58 +17,48 @@ export function initSettingsUI() {
   settingsContainer.className = 'settings-container';
   settingsContainer.style.display = 'none';
 
-  // Charger les paramètres avant de créer l'interface !
-  loadSettings();
-
-  // Maintenant que refreshRate et destinationFolder ont été mis à jour,
-  // on peut utiliser leurs valeurs pour créer le HTML
   settingsContainer.innerHTML = `
     <div class="settings-header">
-      <h2>Paramètres</h2>
+      <h2>Settings</h2>
     </div>
     <div class="settings-content">
       <div class="setting-item">
-        <label for="destination-folder">Dossier de destination:</label>
+        <label for="destination-folder">Destination Folder:</label>
         <div class="folder-selection">
-          <input type="text" class="destination-folder" readonly value="${destinationFolder}">
-          <button class="browse-button">Parcourir</button>
+          <input type="text" class="destination-folder" readonly value="${settings.destinationFolder}">
+          <button class="browse-button">Browse</button>
         </div>
       </div>
       <div class="setting-item">
-        <label for="refresh-rate">Refresh rate (in min):</label>
+        <label for="refresh-rate">Refresh Rate (in min):</label>
         <div class="number-input-container">
-          <input type="number" class="refresh-rate-input" min="0" max="120" value="${refreshRate}" step="1">
+          <input type="number" class="refresh-rate-input" min="0" max="120" value="${settings.refreshRate}" step="1">
         </div>
       </div>
       <div class="setting-item">
-        <button class="reset-img-cache">Reset image cache</button>
+        <button class="reset-image-cache">Reset Image Cache</button>
       </div>
       <div class="setting-item">
-        <label for="language-toggle">Langue :</label>
+        <label for="language-toggle">Language:</label>
         <button class="language-toggle">🇬🇧 English</button>
       </div>
       <div class="setting-item">
-        <button class="save-button">Enregistrer les paramètres</button>
+        <button class="save-button">Save Settings</button>
       </div>
-
     </div>
   `;
 
   document.body.appendChild(settingsContainer);
 
-  // Transformer le bouton settings en toggle
   settingsButton.addEventListener('click', () => {
     const isVisible = settingsContainer.style.display === 'block';
-  
     settingsContainer.style.display = isVisible ? 'none' : 'block';
     settingsButton.classList.toggle('active', !isVisible);
   });
 
-  document.querySelector('.reset-img-cache').addEventListener('click', () => {
+  document.querySelector('.reset-image-cache').addEventListener('click', () => {
     resetAndRedownloadImages();
   });
-
-  // On supprime le bouton "Retour" qui n'est plus nécessaire
 
   document.querySelector('header h1').addEventListener('click', () => {
     settingsContainer.style.display = 'none';
@@ -84,10 +76,9 @@ export function initSettingsUI() {
     }
   });
 
-  const refreshInput = document.querySelector('.refresh-rate-input');
-
-  refreshInput.addEventListener('input', () => {
-    const value = parseInt(refreshInput.value);
+  const refreshRateInput = document.querySelector('.refresh-rate-input');
+  refreshRateInput.addEventListener('input', () => {
+    const value = parseInt(refreshRateInput.value, 10);
     if (!isNaN(value)) {
       refreshRate = value;
     }
@@ -95,59 +86,68 @@ export function initSettingsUI() {
 
   document.querySelector('.save-button').addEventListener('click', () => {
     saveSettings();
-    scanGames()
+    scanGames();
   });
 
-  document.querySelector('.language-toggle').addEventListener('click', (event) => {
+  const languageToggleButton = document.querySelector('.language-toggle');
+  languageToggleButton.textContent = language === 'en_US' ? '🇯🇵 日本語' : '🇬🇧 English';
+
+  languageToggleButton.addEventListener('click', () => {
     language = language === 'en_US' ? 'ja_JP' : 'en_US';
-    event.target.textContent = language === 'en_US' ? '🇬🇧 English' : '🇯🇵 日本語';
+    languageToggleButton.textContent = language === 'en_US' ? '🇯🇵 日本語' : '🇬🇧 English';
   });
 }
 
-
-
 // === SETTINGS MANAGEMENT ===
 function saveSettings() {
-  try {
-    const settings = {
-      destinationFolder,
-      refreshRate: parseInt(refreshRate),
-      language
-    };
+  const data = {
+    destinationFolder: settings.destinationFolder,
+    refreshRate: parseInt(settings.refreshRate, 10),
+    language: settings.language,
+  };
 
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-    startAutoRefresh(settings.refreshRate);
-    ipcRenderer.send('update-language', language);
+  try {
+    fs.writeFileSync(settingsPath, JSON.stringify(data, null, 2));
+    startAutoRefresh(data.refreshRate);
+    ipcRenderer.send('update-language', data.language);
   } catch (error) {
-    console.error('Erreur lors de l\'enregistrement des paramètres:', error);
+    console.error('Error saving settings:', error);
   }
 }
 
 export function loadSettings() {
   try {
     if (fs.existsSync(settingsPath)) {
-      const settingsData = fs.readFileSync(settingsPath, 'utf8');
-      const settings = JSON.parse(settingsData);
-      console.log('settings chargé:', Object.keys(settings).length, 'entrées');
+      const fileContent = fs.readFileSync(settingsPath, 'utf8');
+      const parsedData = JSON.parse(fileContent);
+
+      settings = {
+        destinationFolder: parsedData.destinationFolder || destinationFolder,
+        refreshRate: parsedData.refreshRate || refreshRate,
+        language: parsedData.language || language,
+      };
+
       return settings;
     } else {
-      console.log('Aucun settings trouvé, création du settings...');
-      const defaultSettings = {};
+      const defaultSettings = {
+        destinationFolder,
+        refreshRate,
+        language,
+      };
       fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
+      settings = defaultSettings;
       return defaultSettings;
     }
   } catch (error) {
-    console.error('Erreur lors du chargement du settings:', error);
-    const defaultSettings = {};
-    fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
-    return defaultSettings;
+    console.error('Error loading settings:', error);
+    return { destinationFolder, refreshRate, language };
   }
 }
 
 export function getDestinationFolder() {
-  return destinationFolder;
+  return settings.destinationFolder || '';
 }
 
 export function getRefreshRate() {
-  return parseInt(refreshRate);
+  return Number(settings.refreshRate);
 }
