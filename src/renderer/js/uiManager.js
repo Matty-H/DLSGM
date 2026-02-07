@@ -7,6 +7,7 @@ import { matchesFilters } from './filterManager.js';
 import { saveCache, loadCache } from './cacheManager.js';
 import { getGamesFolderPath } from './osHandler.js';
 import { formatPlayTime, formatLastPlayed } from './timeFormatter.js';
+import { PLACEHOLDER_IMAGE } from './constants.js';
 
 // État global du cycle de vie des jeux
 export let isAnyGameRunning = false;
@@ -92,19 +93,23 @@ export async function refreshInterface() {
     
     const userDataPath = await window.electronAPI.getUserDataPath();
 
-    for (const folder of gameFolders) {
+    const gameElements = await Promise.all(gameFolders.map(async (folder) => {
       const gameId = folder;
-      
       if (cache[gameId]) {
         const gameData = cache[gameId];
-        
         if (matchesFilters(gameData, selectedCategoryCode, searchTerm)) {
-          const gameElement = await createGameElement(gameId, gameData, userDataPath);
-          list.appendChild(gameElement);
-          matchCount++;
+          return await createGameElement(gameId, gameData, userDataPath);
         }
       }
-    }
+      return null;
+    }));
+
+    gameElements.forEach(el => {
+      if (el) {
+        list.appendChild(el);
+        matchCount++;
+      }
+    });
 
     attachRatingEventListeners(cache);
     updateAllGameButtons();
@@ -158,7 +163,7 @@ async function createGameElement(gameId, gameData, userDataPath) {
     <div class="game-container">
       ${errorBadge}
       <img src="${workImagePath}" alt="${gameName}" class="game-thumbnail" onclick="window.showGameInfo('${gameId}')"
-           onerror="this.src='assets/placeholder.jpg'; this.onerror=null;" />
+           onerror="this.onerror=null; this.src='${PLACEHOLDER_IMAGE}';" />
     </div>
     <div class="game-actions">
       <div class="action-container">

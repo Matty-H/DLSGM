@@ -41,8 +41,10 @@ protocol.registerSchemesAsPrivileged([
 // Initialisation de l'application
 app.whenReady().then(() => {
   protocol.registerFileProtocol('atom', (request, callback) => {
-    const url = request.url.substr(7);
-    callback({ path: path.normalize(decodeURIComponent(url)) });
+    // Nettoie l'URL pour obtenir un chemin de fichier valide
+    // Retire "atom://" et les slashes initiaux éventuels
+    const filePath = decodeURIComponent(request.url.replace(/^atom:\/\/[\/]*/, ''));
+    callback({ path: path.normalize(filePath) });
   });
 
   createWindow();

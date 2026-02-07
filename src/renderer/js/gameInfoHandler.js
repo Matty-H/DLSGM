@@ -6,6 +6,7 @@ import { attachGameInfoEventListeners } from './eventListeners.js';
 import { updateCacheEntry, loadCache } from './cacheManager.js';
 import { refreshInterface } from './uiManager.js';
 import { categoryMap } from './metadataManager.js';
+import { PLACEHOLDER_IMAGE } from './constants.js';
 
 /**
  * Affiche les informations détaillées d'un jeu spécifique.
@@ -63,10 +64,10 @@ export async function showGameInfo(gameId) {
       <div class="carousel">
         <button class="prev-btn">❮</button>
         <div class="carousel-images">
-          <img src="${imagePath}" class="carousel-img active" onerror="this.src='assets/placeholder.jpg'" />
+          <img src="${imagePath}" class="carousel-img active" onerror="this.onerror=null; this.src='${PLACEHOLDER_IMAGE}';" />
           ${await Promise.all(sampleImages.map(async (_img, i) => {
             const src = await getImgUrl(`sample_${i + 1}.jpg`);
-            return `<img src="${src}" class="carousel-img" onerror="this.style.display='none'" />`;
+            return `<img src="${src}" class="carousel-img" onerror="this.onerror=null; this.style.display='none';" />`;
           })).then(results => results.join(''))}
         </div>
         <button class="next-btn">❯</button>
