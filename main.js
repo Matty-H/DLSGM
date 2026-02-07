@@ -1,3 +1,4 @@
+//main.js
 const { app, BrowserWindow, globalShortcut, ipcMain, dialog } = require('electron');
 const fs = require('fs');
 const settingsPath = 'renderer/data_base/settings.json';
