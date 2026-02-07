@@ -1,24 +1,34 @@
+/**
+ * Gère le filtrage de la liste des jeux.
+ */
+
 // État des filtres actuels
 export let selectedGenres = [];
 export let selectedCustomTags = [];
 
+/**
+ * Met à jour les tags personnalisés sélectionnés.
+ */
 export function updateSelectedCustomTags(newTags) {
   selectedCustomTags.length = 0;
   newTags.forEach(tag => selectedCustomTags.push(tag));
 }
 
-// Met à jour la liste des genres sélectionnés
+/**
+ * Met à jour les genres sélectionnés.
+ */
 export function updateSelectedGenres(newGenres) {
   selectedGenres.length = 0;
   newGenres.forEach(genre => selectedGenres.push(genre));
 }
 
-// Détermine si un jeu correspond aux critères de filtrage actuels
+/**
+ * Détermine si un jeu correspond aux critères de filtrage actuels.
+ */
 export function matchesFilters(game, selectedCategoryCode, searchTerm) {
-  // Vérifier si le jeu a un nom
   const gameName = game.work_name || '';
     
-  // Filtrer par genre si des genres sont sélectionnés
+  // Filtrage par genre (si sélectionné)
   if (selectedGenres.length > 0) {
     const gameGenres = game.genre || [];
     const hasMatchingGenre = selectedGenres.some(genre => 
@@ -27,12 +37,12 @@ export function matchesFilters(game, selectedCategoryCode, searchTerm) {
     if (!hasMatchingGenre) return false;
   }
 
-  // Filtrer par catégorie si une catégorie est sélectionnée
+  // Filtrage par catégorie
   if (selectedCategoryCode !== 'all' && game.category !== selectedCategoryCode) {
     return false;
   }
   
-  // Filtrer par terme de recherche (dans le nom, le cercle, les tags personnalisés ou l'auteur)
+  // Filtrage par terme de recherche (nom, cercle, auteur, tags)
   if (searchTerm) {
     const lowerSearchTerm = searchTerm.toLowerCase();
 

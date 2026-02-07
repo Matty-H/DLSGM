@@ -7,19 +7,6 @@ from datetime import datetime
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
-settings_path = "renderer/data_base/settings.json"
-
-def get_language():
-    try:
-        with open(settings_path, "r", encoding="utf-8") as f:
-            settings = json.load(f)
-            return settings.get("language", "en_US")  # Valeur par défaut
-    except Exception as e:
-        print(f"Erreur lecture paramètres: {e}")
-        return "en_US"  # Valeur de secours
-
-lang = get_language()
-
 # Fonction pour convertir les objets en JSON-friendly format
 def serialize(obj):
     if isinstance(obj, datetime):
@@ -31,7 +18,7 @@ def serialize(obj):
     return obj  # Renvoie tel quel si ce n'est pas un type problématique
 
 # Fonction principale pour récupérer les infos du jeu
-async def fetch_game_data(game_id):
+async def fetch_game_data(game_id, lang="en_US"):
     async with DlsiteAPI(locale=lang) as api:
         work_data = await api.get_work(game_id)
 
@@ -72,8 +59,14 @@ async def fetch_game_data(game_id):
         return json.dumps(data, ensure_ascii=False, indent=4)
 
 async def main():
-    game_id = sys.argv[1]  # ID passé en argument
-    data = await fetch_game_data(game_id)
+    if len(sys.argv) < 2:
+        print("Usage: python fetch_dlsite.py <game_id> [lang]")
+        return
+
+    game_id = sys.argv[1]
+    lang = sys.argv[2] if len(sys.argv) > 2 else "en_US"
+
+    data = await fetch_game_data(game_id, lang)
     print(data)  # Affichage des données
 
 if __name__ == "__main__":

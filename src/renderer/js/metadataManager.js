@@ -1,57 +1,60 @@
-const fs = require('fs');
+/**
+ * Gère les métadonnées des jeux et les catégories.
+ */
 
-// Mapping des catégories et leur nom d'affichage
+// Correspondance des codes de catégories DLSite et leurs noms d'affichage
 export const categoryMap = {
   "ACN": "Action",
-  "ADV": "Adventure",
+  "ADV": "Aventure",
   "QIZ": "Quiz",
   "ICG": "CG/Illustrations",
-  "DNV": "Digital Novel",
+  "DNV": "Roman Numérique",
   "SCM": "Gekiga",
-  "IMT": "Illustration Materials",
+  "IMT": "Matériel d'Illustration",
   "MNG": "Manga",
-  "ET3": "Miscellaneous",
-  "ETC": "Miscellaneous Game",
-  "MUS": "Music",
-  "AMT": "Music Materials",
-  "NRE": "Novel",
+  "ET3": "Divers",
+  "ETC": "Jeu Divers",
+  "MUS": "Musique",
+  "AMT": "Matériel Musical",
+  "NRE": "Roman",
   "PZL": "Puzzle",
-  "RPG": "Role Playing",
+  "RPG": "Jeu de Rôle (RPG)",
   "STG": "Shooting",
   "SLN": "Simulation",
   "TBL": "Table",
-  "TOL": "Tools/Accessories",
-  "TYP": "Typing",
-  "MOV": "Video",
-  "SOU": "Voice/ASMR",
-  "VCM": "Voiced Comic",
+  "TOL": "Outils/Accessoires",
+  "TYP": "Dactylographie",
+  "MOV": "Vidéo",
+  "SOU": "Voix/ASMR",
+  "VCM": "Bande Dessinée Audio",
   "WBT": "Webtoon"
 };
 
-// Collecte toutes les catégories présentes dans la bibliothèque
+/**
+ * Collecte toutes les catégories présentes dans le cache global.
+ */
 export function collectAllCategories(globalCache) {
   const uniqueCategoryCodes = new Set();
   
-  // Parcourir tous les jeux dans le cache et collecter les codes de catégorie utilisés
   Object.values(globalCache).forEach(game => {
     if (game.category) {
       uniqueCategoryCodes.add(game.category);
     }
   });
   
-  // Convertir en tableau d'objets avec code et nom
   const categories = Array.from(uniqueCategoryCodes).map(code => ({
     code,
-    name: categoryMap[code] || code // Utiliser le nom du mapping ou le code si pas de mapping
+    name: categoryMap[code] || code
   }));
   
-  // Trier par nom de catégorie
   categories.sort((a, b) => a.name.localeCompare(b.name));
   
   return categories;
 }
 
-// Collecte tous les genres présents dans la bibliothèque
+/**
+ * Collecte tous les genres présents dans le cache global.
+ */
 export function collectAllGenres(globalCache) {
   const genreSet = new Set();
 
