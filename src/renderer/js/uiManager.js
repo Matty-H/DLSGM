@@ -149,9 +149,14 @@ async function createGameElement(gameId, gameData, userDataPath) {
   const isThisGameRunning = runningGames.has(gameId);
   const buttonText = isThisGameRunning ? '⏳' : '▶';
   const buttonClass = (isAnyGameRunning && !isThisGameRunning) ? 'disabled' : '';
+
+  const errorBadge = gameData.fetchFailed
+    ? `<div class="error-badge" title="${gameData.error || 'Erreur inconnue'}">⚠️ Erreur</div>`
+    : '';
   
   gameDiv.innerHTML = `
     <div class="game-container">
+      ${errorBadge}
       <img src="${workImagePath}" alt="${gameName}" class="game-thumbnail" onclick="window.showGameInfo('${gameId}')"
            onerror="this.src='assets/placeholder.jpg'; this.onerror=null;" />
     </div>

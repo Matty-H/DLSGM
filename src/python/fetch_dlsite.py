@@ -19,9 +19,13 @@ def serialize(obj):
 
 # Fonction principale pour récupérer les infos du jeu
 async def fetch_game_data(game_id, lang="en_US"):
-    async with DlsiteAPI(locale=lang) as api:
-        work_data = await api.get_work(game_id)
+    try:
+        async with DlsiteAPI(locale=lang) as api:
+            work_data = await api.get_work(game_id)
+    except Exception as e:
+        return json.dumps({"error": str(e), "game_id": game_id}, ensure_ascii=False)
 
+    try:
         # Création du dictionnaire des données
         data = {
             "work_name": work_data.work_name,
@@ -57,6 +61,8 @@ async def fetch_game_data(game_id, lang="en_US"):
 
         # Convertir les données en JSON avec encodage propre
         return json.dumps(data, ensure_ascii=False, indent=4)
+    except Exception as e:
+        return json.dumps({"error": f"Erreur lors du traitement des données: {str(e)}", "game_id": game_id}, ensure_ascii=False)
 
 async def main():
     if len(sys.argv) < 2:

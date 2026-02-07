@@ -14,13 +14,38 @@ export async function showGameInfo(gameId) {
   const cache = await loadCache();
   const gameInfoDiv = document.querySelector('.game-info');
   const gameDetails = document.querySelector('.game-details');
-  
+
   const metadata = cache[gameId];
   if (!metadata) {
     gameDetails.innerHTML = `<p>Informations non disponibles pour ${gameId}.</p>`;
     return;
   }
-  
+
+  if (metadata.fetchFailed) {
+    gameDetails.innerHTML = `
+      <div class="header-info">
+        <button class="close-game-info">✖</button>
+        <h3>${gameId}</h3>
+        <p class="error-text">⚠️ Échec de la récupération des données.</p>
+        <p><strong>Erreur :</strong> ${metadata.error || 'Inconnue'}</p>
+        <button class="retry-fetch-btn">Réessayer</button>
+      </div>
+      <div class="action-buttons">
+        <button class="open-folder-btn">Ouvrir le dossier</button>
+      </div>
+    `;
+    gameInfoDiv.classList.add("show");
+    attachGameInfoEventListeners(gameInfoDiv, gameId);
+
+    document.querySelector('.retry-fetch-btn').addEventListener('click', async () => {
+      delete cache[gameId];
+      await window.electronAPI.saveCache(cache);
+      import('./dataFetcher.js').then(m => m.fetchGameMetadata(gameId));
+      gameInfoDiv.classList.remove("show");
+    });
+    return;
+  }
+
   const userDataPath = await window.electronAPI.getUserDataPath();
   const getImgUrl = async (name) => {
     const path = await window.electronAPI.pathJoin(userDataPath, 'img_cache', gameId, name);
@@ -30,7 +55,7 @@ export async function showGameInfo(gameId) {
   const imagePath = await getImgUrl('work_image.jpg');
   const sampleImages = metadata.sample_images || [];
   const categoryLabel = metadata.category ? (categoryMap[metadata.category] || "Inconnu") : "Inconnu";
-  
+
   // Génération du carrousel d'images
   let carouselHtml = `
     <div class="carousel-container">
@@ -112,7 +137,7 @@ export async function showGameInfo(gameId) {
       `).join(', ')}</p>
     `;
   }
-  
+
   if (metadata.description) {
     detailsHtml += `<div class="description">${metadata.description}</div>`;
   }
@@ -130,7 +155,7 @@ export async function showGameInfo(gameId) {
 
   gameDetails.innerHTML = `${carouselHtml}${detailsHtml}`;
   gameInfoDiv.classList.add("show");
-  
+
   attachGameInfoEventListeners(gameInfoDiv, gameId);
 
   // Gestion de l'ajout de tags

@@ -33,15 +33,20 @@ export async function scanGames() {
     const cache = await loadCache();
 
     // Récupère les métadonnées pour les nouveaux jeux
+    let cacheUpdated = false;
     for (const gameId of gameFolders) {
       if (!cache[gameId]) {
         await fetchGameMetadata(gameId);
+        cacheUpdated = true;
       }
     }
 
+    // Si des données ont été récupérées, on recharge le cache local pour l'UI
+    const finalCache = cacheUpdated ? await loadCache() : cache;
+
     // Mise à jour des menus déroulants
-    updateCategoryDropdown(cache);
-    updateGenreDropdown(cache);
+    updateCategoryDropdown(finalCache);
+    updateGenreDropdown(finalCache);
 
     refreshInterface();
 

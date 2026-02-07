@@ -25,17 +25,40 @@ export async function fetchGameMetadata(gameId) {
     console.log(`Récupération des métadonnées pour ${gameId}...`);
     const stdout = await window.electronAPI.runPythonScript('fetch_dlsite.py', [gameId, lang]);
 
-    const metadata = JSON.parse(stdout);
+    const data = JSON.parse(stdout);
     const cache = await loadCache();
-    cache[gameId] = metadata;
+
+    if (data.error) {
+      console.warn(`Impossible de récupérer les données pour ${gameId} : ${data.error}`);
+      // On enregistre l'échec dans le cache pour ne pas retenter indéfiniment
+      cache[gameId] = {
+        work_name: gameId,
+        error: data.error,
+        fetchFailed: true,
+        lastFetchAttempt: new Date().toISOString()
+      };
+      await saveCache(cache);
+      return;
+    }
+
+    cache[gameId] = data;
     await saveCache(cache);
 
     const imgCacheDir = await getImgCacheDir();
-    await window.electronAPI.downloadGameImages(gameId, metadata, imgCacheDir);
+    await window.electronAPI.downloadGameImages(gameId, data, imgCacheDir);
 
-    scanGames();
+    // scanGames(); // Supprimé pour éviter la récursion infinie
   } catch (error) {
     console.error(`Erreur lors de la récupération des données pour ${gameId}:`, error);
+    // En cas d'erreur de script ou de parsing, on marque aussi comme échoué temporairement
+    const cache = await loadCache();
+    cache[gameId] = {
+      work_name: gameId,
+      error: error.message,
+      fetchFailed: true,
+      lastFetchAttempt: new Date().toISOString()
+    };
+    await saveCache(cache);
   }
 }
 
