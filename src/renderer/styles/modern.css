@@ -192,7 +192,7 @@ body {
   margin: 10px 0;
 }
 
-.retry-fetch-btn {
+.retry-fetch-btn, .manual-edit-btn {
   background: var(--primary-color);
   color: white;
   border: none;
@@ -200,6 +200,74 @@ body {
   border-radius: 4px;
   cursor: pointer;
   margin-top: 10px;
+  margin-right: 8px;
+}
+
+.manual-edit-btn {
+  background: var(--surface-hover);
+  border: 1px solid var(--border-color);
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.form-group input, .form-group select {
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 10px;
+  color: white;
+}
+
+.image-selection {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.image-selection span {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.save-manual-btn {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.cancel-edit-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .game-actions {

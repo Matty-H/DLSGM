@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Dialogue de dossier
   openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
+  openImageDialog: () => ipcRenderer.invoke('open-image-dialog'),
 
   // Opérations système
   listGameFolders: (folderPath) => ipcRenderer.invoke('list-game-folders', folderPath),
@@ -35,6 +36,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fsMkdir: (path) => ipcRenderer.invoke('fs-mkdir', path),
   fsReaddir: (path) => ipcRenderer.invoke('fs-readdir', path),
   fsRm: (path) => ipcRenderer.invoke('fs-rm', path),
+  fsCopy: (src, dest) => ipcRenderer.invoke('fs-copy', src, dest),
 
   // Événements (du Main vers le Renderer)
   onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', (event, ...args) => callback(...args))

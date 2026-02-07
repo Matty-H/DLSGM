@@ -30,6 +30,7 @@ export async function showGameInfo(gameId) {
         <p class="error-text">⚠️ Échec de la récupération des données.</p>
         <p><strong>Erreur :</strong> ${metadata.error || 'Inconnue'}</p>
         <button class="retry-fetch-btn">Réessayer</button>
+      <button class="manual-edit-btn">Modifier manuellement</button>
       </div>
       <div class="action-buttons">
         <button class="open-folder-btn">Ouvrir le dossier</button>
@@ -43,6 +44,10 @@ export async function showGameInfo(gameId) {
       await window.electronAPI.saveCache(cache);
       import('./dataFetcher.js').then(m => m.fetchGameMetadata(gameId));
       gameInfoDiv.classList.remove("show");
+    });
+
+    document.querySelector('.manual-edit-btn').addEventListener('click', () => {
+      showManualEditForm(gameId);
     });
     return;
   }
@@ -151,6 +156,9 @@ export async function showGameInfo(gameId) {
       <button class="open-folder-btn">
         Ouvrir le dossier
       </button>
+      <button class="manual-edit-btn">
+        Modifier
+      </button>
     </div>
   `;
 
@@ -158,6 +166,11 @@ export async function showGameInfo(gameId) {
   gameInfoDiv.classList.add("show");
 
   attachGameInfoEventListeners(gameInfoDiv, gameId);
+
+  // Gestion du bouton de modification manuelle
+  document.querySelector('.manual-edit-btn').addEventListener('click', () => {
+    showManualEditForm(gameId);
+  });
 
   // Gestion de l'ajout de tags
   document.querySelector('.add-custom-tag-btn').addEventListener('click', async () => {
@@ -184,5 +197,87 @@ export async function showGameInfo(gameId) {
         refreshInterface();
       }
     });
+  });
+}
+
+/**
+ * Affiche le formulaire de modification manuelle des métadonnées.
+ */
+export async function showManualEditForm(gameId) {
+  const cache = await loadCache();
+  const gameData = cache[gameId] || { work_name: gameId };
+  const gameDetails = document.querySelector('.game-details');
+
+  gameDetails.innerHTML = `
+    <div class="header-info">
+      <button class="close-edit">✖</button>
+      <h3>Modifier ${gameId}</h3>
+    </div>
+    <div class="edit-form">
+      <div class="form-group">
+        <label>Nom du jeu :</label>
+        <input type="text" id="edit-name" value="${gameData.work_name || ''}">
+      </div>
+      <div class="form-group">
+        <label>Cercle / Auteur :</label>
+        <input type="text" id="edit-creator" value="${gameData.circle || gameData.author || ''}">
+      </div>
+      <div class="form-group">
+        <label>Catégorie :</label>
+        <select id="edit-category">
+          ${Object.entries(categoryMap).map(([code, name]) => `
+            <option value="${code}" ${gameData.category === code ? 'selected' : ''}>${name}</option>
+          `).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Image de couverture :</label>
+        <div class="image-selection">
+          <button id="select-image-btn">Choisir une image</button>
+          <span id="selected-image-path">Par défaut</span>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="save-manual-btn">Enregistrer</button>
+        <button class="cancel-edit-btn">Annuler</button>
+      </div>
+    </div>
+  `;
+
+  document.querySelector('.close-edit').addEventListener('click', () => showGameInfo(gameId));
+  document.querySelector('.cancel-edit-btn').addEventListener('click', () => showGameInfo(gameId));
+
+  let manualImagePath = null;
+
+  document.querySelector('#select-image-btn').addEventListener('click', async () => {
+    const filePath = await window.electronAPI.openImageDialog();
+    if (filePath) {
+      manualImagePath = filePath;
+      document.querySelector('#selected-image-path').textContent = 'Image sélectionnée';
+    }
+  });
+
+  document.querySelector('.save-manual-btn').addEventListener('click', async () => {
+    const updatedData = {
+      ...gameData,
+      work_name: document.querySelector('#edit-name').value,
+      circle: document.querySelector('#edit-creator').value,
+      category: document.querySelector('#edit-category').value,
+      fetchFailed: false, // On considère que l'entrée est désormais valide
+      error: null
+    };
+
+    if (manualImagePath) {
+      const userDataPath = await window.electronAPI.getUserDataPath();
+      const destPath = await window.electronAPI.pathJoin(userDataPath, 'img_cache', gameId, 'work_image.jpg');
+      await window.electronAPI.fsCopy(manualImagePath, destPath);
+      updatedData.work_image = 'manual'; // Indique qu'une image existe
+    }
+
+    cache[gameId] = updatedData;
+    await window.electronAPI.saveCache(cache);
+
+    showGameInfo(gameId);
+    refreshInterface();
   });
 }

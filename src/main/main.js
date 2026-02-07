@@ -42,8 +42,13 @@ protocol.registerSchemesAsPrivileged([
 app.whenReady().then(() => {
   protocol.registerFileProtocol('atom', (request, callback) => {
     // Nettoie l'URL pour obtenir un chemin de fichier valide
-    // Retire "atom://" et les slashes initiaux éventuels
-    const filePath = decodeURIComponent(request.url.replace(/^atom:\/\/[\/]*/, ''));
+    let filePath = decodeURIComponent(request.url.replace(/^atom:\/\/[\/]*/, ''));
+
+    // Correction spécifique pour Windows : restauration du colon (C:/ au lieu de C/)
+    if (process.platform === 'win32' && /^[a-zA-Z]\//.test(filePath)) {
+      filePath = filePath[0] + ':' + filePath.substring(1);
+    }
+
     callback({ path: path.normalize(filePath) });
   });
 

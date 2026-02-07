@@ -54,6 +54,20 @@ function setupIpcHandlers(mainWindow) {
     return null;
   });
 
+  ipcMain.handle('open-image-dialog', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'Images', extensions: ['jpg', 'png', 'gif', 'webp', 'jpeg'] }
+      ]
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths[0];
+    }
+    return null;
+  });
+
   // --- Opérations Système ---
   ipcMain.handle('list-game-folders', async (event, folderPath) => {
     if (!folderPath || !fs.existsSync(folderPath)) return [];
@@ -171,6 +185,14 @@ function setupIpcHandlers(mainWindow) {
   ipcMain.handle('fs-mkdir', (event, path) => fs.mkdirSync(path, { recursive: true }));
   ipcMain.handle('fs-readdir', (event, path) => fs.readdirSync(path));
   ipcMain.handle('fs-rm', (event, path) => fs.rmSync(path, { recursive: true, force: true }));
+  ipcMain.handle('fs-copy', (event, src, dest) => {
+    const destDir = path.dirname(dest);
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    fs.copyFileSync(src, dest);
+    return true;
+  });
 
   // --- Téléchargement d'images ---
   ipcMain.handle('download-game-images', async (event, gameId, metadata, destBaseDir) => {
