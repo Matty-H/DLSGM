@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DLsite Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>DLsite Manager</h1>
+    <button class="settings-button">⚙️</button>
+  </header>
+
+  <main class="main-container">
+    <div class="controls">
+      <select class="category-filter">
+        <option value="all">Sort by</option>
+      </select>
+
+      <select class="genre-filter" multiple>
+        <!-- Options will be populated dynamically -->
+      </select>
+
+      <input type="text" class="search-input" placeholder="Search games...">
+
+      <button class="reset-filters">Reset Filters</button>
+    </div>
+
+    <div class="loading-indicator" style="display: none;">
+      <p>Loading...</p>
+    </div>
+
+    <div class="games-list">
+      <!-- Games will be populated dynamically -->
+    </div>
+  </main>
+
+  <aside class="game-info">
+    <div class="game-details">
+      <!-- Game details will be populated dynamically -->
+    </div>
+  </aside>
+
+  <script src="index.js"></script>
+</body>
+</html>
