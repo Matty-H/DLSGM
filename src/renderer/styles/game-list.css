@@ -1,0 +1,111 @@
+/* Games List */
+.games-list {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  align-content: flex-start;
+}
+
+/* Game Card */
+.game {
+  background: #1e1e1e;
+  align-self: flex-start;
+  border-radius: 10px;
+  width: 200px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.3s ease forwards;
+}
+
+.game:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+}
+
+.game-container {
+  position: relative;
+  width: 100%;
+  display: block;
+}
+
+.game-thumbnail {
+  width: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  display: block;
+  height: auto;
+}
+
+.game_title {
+  text-align: start;
+  padding: 3px 10px;
+  line-height: normal;
+}
+
+.game_title h3 {
+  font-size: 1.1em;
+  font-weight: bold;
+  color: white;
+  margin: 0;
+}
+
+.game_title p {
+  font-size: 1em;
+  color: white;
+  margin: 0;
+}
+
+/* Category Label */
+.category-label {
+  background-color: #6200ee;
+  color: white;
+  text-align: center;
+  padding: 6px 10px;
+  margin: 0px 10px;
+  font-weight: 500;
+  font-size: 0.8rem;
+  border-radius: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Play Time Info */
+.play-time-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(50, 50, 50, 0.8) 100%);
+  color: white;
+  padding: 8px 5px 5px 5px;
+  font-size: 0.8rem;
+  text-align: center;
+  margin: 0;
+  border: none;
+  z-index: 2;
+}
+
+/* Rating */
+.rating-container {
+  padding: 5px 10px;
+  font-size: 0.7em;
+  display: flex;
+  flex-direction: row;
+  justify-content: end;
+  align-items: anchor-center;
+  gap: 1em;
+}
+
+.star {
+  font-size: 1.2rem;
+  margin: 0 2px;
+}

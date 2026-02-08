@@ -1,0 +1,71 @@
+/* Custom Tags */
+.custom-tags-section {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column-reverse;
+  row-gap: 5px;
+  margin: 5px 0px 0px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.custom-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 5px 10px;
+}
+
+.custom-tag {
+  display: inline-flex;
+  align-items: center;
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  padding: 2px 7px;
+  margin: 3px 0px;
+  font-size: 0.9rem;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.remove-tag-btn {
+  background: none;
+  border: none;
+  color: #888;
+  margin-left: 6px;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.remove-tag-btn:hover {
+  background-color: #ff4444;
+  color: white;
+  transform: scale(1.2);
+}
+
+.new-custom-tag-input {
+  flex-grow: 1;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
+.add-custom-tag-btn {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.add-custom-tag-btn:hover {
+  background-color: #45a049;
+}

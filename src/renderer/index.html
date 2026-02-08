@@ -1,47 +1,57 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DLsite Manager</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DLS Manager</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Ajout d'une police plus moderne -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <header>
-    <h1>DLsite Manager</h1>
-    <button class="settings-button">⚙️</button>
-  </header>
+  <div class="app-wrapper">
+    <header class="main-header">
+      <div class="logo">
+        <h1>DLS <span>Manager</span></h1>
+      </div>
+      
+      <div class="header-actions">
+        <div class="search-bar">
+          <input type="text" class="search-input" placeholder="Rechercher un jeu, un cercle...">
+          <button class="reset-filters" title="Réinitialiser les filtres">✕</button>
+        </div>
+        
+        <div class="filters-group">
+          <select class="category-filter">
+            <option value="all">Toutes catégories</option>
+          </select>
+          
+          <div class="multi-select-wrapper">
+            <select class="genre-filter" multiple size="1">
+              <!-- Genres injectés dynamiquement -->
+            </select>
+          </div>
+        </div>
+        
+        <button class="settings-button" title="Paramètres">⚙️</button>
+      </div>
+    </header>
 
-  <main class="main-container">
-    <div class="controls">
-      <select class="category-filter">
-        <option value="all">Sort by</option>
-      </select>
+    <main class="content-area">
+      <section class="games-section">
+        <div class="games-list">
+          <!-- La liste des jeux sera injectée ici -->
+        </div>
+      </section>
 
-      <select class="genre-filter" multiple>
-        <!-- Options will be populated dynamically -->
-      </select>
+      <aside class="game-info">
+        <div class="game-details">
+          <!-- Détails du jeu sélectionné -->
+        </div>
+      </aside>
+    </main>
+  </div>
 
-      <input type="text" class="search-input" placeholder="Search games...">
-
-      <button class="reset-filters">Reset Filters</button>
-    </div>
-
-    <div class="loading-indicator" style="display: none;">
-      <p>Loading...</p>
-    </div>
-
-    <div class="games-list">
-      <!-- Games will be populated dynamically -->
-    </div>
-  </main>
-
-  <aside class="game-info">
-    <div class="game-details">
-      <!-- Game details will be populated dynamically -->
-    </div>
-  </aside>
-
-  <script src="index.js"></script>
+  <script type="module" src="js/renderer.js"></script>
 </body>
 </html>

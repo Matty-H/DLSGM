@@ -1,18 +1,22 @@
 {
-  "name": "dlsite-manager",
-  "version": "2.0.0",
-  "description": "DLsite Game Manager - Refactored",
-  "main": "src/main/index.js",
+  "name": "dlsgm",
+  "version": "1.0.0",
+  "main": "src/main/main.js",
   "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
-    "dev": "electron . --dev"
+    "stop": "pkill electron || taskkill /F /IM electron.exe || echo 'Aucun processus Electron trouvé'",
+    "restart": "npm-run-all stop start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "electron": "^35.0.1",
+    "npm-run-all": "^4.1.5"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.18",
-    "diskusage": "^1.1.3",
-    "tailwindcss": "^4.1.18"
-  },
-  "devDependencies": {
-    "electron": "^28.0.0"
+    "diskusage": "^1.2.0"
   }
 }
