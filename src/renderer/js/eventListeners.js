@@ -55,7 +55,7 @@ export function attachGameInfoEventListeners(gameInfoDiv, gameId) {
   });
 
   // Lien DLSite (ouvrir dans le navigateur externe)
-  document.querySelector('.dlsite-link').addEventListener('click', (event) => {
+  document.querySelector('.dlsite-link')?.addEventListener('click', (event) => {
     event.preventDefault();
     window.electronAPI.openExternal(event.target.href);
   });
