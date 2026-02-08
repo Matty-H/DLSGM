@@ -9,6 +9,15 @@ export let selectedRating = 0;
 export let selectedSort = 'name_asc';
 
 /**
+ * Initialise les filtres depuis les paramètres.
+ */
+export function initFiltersFromSettings(settings) {
+  if (settings.selectedSort) {
+    selectedSort = settings.selectedSort;
+  }
+}
+
+/**
  * Met à jour le tri sélectionné.
  */
 export function updateSelectedSort(sort) {

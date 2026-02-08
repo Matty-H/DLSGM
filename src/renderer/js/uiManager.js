@@ -213,6 +213,13 @@ async function createGameElement(gameId, gameData, userDataPath) {
   
   const ratingHtml = gameRating > 0 ? createRatingHtml(gameId, gameRating, false) : '';
 
+  const ratingContainerHtml = (totalPlayTime > 0 || ratingHtml)
+    ? `<div class="rating-container">
+        ${totalPlayTime > 0 ? `<div class="total-time">⏳ ${playTimeText}</div>` : ''}
+        ${ratingHtml}
+       </div>`
+    : '';
+
   gameDiv.innerHTML = `
     <div class="game-container">
       ${errorBadge}
@@ -226,10 +233,7 @@ async function createGameElement(gameId, gameData, userDataPath) {
     </div>
     <div class="category-label">${gameCategoryLabel}</div>
     ${customTagsHtml}
-    <div class="rating-container">
-      ${totalPlayTime > 0 ? `<div class="total-time">⏳ ${playTimeText}</div>` : ''}
-      ${ratingHtml}
-    </div>
+    ${ratingContainerHtml}
   `;
   
   return gameDiv;

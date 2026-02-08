@@ -7,6 +7,7 @@ import { refreshInterface, updateGenreDropdown } from './uiManager.js';
 import { updateSelectedGenres, updateSelectedRating, updateSelectedSort, selectedGenres, selectedRating } from './filterManager.js';
 import { openGameFolder } from './osHandler.js';
 import { loadCache } from './cacheManager.js';
+import { loadSettings, saveSettings } from './settings.js';
 
 /**
  * Initialise les écouteurs d'événements globaux.
@@ -23,10 +24,17 @@ export function initEventListeners() {
     advancedToggle.classList.toggle('active');
     advancedPanel.classList.toggle('show');
   });
-  
+
   // Filtre de tri
-  document.getElementById('sort-filter').addEventListener('change', (e) => {
-    updateSelectedSort(e.target.value);
+  document.getElementById('sort-filter').addEventListener('change', async (e) => {
+    const sortValue = e.target.value;
+    updateSelectedSort(sortValue);
+
+    // Sauvegarder le choix de tri dans les paramètres
+    const settings = await loadSettings();
+    settings.selectedSort = sortValue;
+    await saveSettings();
+
     refreshInterface();
   });
 

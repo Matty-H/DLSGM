@@ -5,7 +5,8 @@ import { scanGames } from './gameScanner.js';
 let settings = {
   destinationFolder: '',
   refreshRate: 5,
-  language: 'en_US'
+  language: 'en_US',
+  selectedSort: 'name_asc'
 };
 
 /**
