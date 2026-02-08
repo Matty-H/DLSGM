@@ -1,15 +1,20 @@
 :root {
-  --bg-color: #0f0f12;
-  --surface-color: #1a1a20;
-  --surface-hover: #25252e;
+  --bg-color: #0b0b0d;
+  --surface-color: rgba(26, 26, 32, 0.6);
+  --surface-hover: rgba(45, 45, 55, 0.8);
+  --glass-bg: rgba(20, 20, 25, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
   --primary-color: #3d5afe;
   --accent-color: #ff4081;
+  --success-color: #2ecc71;
+  --danger-color: #e74c3c;
   --text-primary: #ffffff;
   --text-secondary: #b0b0b0;
   --border-color: #30303b;
-  --header-height: 70px;
+  --header-height: 80px;
   --transition-speed: 0.3s;
-  --border-radius: 12px;
+  --border-radius: 16px;
+  --blur-amount: 12px;
 }
 
 * {
@@ -33,13 +38,14 @@ body {
 /* Header */
 .main-header {
   height: var(--header-height);
-  background: rgba(26, 26, 32, 0.8);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border-color);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-amount));
+  -webkit-backdrop-filter: blur(var(--blur-amount));
+  border-bottom: 1px solid var(--glass-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 32px;
   z-index: 100;
 }
 
@@ -142,30 +148,33 @@ body {
 
 .games-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 32px;
 }
 
 /* Game Card */
 .game {
   background: var(--surface-color);
+  backdrop-filter: blur(var(--blur-amount));
+  -webkit-backdrop-filter: blur(var(--blur-amount));
   border-radius: var(--border-radius);
   overflow: hidden;
   position: relative;
   transition: transform var(--transition-speed), box-shadow var(--transition-speed);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--glass-border);
   display: flex;
   flex-direction: column;
 }
 
 .game:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+  transform: translateY(-8px);
+  box-shadow: 0 15px 30px rgba(0,0,0,0.6);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .game-container {
   position: relative;
-  aspect-ratio: 3/4;
+  aspect-ratio: 16/9;
   overflow: hidden;
 }
 
@@ -338,16 +347,24 @@ body {
   top: 15px;
   right: 15px;
   z-index: 100;
-  background: rgba(0,0,0,0.5);
+  background: var(--danger-color);
   color: white;
   border: none;
-  width: 30px;
-  height: 30px;
+  width: 35px;
+  height: 35px;
   border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-weight: bold;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  transition: transform 0.2s, background 0.2s;
+}
+
+.close-game-info:hover, .close-edit:hover {
+  transform: scale(1.1);
+  background: #ff2d1a;
 }
 
 .game-details h3 {
@@ -487,28 +504,41 @@ body {
 
 .game-actions {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  opacity: 0;
-  transition: opacity var(--transition-speed);
-}
-
-.game:hover .game-actions {
-  opacity: 1;
+  bottom: 0;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
 }
 
 .play-button {
-  background: var(--primary-color);
+  background: var(--success-color);
   color: white;
   border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  width: 100%;
+  aspect-ratio: 1/1;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity var(--transition-speed), transform var(--transition-speed), background 0.2s;
+  pointer-events: auto;
+  font-size: 2rem;
+}
+
+.game:hover .play-button {
+  opacity: 0.95;
+  transform: translateY(0);
+}
+
+.play-button:hover {
+  background: #27ae60;
+  opacity: 1 !important;
 }
 
 .play-button.disabled {
@@ -544,17 +574,20 @@ body {
 .game-info {
   width: 0;
   flex-shrink: 0;
-  background: var(--surface-color);
-  border-left: 0 solid var(--border-color);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-amount));
+  -webkit-backdrop-filter: blur(var(--blur-amount));
+  border-left: 0 solid var(--glass-border);
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-left-width 0.4s;
   overflow: hidden;
   position: relative;
   pointer-events: none; /* Désactivé quand fermé */
+  z-index: 50;
 }
 
 .game-info.show {
-  position: relative; /* Force la position relative pour rester dans le flux flex */
-  width: 450px;
+  position: relative;
+  width: 500px;
   border-left-width: 1px;
   overflow-y: auto;
   pointer-events: auto; /* Activé quand ouvert */
@@ -643,4 +676,107 @@ body {
   padding: 8px;
   width: 100%;
   cursor: pointer;
+}
+
+/* Custom Multi-select Dropdown */
+.multi-select-wrapper {
+  position: relative;
+}
+
+.dropdown-btn {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: white;
+  padding: 8px 16px;
+  cursor: pointer;
+  min-width: 150px;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: border-color 0.2s;
+  font-size: 0.9rem;
+}
+
+.dropdown-btn:hover {
+  border-color: var(--primary-color);
+}
+
+.dropdown-btn::after {
+  content: '▼';
+  font-size: 0.7rem;
+  margin-left: 8px;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 250px;
+  max-height: 400px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-amount));
+  -webkit-backdrop-filter: blur(var(--blur-amount));
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  margin-top: 8px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.dropdown-content.show {
+  display: block;
+}
+
+.dropdown-item {
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 0.9rem;
+}
+
+.dropdown-item:hover {
+  background: var(--surface-hover);
+}
+
+.dropdown-item input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.dropdown-reset {
+  border-bottom: 1px solid var(--glass-border);
+  font-weight: bold;
+  color: var(--accent-color);
+}
+
+/* Rating Filter in Header */
+.rating-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-color);
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+}
+
+.rating-filter .star {
+  cursor: pointer;
+  font-size: 1.3rem;
+  color: #444;
+  transition: color 0.2s, transform 0.1s;
+}
+
+.rating-filter .star:hover {
+  transform: scale(1.2);
+}
+
+.rating-filter .star.active {
+  color: #f1c40f;
 }

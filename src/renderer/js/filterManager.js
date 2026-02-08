@@ -5,6 +5,14 @@
 // État des filtres actuels
 export let selectedGenres = [];
 export let selectedCustomTags = [];
+export let selectedRating = 0;
+
+/**
+ * Met à jour la note sélectionnée.
+ */
+export function updateSelectedRating(rating) {
+  selectedRating = rating;
+}
 
 /**
  * Met à jour les tags personnalisés sélectionnés.
@@ -27,6 +35,12 @@ export function updateSelectedGenres(newGenres) {
  */
 export function matchesFilters(game, selectedCategoryCode, searchTerm) {
   const gameName = game.work_name || '';
+
+  // Filtrage par note (si sélectionné)
+  if (selectedRating > 0) {
+    const gameRating = game.rating || 0;
+    if (gameRating !== selectedRating) return false;
+  }
     
   // Filtrage par genre (si sélectionné)
   if (selectedGenres.length > 0) {
