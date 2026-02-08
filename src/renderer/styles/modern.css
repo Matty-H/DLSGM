@@ -76,14 +76,15 @@ body {
 
 .search-input {
   width: 100%;
+  height: 42px;
   background: var(--surface-color);
   border: 1px solid var(--border-color);
-  border-radius: 20px;
-  padding: 8px 40px 8px 16px;
+  border-radius: 12px;
+  padding: 0 40px 0 16px;
   color: white;
   font-size: 0.9rem;
   outline: none;
-  transition: border-color var(--transition-speed);
+  transition: all var(--transition-speed);
 }
 
 .search-input:focus {
@@ -102,31 +103,44 @@ body {
   padding: 4px;
 }
 
-.filters-group {
+.header-controls {
   display: flex;
-  gap: 8px;
+  gap: 12px;
 }
 
-.category-filter, .genre-filter {
+.category-filter, .advanced-filter-btn, .sort-select {
   background: var(--surface-color);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   color: white;
-  padding: 6px 12px;
+  padding: 0 16px;
+  height: 42px;
   outline: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-filter:hover, .advanced-filter-btn:hover, .sort-select:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary-color);
 }
 
 .settings-button {
   background: var(--surface-color);
   border: 1px solid var(--border-color);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  border-radius: 12px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background var(--transition-speed);
+  transition: all var(--transition-speed);
+  font-size: 1.2rem;
 }
 
 .settings-button:hover {
@@ -181,7 +195,7 @@ body {
 .game-thumbnail {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: cover; /* Assure le bon cadrage en 16/9 */
   cursor: pointer;
 }
 
@@ -504,14 +518,14 @@ body {
 
 .game-actions {
   position: absolute;
-  bottom: 12px;
-  right: 12px;
-  width: 54px;
-  height: 54px;
+  bottom: 0;
+  right: 0;
+  width: 50%;
+  aspect-ratio: 1/1; /* Carré */
   pointer-events: none;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   z-index: 20;
 }
 
@@ -521,22 +535,22 @@ body {
   border: none;
   width: 100%;
   height: 100%;
-  border-radius: 12px;
+  border-radius: 24px 0 0 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   opacity: 0;
-  transform: scale(0.8);
-  transition: opacity var(--transition-speed), transform var(--transition-speed), background 0.2s;
+  transform: translate(30px, 30px) scale(0.8);
+  transition: all var(--transition-speed);
   pointer-events: auto;
-  font-size: 1.6rem;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  font-size: 4rem;
+  box-shadow: -10px -10px 30px rgba(0,0,0,0.5);
 }
 
 .game:hover .play-button {
   opacity: 1;
-  transform: scale(1);
+  transform: translate(0, 0) scale(1);
 }
 
 .play-button:hover {
@@ -577,9 +591,7 @@ body {
 .game-info {
   width: 0;
   flex-shrink: 0;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-amount));
-  -webkit-backdrop-filter: blur(var(--blur-amount));
+  background: #121216; /* Opaque */
   border-left: 0 solid var(--glass-border);
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-left-width 0.4s;
   overflow: hidden;
@@ -689,16 +701,17 @@ body {
 .dropdown-btn {
   background: var(--surface-color);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   color: white;
-  padding: 8px 16px;
+  height: 42px;
+  padding: 0 16px;
   cursor: pointer;
-  min-width: 150px;
+  min-width: 200px;
   text-align: left;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
   font-size: 0.9rem;
 }
 
@@ -758,14 +771,53 @@ body {
   color: var(--accent-color);
 }
 
-/* Rating Filter in Header */
+/* Advanced Filter Panel */
+.advanced-filter-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-amount));
+  -webkit-backdrop-filter: blur(var(--blur-amount));
+  border-bottom: 1px solid var(--glass-border);
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+  padding: 0 32px;
+}
+
+.advanced-filter-panel.show {
+  max-height: 500px;
+  padding: 20px 32px;
+  overflow: visible;
+}
+
+.advanced-filter-content {
+  display: flex;
+  gap: 40px;
+  align-items: flex-start;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-group label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Rating Filter */
 .rating-filter {
   display: flex;
   align-items: center;
   gap: 4px;
   background: var(--surface-color);
-  padding: 6px 16px;
-  border-radius: 20px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
 }
 
@@ -782,4 +834,18 @@ body {
 
 .rating-filter .star.active {
   color: #f1c40f;
+}
+
+.advanced-filter-btn .toggle-icon {
+  margin-left: 10px;
+  font-size: 0.7rem;
+  transition: transform 0.3s;
+}
+
+.advanced-filter-btn.active .toggle-icon {
+  transform: rotate(180deg);
+}
+
+.sort-select {
+  min-width: 220px;
 }

@@ -4,7 +4,7 @@
 
 import { scanGames } from './gameScanner.js';
 import { refreshInterface, updateGenreDropdown } from './uiManager.js';
-import { updateSelectedGenres, updateSelectedRating, selectedGenres, selectedRating } from './filterManager.js';
+import { updateSelectedGenres, updateSelectedRating, updateSelectedSort, selectedGenres, selectedRating } from './filterManager.js';
 import { openGameFolder } from './osHandler.js';
 import { loadCache } from './cacheManager.js';
 
@@ -14,7 +14,22 @@ import { loadCache } from './cacheManager.js';
 export function initEventListeners() {
   // Filtre par catégorie
   document.querySelector('.category-filter').addEventListener('change', () => refreshInterface());
+
+  // Toggle du panneau de filtrage avancé
+  const advancedToggle = document.getElementById('advanced-filter-toggle');
+  const advancedPanel = document.getElementById('advanced-filter-panel');
+
+  advancedToggle.addEventListener('click', () => {
+    advancedToggle.classList.toggle('active');
+    advancedPanel.classList.toggle('show');
+  });
   
+  // Filtre de tri
+  document.getElementById('sort-filter').addEventListener('change', (e) => {
+    updateSelectedSort(e.target.value);
+    refreshInterface();
+  });
+
   // Custom Genre Dropdown logic
   const dropdownBtn = document.getElementById('genre-dropdown-btn');
   const dropdownContent = document.getElementById('genre-dropdown-content');
@@ -93,6 +108,7 @@ export function initEventListeners() {
     
     updateSelectedGenres([]);
     updateSelectedRating(0);
+    updateSelectedSort('name_asc');
 
     // Reset stars UI
     document.querySelectorAll('#header-rating-filter .star').forEach(s => s.classList.remove('active'));
@@ -100,6 +116,9 @@ export function initEventListeners() {
     // Reset dropdown UI
     updateGenreDropdownButton();
     loadCache().then(cache => updateGenreDropdown(cache));
+
+    // Reset sort UI
+    document.getElementById('sort-filter').value = 'name_asc';
 
     scanGames();
   });

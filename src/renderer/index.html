@@ -21,11 +21,23 @@
           <button class="reset-filters" title="Réinitialiser les filtres">✕</button>
         </div>
         
-        <div class="filters-group">
+        <div class="header-controls">
           <select class="category-filter">
             <option value="all">Toutes catégories</option>
           </select>
+          <button id="advanced-filter-toggle" class="advanced-filter-btn">
+            Filtrage Avancé <span class="toggle-icon">▼</span>
+          </button>
+        </div>
 
+        <button class="settings-button" title="Paramètres">⚙️</button>
+      </div>
+    </header>
+
+    <div id="advanced-filter-panel" class="advanced-filter-panel">
+      <div class="advanced-filter-content">
+        <div class="filter-group">
+          <label>Note</label>
           <div class="rating-filter" id="header-rating-filter">
             <span class="star" data-value="1">★</span>
             <span class="star" data-value="2">★</span>
@@ -33,7 +45,10 @@
             <span class="star" data-value="4">★</span>
             <span class="star" data-value="5">★</span>
           </div>
-          
+        </div>
+
+        <div class="filter-group">
+          <label>Genres</label>
           <div class="multi-select-wrapper">
             <div class="dropdown-btn" id="genre-dropdown-btn">Genres</div>
             <div class="dropdown-content" id="genre-dropdown-content">
@@ -41,10 +56,18 @@
             </div>
           </div>
         </div>
-        
-        <button class="settings-button" title="Paramètres">⚙️</button>
+
+        <div class="filter-group">
+          <label>Trier par</label>
+          <select id="sort-filter" class="sort-select">
+            <option value="name_asc">Ordre alphabétique (A-Z)</option>
+            <option value="name_desc">Ordre alphabétique (Z-A)</option>
+            <option value="last_played">Dernière fois joué</option>
+            <option value="last_added">Dernier ajout</option>
+          </select>
+        </div>
       </div>
-    </header>
+    </div>
 
     <main class="content-area">
       <section class="games-section">

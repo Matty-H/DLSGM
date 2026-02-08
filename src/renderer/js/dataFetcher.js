@@ -41,6 +41,11 @@ export async function fetchGameMetadata(gameId) {
       return;
     }
 
+    // Ajouter la date d'ajout si elle n'existe pas déjà
+    if (!data.addedDate) {
+      data.addedDate = new Date().toISOString();
+    }
+
     cache[gameId] = data;
     await saveCache(cache);
     

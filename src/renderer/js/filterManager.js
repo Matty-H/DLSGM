@@ -6,6 +6,14 @@
 export let selectedGenres = [];
 export let selectedCustomTags = [];
 export let selectedRating = 0;
+export let selectedSort = 'name_asc';
+
+/**
+ * Met à jour le tri sélectionné.
+ */
+export function updateSelectedSort(sort) {
+  selectedSort = sort;
+}
 
 /**
  * Met à jour la note sélectionnée.

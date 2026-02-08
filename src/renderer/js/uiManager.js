@@ -3,7 +3,7 @@
  */
 
 import { collectAllCategories, collectAllGenres, categoryMap } from './metadataManager.js';
-import { matchesFilters, selectedGenres } from './filterManager.js';
+import { matchesFilters, selectedGenres, selectedSort } from './filterManager.js';
 import { saveCache, loadCache } from './cacheManager.js';
 import { getGamesFolderPath } from './osHandler.js';
 import { formatPlayTime, formatLastPlayed } from './timeFormatter.js';
@@ -125,29 +125,48 @@ export async function refreshInterface() {
     }
     
     list.innerHTML = '';
-    let matchCount = 0;
     
     const userDataPath = await window.electronAPI.getUserDataPath();
 
-    const gameElements = await Promise.all(gameFolders.map(async (folder) => {
-      const gameId = folder;
-      if (cache[gameId]) {
-        const gameData = cache[gameId];
-        if (matchesFilters(gameData, selectedCategoryCode, searchTerm)) {
-          return await createGameElement(gameId, gameData, userDataPath);
-        }
-      }
-      return null;
-    }));
+    // Filtrage des jeux
+    const filteredGames = gameFolders
+      .filter(gameId => cache[gameId])
+      .map(gameId => ({ id: gameId, data: cache[gameId] }))
+      .filter(game => matchesFilters(game.data, selectedCategoryCode, searchTerm));
 
-    gameElements.forEach(el => {
-      if (el) {
-        list.appendChild(el);
-        matchCount++;
+    // Tri des jeux
+    filteredGames.sort((a, b) => {
+      const nameA = (a.data.work_name || a.id).toLowerCase();
+      const nameB = (b.data.work_name || b.id).toLowerCase();
+
+      switch (selectedSort) {
+        case 'name_asc':
+          return nameA.localeCompare(nameB);
+        case 'name_desc':
+          return nameB.localeCompare(nameA);
+        case 'last_played':
+          const lpA = a.data.lastPlayed ? new Date(a.data.lastPlayed) : new Date(0);
+          const lpB = b.data.lastPlayed ? new Date(b.data.lastPlayed) : new Date(0);
+          return lpB - lpA;
+        case 'last_added':
+          const adA = a.data.addedDate ? new Date(a.data.addedDate) : new Date(0);
+          const adB = b.data.addedDate ? new Date(b.data.addedDate) : new Date(0);
+          return adB - adA;
+        default:
+          return 0;
       }
     });
 
-    attachRatingEventListeners(cache);
+    const gameElements = await Promise.all(filteredGames.map(async (game) => {
+      return await createGameElement(game.id, game.data, userDataPath);
+    }));
+
+    gameElements.forEach(el => {
+      if (el) list.appendChild(el);
+    });
+
+    let matchCount = gameElements.length;
+
     updateAllGameButtons();
 
     if (matchCount === 0) {
@@ -243,7 +262,7 @@ function updateAllGameButtons() {
 }
 
 export function createRatingHtml(gameId, gameRating, interactive = true) {
-  let ratingHtml = `<div class="rating" data-game-id="${gameId}">`;
+  let ratingHtml = `<div class="rating ${interactive ? 'interactive-rating' : ''}" data-game-id="${gameId}">`;
   for (let i = 1; i <= 5; i++) {
     const color = i <= gameRating ? '#f1c40f' : '#444';
     const cursor = interactive ? 'pointer' : 'default';
@@ -257,7 +276,7 @@ export function createRatingHtml(gameId, gameRating, interactive = true) {
  * Attache les gestionnaires d'événements pour les notes (pour le panneau latéral).
  */
 export function attachRatingEventListeners(cache, container = document) {
-  container.querySelectorAll('.rating .star').forEach(star => {
+  container.querySelectorAll('.interactive-rating .star').forEach(star => {
     star.addEventListener('click', async function() {
       const parent = this.parentNode;
       const gameId = parent.getAttribute('data-game-id');
