@@ -1,44 +1,43 @@
-// src/preload/preload.js
-
 const { contextBridge, ipcRenderer } = require('electron');
 
 /**
- * API exposée au renderer de manière sécurisée
- * Cette API permet au renderer d'interagir avec le processus principal
- * sans avoir accès direct aux modules Node.js
+ * Expose les API sécurisées au processus de rendu.
  */
-const electronAPI = {
-  // Settings
-  updateLanguage: (lang) => {
-    ipcRenderer.send('update-language', lang);
-  },
+contextBridge.exposeInMainWorld('electronAPI', {
+  // Infos App
+  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
 
-  // Folder dialog
-  openFolderDialog: () => {
-    ipcRenderer.send('open-folder-dialog');
-  },
-
-  onFolderSelected: (callback) => {
-    ipcRenderer.on('selected-folder', (event, folderPath) => {
-      callback(folderPath);
-    });
-  },
-
-  // Panic button
-  onPanicButtonTriggered: (callback) => {
-    ipcRenderer.on('panic-button-triggered', () => {
-      callback();
-    });
-  },
-
-  // Cleanup listeners
-  removeAllListeners: (channel) => {
-    ipcRenderer.removeAllListeners(channel);
-  }
-};
-
-/**
- * Expose l'API au renderer via contextBridge
- * L'API sera accessible via window.electronAPI dans le renderer
- */
-contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+  // Gestion des paramètres
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  updateLanguage: (lang) => ipcRenderer.send('update-language', lang),
+  
+  // Gestion du cache
+  getCache: () => ipcRenderer.invoke('get-cache'),
+  saveCache: (cache) => ipcRenderer.invoke('save-cache', cache),
+  
+  // Dialogue de dossier
+  openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
+  openImageDialog: () => ipcRenderer.invoke('open-image-dialog'),
+  
+  // Opérations système
+  listGameFolders: (folderPath) => ipcRenderer.invoke('list-game-folders', folderPath),
+  openPath: (targetPath) => ipcRenderer.invoke('open-path', targetPath),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  launchGame: (gameId) => ipcRenderer.invoke('launch-game', gameId),
+  downloadGameImages: (gameId, metadata, destBaseDir) => ipcRenderer.invoke('download-game-images', gameId, metadata, destBaseDir),
+  
+  // Scripts Python
+  runPythonScript: (scriptName, args) => ipcRenderer.invoke('run-python-script', scriptName, args),
+  
+  // Utilitaires de fichiers (bridgés pour la sécurité)
+  pathJoin: (...args) => ipcRenderer.invoke('path-join', ...args),
+  fsExists: (path) => ipcRenderer.invoke('fs-exists', path),
+  fsMkdir: (path) => ipcRenderer.invoke('fs-mkdir', path),
+  fsReaddir: (path) => ipcRenderer.invoke('fs-readdir', path),
+  fsRm: (path) => ipcRenderer.invoke('fs-rm', path),
+  fsCopy: (src, dest) => ipcRenderer.invoke('fs-copy', src, dest),
+  
+  // Événements (du Main vers le Renderer)
+  onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', (event, ...args) => callback(...args))
+});
