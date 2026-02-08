@@ -78,7 +78,7 @@ export async function showGameInfo(gameId) {
         <button class="next-btn">❯</button>
       </div>
     </div>
-    <button class="side-panel-play-btn" onclick="window.launchGame('${gameId}')">
+    <button class="side-panel-play-btn" onclick="window.launchGame('${gameId}')" data-game-id="${gameId}">
       ▶ JOUER
     </button>
     <div class="category-label">${categoryLabel}</div>

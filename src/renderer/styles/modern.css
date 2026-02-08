@@ -576,14 +576,25 @@ body {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(4px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 12px;
   font-size: 0.65rem;
-  color: var(--text-primary);
-  font-weight: 700;
+  color: white;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
+.category-badge.cat-game { background-color: #00a1e9; border-color: #0081bb; }
+.category-badge.cat-manga { background-color: #f00078; border-color: #c00060; }
+.category-badge.cat-voice { background-color: #f39800; border-color: #c27a00; }
+.category-badge.cat-video { background-color: #a165a7; border-color: #815185; }
+.category-badge.cat-music { background-color: #ffc000; border-color: #cc9a00; color: #000; }
+.category-badge.cat-image { background-color: #00b0f0; border-color: #008cc0; }
+.category-badge.cat-novel { background-color: #5b9bd5; border-color: #497cab; }
+.category-badge.cat-tool { background-color: #70ad47; border-color: #5a8a39; }
+.category-badge.cat-other { background-color: #a5a5a5; border-color: #848484; }
 
 .compact-rating {
   font-size: 0.9rem;
@@ -595,10 +606,11 @@ body {
 .total-time-badge {
   font-size: 0.75rem;
   color: var(--text-secondary);
-  padding: 4px 12px 12px 12px;
+  padding: 4px 12px 16px 12px;
   display: flex;
   align-items: center;
   gap: 4px;
+  min-height: 32px; /* Assure un padding constant même si vide */
 }
 
 .rating {

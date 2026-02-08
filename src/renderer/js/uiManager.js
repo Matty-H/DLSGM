@@ -152,6 +152,14 @@ export async function refreshInterface() {
           const adA = a.data.addedDate ? new Date(a.data.addedDate) : new Date(0);
           const adB = b.data.addedDate ? new Date(b.data.addedDate) : new Date(0);
           return adB - adA;
+        case 'release_date_asc':
+          const rdA_asc = a.data.release_date && a.data.release_date !== "N/A" ? new Date(a.data.release_date) : new Date(0);
+          const rdB_asc = b.data.release_date && b.data.release_date !== "N/A" ? new Date(b.data.release_date) : new Date(0);
+          return rdA_asc - rdB_asc;
+        case 'release_date_desc':
+          const rdA_desc = a.data.release_date && a.data.release_date !== "N/A" ? new Date(a.data.release_date) : new Date(0);
+          const rdB_desc = b.data.release_date && b.data.release_date !== "N/A" ? new Date(b.data.release_date) : new Date(0);
+          return rdB_desc - rdA_desc;
         default:
           return 0;
       }
@@ -188,6 +196,27 @@ async function createGameElement(gameId, gameData, userDataPath) {
   const gameName = gameData.work_name || gameId;
   const gameCategory = gameData.category;
   const gameCategoryLabel = categoryMap[gameCategory] || "Inconnu";
+
+  // Déterminer la classe de couleur de catégorie
+  let categoryClass = 'cat-other';
+  const gameCats = ['RPG', 'ADV', 'PZL', 'STG', 'SLN', 'TBL', 'TYP', 'ACN', 'QIZ', 'ETC'];
+  const mangaCats = ['MNG', 'SCM', 'WBT'];
+  const voiceCats = ['SOU', 'VCM'];
+  const videoCats = ['MOV'];
+  const musicCats = ['MUS', 'AMT'];
+  const imageCats = ['ICG', 'IMT'];
+  const novelCats = ['NRE', 'DNV'];
+  const toolCats = ['TOL'];
+
+  if (gameCats.includes(gameCategory)) categoryClass = 'cat-game';
+  else if (mangaCats.includes(gameCategory)) categoryClass = 'cat-manga';
+  else if (voiceCats.includes(gameCategory)) categoryClass = 'cat-voice';
+  else if (videoCats.includes(gameCategory)) categoryClass = 'cat-video';
+  else if (musicCats.includes(gameCategory)) categoryClass = 'cat-music';
+  else if (imageCats.includes(gameCategory)) categoryClass = 'cat-image';
+  else if (novelCats.includes(gameCategory)) categoryClass = 'cat-novel';
+  else if (toolCats.includes(gameCategory)) categoryClass = 'cat-tool';
+
   const gameRating = gameData.rating || 0;
   const totalPlayTime = gameData.totalPlayTime || 0;
   
@@ -218,10 +247,12 @@ async function createGameElement(gameId, gameData, userDataPath) {
       </div>
     </div>
     <div class="game-meta-row">
-      <div class="category-badge">${gameCategoryLabel}</div>
+      <div class="category-badge ${categoryClass}">${gameCategoryLabel}</div>
       ${ratingHtml ? `<div class="compact-rating">${gameRating}★</div>` : ''}
     </div>
-    ${totalPlayTime > 0 ? `<div class="total-time-badge">⏳ ${playTimeText}</div>` : ''}
+    <div class="total-time-badge">
+      ${totalPlayTime > 0 ? `⏳ ${playTimeText}` : ''}
+    </div>
   `;
   
   return gameDiv;
@@ -232,6 +263,7 @@ async function createGameElement(gameId, gameData, userDataPath) {
  */
 function updateAllGameButtons() {
   const allButtons = document.querySelectorAll('.game-actions button');
+  const sidePanelBtn = document.querySelector('.side-panel-play-btn');
   
   allButtons.forEach(button => {
     const gameId = button.getAttribute('data-game-id');
@@ -251,6 +283,25 @@ function updateAllGameButtons() {
       button.innerHTML = '▶';
     }
   });
+
+  if (sidePanelBtn) {
+    const gameId = sidePanelBtn.getAttribute('data-game-id');
+    const isThisGameRunning = runningGames.has(gameId);
+
+    if (isAnyGameRunning) {
+      if (!isThisGameRunning) {
+        sidePanelBtn.disabled = true;
+        sidePanelBtn.classList.add('disabled');
+        sidePanelBtn.innerHTML = '▶ JOUER';
+      } else {
+        sidePanelBtn.innerHTML = '⏳ EN COURS...';
+      }
+    } else {
+      sidePanelBtn.disabled = false;
+      sidePanelBtn.classList.remove('disabled');
+      sidePanelBtn.innerHTML = '▶ JOUER';
+    }
+  }
 }
 
 export function createRatingHtml(gameId, gameRating, interactive = true) {
