@@ -4,7 +4,7 @@
 
 import { attachGameInfoEventListeners } from './eventListeners.js';
 import { updateCacheEntry, loadCache } from './cacheManager.js';
-import { refreshInterface } from './uiManager.js';
+import { refreshInterface, createRatingHtml, attachRatingEventListeners } from './uiManager.js';
 import { categoryMap } from './metadataManager.js';
 import { PLACEHOLDER_IMAGE } from './constants.js';
 
@@ -102,8 +102,15 @@ export async function showGameInfo(gameId) {
 
   let detailsHtml = `
     <div class="header-info">
-      <h3>${metadata.work_name || "Nom non disponible"}</h3>
-      <h4>par ${creator}</h4>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div style="flex: 1;">
+          <h3>${metadata.work_name || "Nom non disponible"}</h3>
+          <h4>par ${creator}</h4>
+        </div>
+        <div class="side-panel-rating">
+          ${createRatingHtml(gameId, metadata.rating || 0, true)}
+        </div>
+      </div>
       ${customTagsHtml}
     </div>
   `;
@@ -166,6 +173,7 @@ export async function showGameInfo(gameId) {
   gameInfoDiv.classList.add("show");
   
   attachGameInfoEventListeners(gameInfoDiv, gameId);
+  attachRatingEventListeners(cache, gameDetails);
 
   // Gestion du bouton de modification manuelle
   document.querySelector('.manual-edit-btn').addEventListener('click', () => {

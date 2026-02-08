@@ -25,11 +25,20 @@
           <select class="category-filter">
             <option value="all">Toutes catégories</option>
           </select>
+
+          <div class="rating-filter" id="header-rating-filter">
+            <span class="star" data-value="1">★</span>
+            <span class="star" data-value="2">★</span>
+            <span class="star" data-value="3">★</span>
+            <span class="star" data-value="4">★</span>
+            <span class="star" data-value="5">★</span>
+          </div>
           
           <div class="multi-select-wrapper">
-            <select class="genre-filter" multiple size="1">
+            <div class="dropdown-btn" id="genre-dropdown-btn">Genres</div>
+            <div class="dropdown-content" id="genre-dropdown-content">
               <!-- Genres injectés dynamiquement -->
-            </select>
+            </div>
           </div>
         </div>
         

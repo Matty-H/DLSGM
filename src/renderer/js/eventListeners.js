@@ -3,9 +3,10 @@
  */
 
 import { scanGames } from './gameScanner.js';
-import { refreshInterface } from './uiManager.js';
-import { updateSelectedGenres } from './filterManager.js';
+import { refreshInterface, updateGenreDropdown } from './uiManager.js';
+import { updateSelectedGenres, updateSelectedRating, selectedGenres, selectedRating } from './filterManager.js';
 import { openGameFolder } from './osHandler.js';
+import { loadCache } from './cacheManager.js';
 
 /**
  * Initialise les écouteurs d'événements globaux.
@@ -14,12 +15,67 @@ export function initEventListeners() {
   // Filtre par catégorie
   document.querySelector('.category-filter').addEventListener('change', () => refreshInterface());
   
-  // Filtre par genre (sélection multiple)
-  document.querySelector('.genre-filter').addEventListener('change', function() {
-    const selectedOptions = Array.from(this.selectedOptions);
-    const newGenres = selectedOptions.map(opt => opt.value);
+  // Custom Genre Dropdown logic
+  const dropdownBtn = document.getElementById('genre-dropdown-btn');
+  const dropdownContent = document.getElementById('genre-dropdown-content');
+
+  dropdownBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdownContent.classList.toggle('show');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dropdownContent.contains(e.target) && e.target !== dropdownBtn) {
+      dropdownContent.classList.remove('show');
+    }
+  });
+
+  window.toggleGenre = (genre) => {
+    let newGenres = [...selectedGenres];
+    if (newGenres.includes(genre)) {
+      newGenres = newGenres.filter(g => g !== genre);
+    } else {
+      newGenres.push(genre);
+    }
     updateSelectedGenres(newGenres);
+    updateGenreDropdownButton();
     refreshInterface();
+  };
+
+  window.resetGenreSelection = () => {
+    updateSelectedGenres([]);
+    updateGenreDropdownButton();
+    loadCache().then(cache => updateGenreDropdown(cache));
+    refreshInterface();
+  };
+
+  function updateGenreDropdownButton() {
+    if (selectedGenres.length === 0) {
+      dropdownBtn.textContent = 'Genres';
+    } else {
+      dropdownBtn.textContent = `Genres (${selectedGenres.length})`;
+    }
+  }
+
+  // Filtre par note dans le header
+  const ratingFilterStars = document.querySelectorAll('#header-rating-filter .star');
+  ratingFilterStars.forEach(star => {
+    star.addEventListener('click', () => {
+      const val = parseInt(star.dataset.value);
+      if (selectedRating === val) {
+        updateSelectedRating(0);
+      } else {
+        updateSelectedRating(val);
+      }
+
+      // Update UI
+      ratingFilterStars.forEach(s => {
+        const sVal = parseInt(s.dataset.value);
+        s.classList.toggle('active', sVal <= selectedRating);
+      });
+
+      refreshInterface();
+    });
   });
 
   // Recherche avec délai (debounce)
@@ -35,12 +91,16 @@ export function initEventListeners() {
     document.querySelector('.category-filter').value = 'all';
     document.querySelector('.search-input').value = '';
     
-    const genreSelect = document.querySelector('.genre-filter');
-    Array.from(genreSelect.options).forEach(option => {
-      option.selected = false;
-    });
-    
     updateSelectedGenres([]);
+    updateSelectedRating(0);
+
+    // Reset stars UI
+    document.querySelectorAll('#header-rating-filter .star').forEach(s => s.classList.remove('active'));
+
+    // Reset dropdown UI
+    updateGenreDropdownButton();
+    loadCache().then(cache => updateGenreDropdown(cache));
+
     scanGames();
   });
 }
