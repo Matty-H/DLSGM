@@ -2,7 +2,7 @@
   --bg-color: #0b0b0d;
   --surface-color: rgba(26, 26, 32, 0.6);
   --surface-hover: rgba(45, 45, 55, 0.8);
-  --glass-bg: rgba(20, 20, 25, 0.7);
+  --glass-bg: rgba(15, 15, 20, 0.85);
   --glass-border: rgba(255, 255, 255, 0.1);
   --primary-color: #3d5afe;
   --accent-color: #ff4081;
@@ -435,7 +435,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 8px 12px;
+  padding: 4px 12px;
 }
 
 .custom-tag {
@@ -504,14 +504,15 @@ body {
 
 .game-actions {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 50%;
-  height: 100%;
+  bottom: 12px;
+  right: 12px;
+  width: 54px;
+  height: 54px;
   pointer-events: none;
   display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
 }
 
 .play-button {
@@ -519,21 +520,23 @@ body {
   color: white;
   border: none;
   width: 100%;
-  aspect-ratio: 1/1;
+  height: 100%;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   opacity: 0;
-  transform: translateY(20px);
+  transform: scale(0.8);
   transition: opacity var(--transition-speed), transform var(--transition-speed), background 0.2s;
   pointer-events: auto;
-  font-size: 2rem;
+  font-size: 1.6rem;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
 }
 
 .game:hover .play-button {
-  opacity: 0.95;
-  transform: translateY(0);
+  opacity: 1;
+  transform: scale(1);
 }
 
 .play-button:hover {
@@ -551,11 +554,11 @@ body {
   color: var(--primary-color);
   font-weight: 600;
   text-transform: uppercase;
-  padding: 8px 12px 0 12px;
+  padding: 6px 12px 0 12px;
 }
 
 .rating-container {
-  padding: 4px 12px 12px 12px;
+  padding: 2px 12px 10px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -716,7 +719,7 @@ body {
   left: 0;
   width: 250px;
   max-height: 400px;
-  background: var(--glass-bg);
+  background: rgba(15, 15, 20, 0.98);
   backdrop-filter: blur(var(--blur-amount));
   -webkit-backdrop-filter: blur(var(--blur-amount));
   border: 1px solid var(--glass-border);
@@ -724,7 +727,7 @@ body {
   margin-top: 8px;
   overflow-y: auto;
   z-index: 1000;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.6);
 }
 
 .dropdown-content.show {
