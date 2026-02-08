@@ -196,13 +196,6 @@ async function createGameElement(gameId, gameData, userDataPath) {
   const imgPath = await window.electronAPI.pathJoin(userDataPath, 'img_cache', gameId, 'work_image.jpg');
   const workImagePath = `atom:///${imgPath.replace(/\\/g, '/')}`;
   
-  const customTags = gameData.customTags || [];
-  const customTagsHtml = customTags.length > 0 
-    ? `<div class="custom-tags">
-        ${customTags.map(tag => `<span class="custom-tag">${tag}</span>`).join('')}
-       </div>` 
-    : '';
-  
   const isThisGameRunning = runningGames.has(gameId);
   const buttonText = isThisGameRunning ? '⏳' : '▶';
   const buttonClass = (isAnyGameRunning && !isThisGameRunning) ? 'disabled' : '';
@@ -212,13 +205,6 @@ async function createGameElement(gameId, gameData, userDataPath) {
     : '';
   
   const ratingHtml = gameRating > 0 ? createRatingHtml(gameId, gameRating, false) : '';
-
-  const ratingContainerHtml = (totalPlayTime > 0 || ratingHtml)
-    ? `<div class="rating-container">
-        ${totalPlayTime > 0 ? `<div class="total-time">⏳ ${playTimeText}</div>` : ''}
-        ${ratingHtml}
-       </div>`
-    : '';
 
   gameDiv.innerHTML = `
     <div class="game-container">
@@ -231,9 +217,11 @@ async function createGameElement(gameId, gameData, userDataPath) {
         </button>
       </div>
     </div>
-    <div class="category-label">${gameCategoryLabel}</div>
-    ${customTagsHtml}
-    ${ratingContainerHtml}
+    <div class="game-meta-row">
+      <div class="category-badge">${gameCategoryLabel}</div>
+      ${ratingHtml ? `<div class="compact-rating">${gameRating}★</div>` : ''}
+    </div>
+    ${totalPlayTime > 0 ? `<div class="total-time-badge">⏳ ${playTimeText}</div>` : ''}
   `;
   
   return gameDiv;
@@ -266,6 +254,10 @@ function updateAllGameButtons() {
 }
 
 export function createRatingHtml(gameId, gameRating, interactive = true) {
+  if (!interactive && gameRating > 0) {
+    return `<div class="rating" data-game-id="${gameId}"></div>`; // Placeholder pour la logique compacte si besoin, mais on utilise compact-rating directement dans createGameElement
+  }
+
   let ratingHtml = `<div class="rating ${interactive ? 'interactive-rating' : ''}" data-game-id="${gameId}">`;
   for (let i = 1; i <= 5; i++) {
     const color = i <= gameRating ? '#f1c40f' : '#444';

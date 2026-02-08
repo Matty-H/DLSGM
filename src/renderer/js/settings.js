@@ -60,6 +60,16 @@ export async function initSettingsUI() {
     settingsButton.classList.toggle('active', !isVisible);
   });
 
+  // Fermer les paramètres si on clique à l'extérieur
+  document.addEventListener('click', (event) => {
+    if (settingsContainer.style.display === 'block') {
+      if (!settingsContainer.contains(event.target) && !settingsButton.contains(event.target)) {
+        settingsContainer.style.display = 'none';
+        settingsButton.classList.remove('active');
+      }
+    }
+  });
+
   document.querySelector('.reset-image-cache').addEventListener('click', () => {
     resetAndRedownloadImages();
   });

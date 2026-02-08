@@ -564,24 +564,41 @@ body {
   cursor: not-allowed;
 }
 
-.category-label {
-  font-size: 0.7rem;
-  color: var(--primary-color);
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 6px 12px 0 12px;
-}
-
-.rating-container {
-  padding: 2px 12px 10px 12px;
+.game-meta-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
+  padding: 10px 12px 0 12px;
 }
 
-.total-time {
+.category-badge {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.65rem;
+  color: var(--text-primary);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.compact-rating {
+  font-size: 0.9rem;
+  color: #f1c40f;
+  font-weight: 700;
+  text-shadow: 0 0 5px rgba(241, 196, 15, 0.3);
+}
+
+.total-time-badge {
   font-size: 0.75rem;
   color: var(--text-secondary);
+  padding: 4px 12px 12px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .rating {
