@@ -175,6 +175,14 @@ export async function showGameInfo(gameId) {
   gameDetails.innerHTML = `${carouselHtml}${detailsHtml}`;
   gameInfoDiv.classList.add("show");
   
+  // Gérer la sélection visuelle sur la carte
+  document.querySelectorAll('.game').forEach(el => el.classList.remove('selected'));
+  const selectedCard = document.querySelector(`.game[data-game-id="${gameId}"]`);
+  if (selectedCard) {
+    selectedCard.classList.add('selected');
+    selectedCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   attachGameInfoEventListeners(gameInfoDiv, gameId);
   attachRatingEventListeners(cache, gameDetails);
 

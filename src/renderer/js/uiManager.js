@@ -12,6 +12,7 @@ import { PLACEHOLDER_IMAGE } from './constants.js';
 // État global du cycle de vie des jeux
 export let isAnyGameRunning = false;
 export const runningGames = new Set();
+export let displayedGameIds = [];
 
 /**
  * Met à jour le menu déroulant des catégories.
@@ -165,6 +166,8 @@ export async function refreshInterface() {
       }
     });
 
+    displayedGameIds = filteredGames.map(g => g.id);
+
     const gameElements = await Promise.all(filteredGames.map(async (game) => {
       return await createGameElement(game.id, game.data, userDataPath);
     }));
@@ -235,6 +238,7 @@ async function createGameElement(gameId, gameData, userDataPath) {
   
   const ratingHtml = gameRating > 0 ? createRatingHtml(gameId, gameRating, false) : '';
 
+  gameDiv.setAttribute('data-game-id', gameId);
   gameDiv.innerHTML = `
     <div class="game-container">
       ${errorBadge}
@@ -248,10 +252,8 @@ async function createGameElement(gameId, gameData, userDataPath) {
     </div>
     <div class="game-meta-row">
       <div class="category-badge ${categoryClass}">${gameCategoryLabel}</div>
-      ${ratingHtml ? `<div class="compact-rating">${gameRating}★</div>` : ''}
-    </div>
-    <div class="total-time-badge">
-      ${totalPlayTime > 0 ? `⏳ ${playTimeText}` : ''}
+      ${totalPlayTime > 0 ? `<div class="compact-time">⏳ ${playTimeText}</div>` : '<div></div>'}
+      ${ratingHtml ? `<div class="compact-rating">${gameRating}★</div>` : '<div></div>'}
     </div>
   `;
   

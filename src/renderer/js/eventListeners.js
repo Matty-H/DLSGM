@@ -3,9 +3,10 @@
  */
 
 import { scanGames } from './gameScanner.js';
-import { refreshInterface, updateGenreDropdown } from './uiManager.js';
+import { refreshInterface, updateGenreDropdown, displayedGameIds } from './uiManager.js';
 import { updateSelectedGenres, updateSelectedRating, updateSelectedSort, selectedGenres, selectedRating } from './filterManager.js';
-import { openGameFolder } from './osHandler.js';
+import { openGameFolder, launchGame } from './osHandler.js';
+import { showGameInfo } from './gameInfoHandler.js';
 import { loadCache } from './cacheManager.js';
 import { loadSettings, saveSettings } from './settings.js';
 
@@ -130,6 +131,80 @@ export function initEventListeners() {
 
     scanGames();
   });
+
+  // Raccourcis clavier globaux
+  document.addEventListener('keydown', (e) => {
+    // Ne pas déclencher si l'utilisateur écrit dans un champ texte
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.key === 'Escape') e.target.blur();
+      return;
+    }
+
+    const gameInfoPanel = document.querySelector('.game-info');
+    const isPanelOpen = gameInfoPanel.classList.contains('show');
+    const settingsPanel = document.querySelector('.settings-container');
+    const isSettingsOpen = settingsPanel && settingsPanel.style.display === 'block';
+
+    // Echap : Fermer les panneaux
+    if (e.key === 'Escape') {
+      if (isSettingsOpen) {
+        settingsPanel.style.display = 'none';
+        document.querySelector('.settings-button').classList.remove('active');
+      }
+      if (isPanelOpen) {
+        gameInfoPanel.classList.remove('show');
+        document.querySelectorAll('.game').forEach(el => el.classList.remove('selected'));
+      }
+    }
+
+    // Entrée : Lancer le jeu si le panneau est ouvert
+    if (e.key === 'Enter' && isPanelOpen) {
+      e.preventDefault();
+      const selectedGame = document.querySelector('.game.selected');
+      if (selectedGame) {
+        const gameId = selectedGame.getAttribute('data-game-id');
+        launchGame(gameId);
+      }
+    }
+
+    // Flèches Gauche/Droite : Carrousel d'images
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && isPanelOpen) {
+      e.preventDefault();
+      const prevBtn = gameInfoPanel.querySelector('.prev-btn');
+      const nextBtn = gameInfoPanel.querySelector('.next-btn');
+      if (e.key === 'ArrowLeft' && prevBtn) prevBtn.click();
+      if (e.key === 'ArrowRight' && nextBtn) nextBtn.click();
+    }
+
+    // Flèches Haut/Bas : Navigation entre les jeux
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault(); // Empêcher le défilement de la page
+      const selectedGame = document.querySelector('.game.selected');
+      let nextGameId = null;
+
+      if (!selectedGame) {
+        // Si rien n'est sélectionné, on prend le premier de la liste
+        if (displayedGameIds.length > 0) nextGameId = displayedGameIds[0];
+      } else {
+        const currentGameId = selectedGame.getAttribute('data-game-id');
+        const currentIndex = displayedGameIds.indexOf(currentGameId);
+
+        if (e.key === 'ArrowDown') {
+          if (currentIndex < displayedGameIds.length - 1) {
+            nextGameId = displayedGameIds[currentIndex + 1];
+          }
+        } else if (e.key === 'ArrowUp') {
+          if (currentIndex > 0) {
+            nextGameId = displayedGameIds[currentIndex - 1];
+          }
+        }
+      }
+
+      if (nextGameId) {
+        showGameInfo(nextGameId);
+      }
+    }
+  });
 }
 
 /**
@@ -139,6 +214,7 @@ export function attachGameInfoEventListeners(gameInfoDiv, gameId) {
   // Bouton de fermeture
   document.querySelector('.close-game-info').addEventListener('click', () => {
     gameInfoDiv.classList.remove("show");
+    document.querySelectorAll('.game').forEach(el => el.classList.remove('selected'));
   });
 
   // Lien DLSite (ouvrir dans le navigateur externe)
