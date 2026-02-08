@@ -201,12 +201,38 @@ export async function showGameInfo(gameId) {
 }
 
 /**
+ * Convertit une date ISO en format DDMMYYYY pour l'affichage dans le formulaire.
+ */
+function isoToDDMMYYYY(isoString) {
+  if (!isoString || isoString === "N/A") return "";
+  const datePart = isoString.split("T")[0]; // YYYY-MM-DD
+  const parts = datePart.split("-");
+  if (parts.length !== 3) return isoString;
+  return `${parts[2]}${parts[1]}${parts[0]}`;
+}
+
+/**
+ * Convertit une chaîne DDMMYYYY en format ISO pour le stockage.
+ */
+function ddmmToISO(ddmmyyyy) {
+  if (!ddmmyyyy) return "N/A";
+  const clean = ddmmyyyy.replace(/\D/g, '');
+  if (clean.length !== 8) return ddmmyyyy;
+  const day = clean.substring(0, 2);
+  const month = clean.substring(2, 4);
+  const year = clean.substring(4, 8);
+  return `${year}-${month}-${day}T00:00:00`;
+}
+
+/**
  * Affiche le formulaire de modification manuelle des métadonnées.
  */
 export async function showManualEditForm(gameId) {
   const cache = await loadCache();
   const gameData = cache[gameId] || { work_name: gameId };
   const gameDetails = document.querySelector('.game-details');
+
+  const genres = Array.isArray(gameData.genre) ? gameData.genre.join(', ') : (gameData.genre || '');
 
   gameDetails.innerHTML = `
     <div class="header-info">
@@ -223,12 +249,36 @@ export async function showManualEditForm(gameId) {
         <input type="text" id="edit-creator" value="${gameData.circle || gameData.author || ''}">
       </div>
       <div class="form-group">
+        <label>Date de sortie (DDMMYYYY) :</label>
+        <input type="text" id="edit-release-date" value="${isoToDDMMYYYY(gameData.release_date)}">
+      </div>
+      <div class="form-group">
         <label>Catégorie :</label>
         <select id="edit-category">
           ${Object.entries(categoryMap).map(([code, name]) => `
             <option value="${code}" ${gameData.category === code ? 'selected' : ''}>${name}</option>
           `).join('')}
         </select>
+      </div>
+      <div class="form-group">
+        <label>Scénariste :</label>
+        <input type="text" id="edit-writer" value="${gameData.writer || ''}">
+      </div>
+      <div class="form-group">
+        <label>Scénario :</label>
+        <input type="text" id="edit-scenario" value="${gameData.scenario || ''}">
+      </div>
+      <div class="form-group">
+        <label>Illustration :</label>
+        <input type="text" id="edit-illustration" value="${gameData.illustration || ''}">
+      </div>
+      <div class="form-group">
+        <label>Genres (séparés par des virgules) :</label>
+        <input type="text" id="edit-genres" value="${genres}">
+      </div>
+      <div class="form-group">
+        <label>Résumé :</label>
+        <textarea id="edit-description">${gameData.description || ''}</textarea>
       </div>
       <div class="form-group">
         <label>Image de couverture :</label>
@@ -258,12 +308,22 @@ export async function showManualEditForm(gameId) {
   });
 
   document.querySelector('.save-manual-btn').addEventListener('click', async () => {
+    const genreInput = document.querySelector('#edit-genres').value;
+    const genreArray = genreInput.split(',').map(s => s.trim()).filter(s => s !== '');
+
     const updatedData = {
       ...gameData,
       work_name: document.querySelector('#edit-name').value,
       circle: document.querySelector('#edit-creator').value,
+      author: document.querySelector('#edit-creator').value, // On garde les deux synchro
+      release_date: ddmmToISO(document.querySelector('#edit-release-date').value),
       category: document.querySelector('#edit-category').value,
-      fetchFailed: false, // On considère que l'entrée est désormais valide
+      writer: document.querySelector('#edit-writer').value,
+      scenario: document.querySelector('#edit-scenario').value,
+      illustration: document.querySelector('#edit-illustration').value,
+      genre: genreArray,
+      description: document.querySelector('#edit-description').value,
+      fetchFailed: false,
       error: null
     };
 
@@ -271,7 +331,7 @@ export async function showManualEditForm(gameId) {
       const userDataPath = await window.electronAPI.getUserDataPath();
       const destPath = await window.electronAPI.pathJoin(userDataPath, 'img_cache', gameId, 'work_image.jpg');
       await window.electronAPI.fsCopy(manualImagePath, destPath);
-      updatedData.work_image = 'manual'; // Indique qu'une image existe
+      updatedData.work_image = 'manual';
     }
 
     cache[gameId] = updatedData;

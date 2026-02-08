@@ -230,12 +230,18 @@ body {
   color: var(--text-secondary);
 }
 
-.form-group input, .form-group select {
+.form-group input, .form-group select, .form-group textarea {
   background: var(--bg-color);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 10px;
   color: white;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 100px;
+  font-family: inherit;
 }
 
 .image-selection {
