@@ -20,4 +20,8 @@ Analyse les fichiers d'un dossier de jeu pour tenter d'identifier le moteur util
 Les scripts nécessitent Python 3. L'installation de `dlsite-async` est impérative pour le fonctionnement du fetcher :
 ```bash
 pip install dlsite-async
+<<<<<<< HEAD
 ```
+=======
+```
+>>>>>>> 38706a1ed0c5993576098437ec7ae4ec9bddfd8f
