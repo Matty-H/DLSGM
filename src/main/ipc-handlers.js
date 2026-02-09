@@ -112,9 +112,19 @@ function setupIpcHandlers(mainWindow) {
       const appDirName = files.find(file => file.endsWith('.app'));
       if (appDirName) {
         executablePath = path.join(gamePath, appDirName);
-        // Sur Mac, on peut utiliser 'open' pour les .app
-        spawn('open', [executablePath]);
-        return { success: true, startTime: Date.now() };
+        const startTime = Date.now();
+        // Sur Mac, 'open -W' attend que l'application se ferme
+        const gameProcess = spawn('open', ['-W', executablePath]);
+
+        return new Promise((resolve) => {
+          gameProcess.on('exit', () => {
+            const duration = Math.floor((Date.now() - startTime) / 1000);
+            resolve({ success: true, duration });
+          });
+          gameProcess.on('error', (err) => {
+            resolve({ success: false, error: err.message });
+          });
+        });
       }
     } else if (platform === 'win32') {
       // Recherche récursive d'un .exe
@@ -144,13 +154,24 @@ function setupIpcHandlers(mainWindow) {
 
       executablePath = findExe(gamePath);
       if (executablePath) {
+        const startTime = Date.now();
         const gameProcess = spawn(executablePath, [], {
           cwd: gamePath,
-          detached: true,
+          detached: false,
           stdio: 'ignore'
         });
-        gameProcess.unref();
-        return { success: true, startTime: Date.now() };
+
+        return new Promise((resolve) => {
+          gameProcess.on('exit', (code) => {
+            const duration = Math.floor((Date.now() - startTime) / 1000);
+            resolve({ success: true, duration });
+          });
+
+          gameProcess.on('error', (err) => {
+            console.error(`Erreur lors du lancement de l'exécutable: ${err.message}`);
+            resolve({ success: false, error: err.message });
+          });
+        });
       }
     }
 
