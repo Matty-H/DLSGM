@@ -263,7 +263,7 @@ async function createGameElement(gameId, gameData, userDataPath) {
 /**
  * Met à jour l'état de tous les boutons de lancement.
  */
-function updateAllGameButtons() {
+export function updateAllGameButtons() {
   const allButtons = document.querySelectorAll('.game-actions button');
   const sidePanelBtn = document.querySelector('.side-panel-play-btn');
   

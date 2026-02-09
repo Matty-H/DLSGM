@@ -4,7 +4,7 @@
 
 import { attachGameInfoEventListeners } from './eventListeners.js';
 import { updateCacheEntry, loadCache } from './cacheManager.js';
-import { refreshInterface, createRatingHtml, attachRatingEventListeners } from './uiManager.js';
+import { refreshInterface, createRatingHtml, attachRatingEventListeners, updateAllGameButtons } from './uiManager.js';
 import { categoryMap } from './metadataManager.js';
 import { PLACEHOLDER_IMAGE } from './constants.js';
 
@@ -185,6 +185,7 @@ export async function showGameInfo(gameId) {
 
   attachGameInfoEventListeners(gameInfoDiv, gameId);
   attachRatingEventListeners(cache, gameDetails);
+  updateAllGameButtons();
 
   // Gestion du bouton de modification manuelle
   document.querySelector('.manual-edit-btn').addEventListener('click', () => {
