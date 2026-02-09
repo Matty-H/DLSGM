@@ -9,7 +9,8 @@ import { launchGame, startAutoRefresh } from './osHandler.js';
 import { showGameInfo } from './gameInfoHandler.js';
 import { scanGames } from './gameScanner.js';
 import { initEventListeners } from './eventListeners.js';
-import { initSettingsUI, getRefreshRate } from './settings.js';
+import { initSettingsUI, getRefreshRate, loadSettings } from './settings.js';
+import { initFiltersFromSettings } from './filterManager.js';
 
 // État global
 export let globalCache = {};
@@ -116,9 +117,19 @@ async function initApp() {
   // Chargement initial du cache
   globalCache = await loadCache();
   
+  // Chargement des paramètres et initialisation des filtres
+  const settings = await loadSettings();
+  initFiltersFromSettings(settings);
+
   // Initialisation des composants
   initEventListeners();
   await initSettingsUI();
+
+  // Mettre à jour la valeur affichée du tri
+  const sortFilter = document.getElementById('sort-filter');
+  if (sortFilter && settings.selectedSort) {
+    sortFilter.value = settings.selectedSort;
+  }
   
   // Démarrage du scan et de l'auto-rafraîchissement
   scanGames();
