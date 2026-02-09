@@ -3,9 +3,12 @@
  */
 
 import { scanGames } from './gameScanner.js';
-import { refreshInterface } from './uiManager.js';
-import { updateSelectedGenres } from './filterManager.js';
-import { openGameFolder } from './osHandler.js';
+import { refreshInterface, updateGenreDropdown, displayedGameIds } from './uiManager.js';
+import { updateSelectedGenres, updateSelectedRating, updateSelectedSort, selectedGenres, selectedRating } from './filterManager.js';
+import { openGameFolder, launchGame } from './osHandler.js';
+import { showGameInfo } from './gameInfoHandler.js';
+import { loadCache } from './cacheManager.js';
+import { loadSettings, saveSettings } from './settings.js';
 
 /**
  * Initialise les écouteurs d'événements globaux.
@@ -13,13 +16,90 @@ import { openGameFolder } from './osHandler.js';
 export function initEventListeners() {
   // Filtre par catégorie
   document.querySelector('.category-filter').addEventListener('change', () => refreshInterface());
+
+  // Toggle du panneau de filtrage avancé
+  const advancedToggle = document.getElementById('advanced-filter-toggle');
+  const advancedPanel = document.getElementById('advanced-filter-panel');
+
+  advancedToggle.addEventListener('click', () => {
+    advancedToggle.classList.toggle('active');
+    advancedPanel.classList.toggle('show');
+  });
   
-  // Filtre par genre (sélection multiple)
-  document.querySelector('.genre-filter').addEventListener('change', function() {
-    const selectedOptions = Array.from(this.selectedOptions);
-    const newGenres = selectedOptions.map(opt => opt.value);
-    updateSelectedGenres(newGenres);
+  // Filtre de tri
+  document.getElementById('sort-filter').addEventListener('change', async (e) => {
+    const sortValue = e.target.value;
+    updateSelectedSort(sortValue);
+    
+    // Sauvegarder le choix de tri dans les paramètres
+    const settings = await loadSettings();
+    settings.selectedSort = sortValue;
+    await saveSettings();
+    
     refreshInterface();
+  });
+  
+  // Custom Genre Dropdown logic
+  const dropdownBtn = document.getElementById('genre-dropdown-btn');
+  const dropdownContent = document.getElementById('genre-dropdown-content');
+
+  dropdownBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdownContent.classList.toggle('show');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dropdownContent.contains(e.target) && e.target !== dropdownBtn) {
+      dropdownContent.classList.remove('show');
+    }
+  });
+
+  window.toggleGenre = (genre) => {
+    let newGenres = [...selectedGenres];
+    if (newGenres.includes(genre)) {
+      newGenres = newGenres.filter(g => g !== genre);
+    } else {
+      newGenres.push(genre);
+    }
+    updateSelectedGenres(newGenres);
+    updateGenreDropdownButton();
+    refreshInterface();
+  };
+
+  window.resetGenreSelection = () => {
+    updateSelectedGenres([]);
+    updateGenreDropdownButton();
+    loadCache().then(cache => updateGenreDropdown(cache));
+    refreshInterface();
+  };
+
+  function updateGenreDropdownButton() {
+    if (selectedGenres.length === 0) {
+      dropdownBtn.textContent = 'Genres';
+    } else {
+      dropdownBtn.textContent = `Genres (${selectedGenres.length})`;
+    }
+  }
+
+  // Filtre par note dans le header
+  const ratingFilterStars = document.querySelectorAll('#header-rating-filter .star');
+  ratingFilterStars.forEach(star => {
+    star.addEventListener('click', () => {
+      const val = parseInt(star.dataset.value);
+      if (selectedRating === val) {
+        updateSelectedRating(0);
+      } else {
+        updateSelectedRating(val);
+      }
+      
+      // Update UI
+      ratingFilterStars.forEach(s => {
+        const sVal = parseInt(s.dataset.value);
+        s.classList.toggle('active', sVal <= selectedRating);
+      });
+      
+      refreshInterface();
+    });
   });
 
   // Recherche avec délai (debounce)
@@ -35,13 +115,95 @@ export function initEventListeners() {
     document.querySelector('.category-filter').value = 'all';
     document.querySelector('.search-input').value = '';
     
-    const genreSelect = document.querySelector('.genre-filter');
-    Array.from(genreSelect.options).forEach(option => {
-      option.selected = false;
-    });
-    
     updateSelectedGenres([]);
+    updateSelectedRating(0);
+    updateSelectedSort('name_asc');
+    
+    // Reset stars UI
+    document.querySelectorAll('#header-rating-filter .star').forEach(s => s.classList.remove('active'));
+    
+    // Reset dropdown UI
+    updateGenreDropdownButton();
+    loadCache().then(cache => updateGenreDropdown(cache));
+
+    // Reset sort UI
+    document.getElementById('sort-filter').value = 'name_asc';
+
     scanGames();
+  });
+
+  // Raccourcis clavier globaux
+  document.addEventListener('keydown', (e) => {
+    // Ne pas déclencher si l'utilisateur écrit dans un champ texte
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      if (e.key === 'Escape') e.target.blur();
+      return;
+    }
+
+    const gameInfoPanel = document.querySelector('.game-info');
+    const isPanelOpen = gameInfoPanel.classList.contains('show');
+    const settingsPanel = document.querySelector('.settings-container');
+    const isSettingsOpen = settingsPanel && settingsPanel.style.display === 'block';
+
+    // Echap : Fermer les panneaux
+    if (e.key === 'Escape') {
+      if (isSettingsOpen) {
+        settingsPanel.style.display = 'none';
+        document.querySelector('.settings-button').classList.remove('active');
+      }
+      if (isPanelOpen) {
+        gameInfoPanel.classList.remove('show');
+        document.querySelectorAll('.game').forEach(el => el.classList.remove('selected'));
+      }
+    }
+
+    // Entrée : Lancer le jeu si le panneau est ouvert
+    if (e.key === 'Enter' && isPanelOpen) {
+      e.preventDefault();
+      const selectedGame = document.querySelector('.game.selected');
+      if (selectedGame) {
+        const gameId = selectedGame.getAttribute('data-game-id');
+        launchGame(gameId);
+      }
+    }
+
+    // Flèches Gauche/Droite : Carrousel d'images
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && isPanelOpen) {
+      e.preventDefault();
+      const prevBtn = gameInfoPanel.querySelector('.prev-btn');
+      const nextBtn = gameInfoPanel.querySelector('.next-btn');
+      if (e.key === 'ArrowLeft' && prevBtn) prevBtn.click();
+      if (e.key === 'ArrowRight' && nextBtn) nextBtn.click();
+    }
+
+    // Flèches Haut/Bas : Navigation entre les jeux
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault(); // Empêcher le défilement de la page
+      const selectedGame = document.querySelector('.game.selected');
+      let nextGameId = null;
+
+      if (!selectedGame) {
+        // Si rien n'est sélectionné, on prend le premier de la liste
+        if (displayedGameIds.length > 0) nextGameId = displayedGameIds[0];
+      } else {
+        const currentGameId = selectedGame.getAttribute('data-game-id');
+        const currentIndex = displayedGameIds.indexOf(currentGameId);
+
+        if (e.key === 'ArrowDown') {
+          if (currentIndex < displayedGameIds.length - 1) {
+            nextGameId = displayedGameIds[currentIndex + 1];
+          }
+        } else if (e.key === 'ArrowUp') {
+          if (currentIndex > 0) {
+            nextGameId = displayedGameIds[currentIndex - 1];
+          }
+        }
+      }
+
+      if (nextGameId) {
+        showGameInfo(nextGameId);
+      }
+    }
   });
 }
 
@@ -52,10 +214,11 @@ export function attachGameInfoEventListeners(gameInfoDiv, gameId) {
   // Bouton de fermeture
   document.querySelector('.close-game-info').addEventListener('click', () => {
     gameInfoDiv.classList.remove("show");
+    document.querySelectorAll('.game').forEach(el => el.classList.remove('selected'));
   });
 
   // Lien DLSite (ouvrir dans le navigateur externe)
-  document.querySelector('.dlsite-link').addEventListener('click', (event) => {
+  document.querySelector('.dlsite-link')?.addEventListener('click', (event) => {
     event.preventDefault();
     window.electronAPI.openExternal(event.target.href);
   });

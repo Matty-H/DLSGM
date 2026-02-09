@@ -47,9 +47,8 @@ export async function launchGame(gameId) {
     const result = await window.electronAPI.launchGame(gameId);
     
     if (result.success) {
-      // Pour l'instant on ne peut pas facilement suivre la fermeture si on 'unref' le process
-      // mais on peut au moins enregistrer le dernier lancement.
-      await updateGameTime(gameId, 0); // Juste pour mettre à jour 'lastPlayed'
+      // Met à jour le temps de jeu avec la durée réelle de la session
+      await updateGameTime(gameId, result.duration || 0);
     }
     
     setGameRunning(gameId, false);

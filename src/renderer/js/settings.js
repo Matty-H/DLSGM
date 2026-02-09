@@ -5,7 +5,8 @@ import { scanGames } from './gameScanner.js';
 let settings = {
   destinationFolder: '',
   refreshRate: 5,
-  language: 'en_US'
+  language: 'en_US',
+  selectedSort: 'name_asc'
 };
 
 /**
@@ -57,6 +58,16 @@ export async function initSettingsUI() {
     const isVisible = settingsContainer.style.display === 'block';
     settingsContainer.style.display = isVisible ? 'none' : 'block';
     settingsButton.classList.toggle('active', !isVisible);
+  });
+
+  // Fermer les paramètres si on clique à l'extérieur
+  document.addEventListener('click', (event) => {
+    if (settingsContainer.style.display === 'block') {
+      if (!settingsContainer.contains(event.target) && !settingsButton.contains(event.target)) {
+        settingsContainer.style.display = 'none';
+        settingsButton.classList.remove('active');
+      }
+    }
   });
 
   document.querySelector('.reset-image-cache').addEventListener('click', () => {
