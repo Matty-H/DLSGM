@@ -7,6 +7,12 @@ on:
   pull_request:
     branches: [main, master]
 
+# Un `permissions:` explicite ici prime sur le réglage par défaut du repo
+# ("Read repository contents permission" en lecture seule) — nécessaire pour
+# que GITHUB_TOKEN puisse créer une Release lors de la publication.
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
