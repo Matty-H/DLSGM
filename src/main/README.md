@@ -21,6 +21,9 @@ Centralise toutes les communications entre le processus de rendu et le système 
 ### `store.js`
 Une abstraction simple pour la persistance des données (paramètres, cache) dans le dossier `userData` de l'utilisateur.
 
+### `dlsite-fetcher.js`
+Récupère les métadonnées d'une œuvre DLsite via deux requêtes HTTP directes (endpoint JSON ajax puis page HTML parsée), sans dépendance externe (Python) — appelé depuis `ipc-handlers.js` via le canal `fetch-game-metadata`.
+
 ## Abstractions
 
 - **Gestion des exécutables** : La logique de lancement utilise un algorithme qui privilégie le fichier `.exe` le plus volumineux dans les 3 premiers niveaux de sous-dossiers pour maximiser les chances de trouver le bon lanceur.

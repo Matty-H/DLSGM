@@ -1,28 +1,28 @@
 # Processus de Rendu (Renderer)
 
-Ce répertoire contient l'interface utilisateur et la logique côté client de l'application.
+Ce répertoire contient l'interface utilisateur et la logique côté client de l'application, en React + TypeScript + Tailwind CSS (build via Vite).
 
-## Architecture JS
+## Structure
 
-La logique est modularisée pour faciliter la maintenance :
+- **`index.html`** : racine Vite, charge `src/main.tsx`.
+- **`vite.config.mts`** / **`tsconfig.json`** : configuration du build (voir `package.json` pour les scripts `dev`/`build:renderer`).
+- **`src/main.tsx`** : point d'entrée, monte `<App />`.
+- **`src/App.tsx`** : composition racine — assemble les hooks et les composants, calcule la liste de jeux filtrée/triée.
+- **`src/index.css`** : `@import "tailwindcss"` + tokens de design (`@theme`, couleurs/rayon/flou portés depuis l'ancienne charte visuelle) + animations personnalisées.
+- **`src/components/`** : un dossier par composant (Header, AdvancedFilterPanel, GenreMultiSelect, SortSelect, GamesGrid, GameCard, CategoryBadge, RatingStars, GameInfoPanel (+ GameInfoDetails), Carousel, CustomTagsEditor, ManualEditForm, FetchFailedView, SettingsPanel, PanicOverlay).
+- **`src/hooks/`** : état applicatif — `useSettings`, `useFilters`, `useGamesLibrary` (cache, scan, lancement, mutations), `usePanicButton`, `useKeyboardNavigation`.
+- **`src/lib/`** : logique métier framework-agnostique (communication IPC via `window.electronAPI`), volontairement dépourvue de toute manipulation du DOM — `cacheManager.js`, `dataFetcher.js` (fetch DLsite + images, ne réécrit jamais une fiche valide par un échec), `gameScanner.js` (scan + concurrence), `filterManager.js` (prédicats de filtre/tri purs), `metadataManager.js`, `osHandler.js` (lancement de jeu, playtime), `settings.js` (persistance), `timeFormatter.js`, `engineDetector.js`, `constants.js`.
 
-- **`renderer.js`** : Point d'entrée du rendu, initialise les composants et charge la liste initiale.
-- **`uiManager.js`** : Gère la création dynamique de la grille de jeux et les mises à jour de l'interface.
-- **`gameScanner.js`** : Coordonne le scan des dossiers locaux et synchronise le résultat avec le cache.
-- **`dataFetcher.js`** : Gère les appels aux scripts Python pour récupérer les données manquantes.
-- **`cacheManager.js`** : Fournit des méthodes pour lire et mettre à jour le cache des métadonnées.
-- **`gameInfoHandler.js`** : Contrôle le panneau latéral de détails et le formulaire d'édition manuelle.
-- **`eventListeners.js`** : Centralise tous les écouteurs d'événements (boutons, recherche, filtres).
-- **`filterManager.js`** : Applique les filtres de recherche, de catégorie et de genre sur la liste affichée.
-- **`metadataManager.js`** : Gère les correspondances de catégories et l'extraction des genres uniques.
+## Pourquoi cette architecture
 
-## Interface Utilisateur
+La logique dans `src/lib/` était auparavant mêlée à de la manipulation directe du DOM (anciens `uiManager.js`/`eventListeners.js`/`gameInfoHandler.js`, supprimés). Elle en a été extraite pour permettre la réécriture de la couche de présentation en composants React réels — notamment en vue d'une synchronisation avec Claude Design (`/design-sync`), qui nécessite une bibliothèque de composants buildable.
 
-- **Design** : Basé sur `modern.css` avec un thème sombre, des effets de flou (backdrop-filter) et une disposition flexible (Flexbox/Grid).
-- **Interactivité** : Le panneau latéral (`.game-info`) s'ouvre au clic sur un jeu, déclenchant le réagencement automatique de la grille.
-- **Récupération des images** : Les images sont servies via le protocole `atom://` pointant vers le cache local dans `userData/img_cache`.
+## Intégration Electron ↔ Vite
+
+`src/main/main.js` charge soit le serveur de développement Vite (`process.env.VITE_DEV_SERVER_URL`, positionné par `npm run dev`), soit le build de production (`src/renderer/dist/index.html`, généré par `npm run build:renderer`). Le processus main/preload ne dépend pas de Vite.
 
 ## Abstractions importantes
 
-- **Gestion des erreurs d'images** : Toutes les images utilisent un fallback vers une image SVG de remplacement en cas d'erreur de chargement pour éviter les zones vides.
-- **Mise à jour parallèle** : Le `uiManager` utilise `Promise.all` pour générer les éléments de la liste en parallèle, optimisant les performances sur les grosses bibliothèques.
+- **Cache mémoire de la liste de dossiers** (`useGamesLibrary`) : le dossier de jeux n'est relu qu'après un scan explicite, pas à chaque frappe de recherche.
+- **Chemins d'image `atom://`** construits localement (pas d'aller-retour IPC par carte de jeu) à partir du `userDataPath` récupéré une seule fois.
+- **Fallback image** : toutes les images utilisent `PLACEHOLDER_IMAGE` (SVG inline, `src/lib/constants.js`) en cas d'erreur de chargement.

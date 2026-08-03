@@ -10,7 +10,7 @@ Ce fichier utilise `contextBridge` pour exposer de manière sélective des APIs 
 
 - **Système de fichiers** : `openFolder`, `openImageDialog`, `fsCopy`.
 - **Données** : `saveCache`, `loadCache`, `saveSettings`, `loadSettings`.
-- **Exécution** : `launchGame`, `runPythonScript`.
+- **Exécution** : `launchGame`, `fetchGameMetadata`.
 - **Utilitaires** : `getUserDataPath`, `pathJoin`, `openExternal`.
 
 Cette couche de sécurité est cruciale car elle permet au rendu d'interagir avec le système sans avoir un accès direct et total aux modules Node.js comme `fs` ou `child_process`.
