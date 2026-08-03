@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/*
+ * Tokens portés depuis l'ancien src/renderer/styles/modern.css (:root),
+ * pour garder l'identité visuelle actuelle tout en générant des utilitaires
+ * Tailwind (bg-primary, text-secondary, rounded-app, backdrop-blur-app, ...).
+ */
+@theme {
+  --color-bg: #0b0b0d;
+  --color-surface: rgba(26, 26, 32, 0.6);
+  --color-surface-hover: rgba(45, 45, 55, 0.8);
+  --color-glass: rgba(15, 15, 20, 0.85);
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-primary: #3d5afe;
+  --color-primary-hover: #2c46e0;
+  --color-accent: #ff4081;
+  --color-success: #2ecc71;
+  --color-success-hover: #27ae60;
+  --color-danger: #e74c3c;
+  --color-danger-hover: #ff2d1a;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #b0b0b0;
+  --color-border: #30303b;
+
+  --radius-app: 16px;
+  --blur-app: 12px;
+
+  --font-sans: 'Inter', sans-serif;
+
+  --animate-slide-in: slideIn 0.3s ease-out;
+  --animate-fade-in: fadeIn 0.3s ease-in;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
