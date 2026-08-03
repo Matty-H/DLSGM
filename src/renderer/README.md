@@ -11,7 +11,7 @@ Ce répertoire contient l'interface utilisateur et la logique côté client de l
 - **`src/index.css`** : `@import "tailwindcss"` + tokens de design (`@theme`, couleurs/rayon/flou portés depuis l'ancienne charte visuelle) + animations personnalisées.
 - **`src/components/`** : un dossier par composant (Header, AdvancedFilterPanel, GenreMultiSelect, SortSelect, GamesGrid, GameCard, CategoryBadge, RatingStars, GameInfoPanel (+ GameInfoDetails), Carousel, CustomTagsEditor, ManualEditForm, FetchFailedView, SettingsPanel, PanicOverlay).
 - **`src/hooks/`** : état applicatif — `useSettings`, `useFilters`, `useGamesLibrary` (cache, scan, lancement, mutations), `usePanicButton`, `useKeyboardNavigation`.
-- **`src/lib/`** : logique métier framework-agnostique (communication IPC via `window.electronAPI`), volontairement dépourvue de toute manipulation du DOM — `cacheManager.js`, `dataFetcher.js` (fetch DLsite + images, ne réécrit jamais une fiche valide par un échec), `gameScanner.js` (scan + concurrence), `filterManager.js` (prédicats de filtre/tri purs), `metadataManager.js`, `osHandler.js` (lancement de jeu, playtime), `settings.js` (persistance), `timeFormatter.js`, `engineDetector.js`, `constants.js`.
+- **`src/lib/`** : logique métier framework-agnostique (communication IPC via `window.electronAPI`), volontairement dépourvue de toute manipulation du DOM — `cacheManager.ts`, `dataFetcher.ts` (fetch DLsite + images, ne réécrit jamais une fiche valide par un échec), `gameScanner.ts` (scan + concurrence), `filterManager.ts` (prédicats de filtre/tri purs), `metadataManager.ts`, `osHandler.ts` (lancement de jeu, playtime), `settings.ts` (persistance), `timeFormatter.ts`, `constants.ts`.
 
 ## Pourquoi cette architecture
 
@@ -19,10 +19,10 @@ La logique dans `src/lib/` était auparavant mêlée à de la manipulation direc
 
 ## Intégration Electron ↔ Vite
 
-`src/main/main.js` charge soit le serveur de développement Vite (`process.env.VITE_DEV_SERVER_URL`, positionné par `npm run dev`), soit le build de production (`src/renderer/dist/index.html`, généré par `npm run build:renderer`). Le processus main/preload ne dépend pas de Vite.
+`src/main/main.ts` charge soit le serveur de développement Vite (`process.env.VITE_DEV_SERVER_URL`, positionné par `npm run dev`), soit le build de production (`src/renderer/dist/index.html`, généré par `npm run build:renderer`). Le processus main/preload ne dépend pas de Vite.
 
 ## Abstractions importantes
 
 - **Cache mémoire de la liste de dossiers** (`useGamesLibrary`) : le dossier de jeux n'est relu qu'après un scan explicite, pas à chaque frappe de recherche.
 - **Chemins d'image `atom://`** construits localement (pas d'aller-retour IPC par carte de jeu) à partir du `userDataPath` récupéré une seule fois.
-- **Fallback image** : toutes les images utilisent `PLACEHOLDER_IMAGE` (SVG inline, `src/lib/constants.js`) en cas d'erreur de chargement.
+- **Fallback image** : toutes les images utilisent `PLACEHOLDER_IMAGE` (SVG inline, `src/lib/constants.ts`) en cas d'erreur de chargement.

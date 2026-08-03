@@ -1,14 +1,15 @@
+import { loadCache, saveCache } from './cacheManager.js';
+import { loadSettings } from './settings.js';
+import type { GameCacheEntry } from './cacheManager.js';
+
 /**
  * Gère la récupération des données des jeux et le téléchargement des images.
  */
 
-import { loadCache, saveCache } from './cacheManager.js';
-import { loadSettings } from './settings.js';
-
 /**
  * Récupère le chemin du dossier de cache des images.
  */
-async function getImgCacheDir() {
+async function getImgCacheDir(): Promise<string> {
   const userDataPath = await window.electronAPI.getUserDataPath();
   return await window.electronAPI.pathJoin(userDataPath, 'img_cache');
 }
@@ -16,13 +17,13 @@ async function getImgCacheDir() {
 /**
  * Récupère les métadonnées d'un jeu via un fetch Node direct vers DLsite.
  */
-export async function fetchGameMetadata(gameId) {
+export async function fetchGameMetadata(gameId: string): Promise<void> {
   try {
     const settings = await loadSettings();
     const lang = settings.language || 'en_US';
 
     console.log(`Récupération des métadonnées pour ${gameId}...`);
-    const data = await window.electronAPI.fetchGameMetadata(gameId, lang);
+    const data = await window.electronAPI.fetchGameMetadata(gameId, lang) as GameCacheEntry;
     const cache = await loadCache();
     const existingEntry = cache[gameId];
 
@@ -53,10 +54,10 @@ export async function fetchGameMetadata(gameId) {
     }
     cache[gameId] = {
       work_name: gameId,
-      error: error.message,
+      error: (error as Error).message,
       fetchFailed: true,
       lastFetchAttempt: new Date().toISOString()
-    };
+    } as GameCacheEntry;
     await saveCache(cache);
   }
 }
@@ -65,7 +66,7 @@ export async function fetchGameMetadata(gameId) {
  * Retente le téléchargement des images manquantes d'un jeu déjà en cache,
  * sans jamais refaire de fetch réseau des métadonnées ni les modifier.
  */
-export async function retryMissingImages(gameId) {
+export async function retryMissingImages(gameId: string): Promise<void> {
   const cache = await loadCache();
   const metadata = cache[gameId];
   if (!metadata || metadata.fetchFailed || metadata.imagesComplete) return;
@@ -82,7 +83,7 @@ export async function retryMissingImages(gameId) {
 /**
  * Purge les jeux obsolètes du cache.
  */
-export async function purgeObsoleteGamesFromCache() {
+export async function purgeObsoleteGamesFromCache(): Promise<void> {
   console.log('--- DÉBUT DE LA PURGE DES DONNÉES ---');
 
   const settings = await loadSettings();
@@ -129,7 +130,7 @@ export async function purgeObsoleteGamesFromCache() {
 /**
  * Réinitialise et re-télécharge toutes les images.
  */
-export async function resetAndRedownloadImages() {
+export async function resetAndRedownloadImages(): Promise<void> {
   console.log('--- DÉBUT DU RESET DES IMAGES ---');
 
   const imgCacheDir = await getImgCacheDir();

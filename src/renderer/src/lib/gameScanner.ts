@@ -1,3 +1,7 @@
+import { fetchGameMetadata, retryMissingImages, purgeObsoleteGamesFromCache } from './dataFetcher.js';
+import { getGamesFolderPath } from './osHandler.js';
+import { loadCache } from './cacheManager.js';
+
 /**
  * Scanne le dossier de destination pour détecter les nouveaux jeux.
  *
@@ -6,22 +10,23 @@
  * mettre à jour l'interface en conséquence.
  */
 
-import { fetchGameMetadata, retryMissingImages, purgeObsoleteGamesFromCache } from './dataFetcher.js';
-import { getGamesFolderPath } from './osHandler.js';
-import { loadCache } from './cacheManager.js';
-
 // Nombre de jeux traités en parallèle lors d'un scan : reste économe vis-à-vis
 // de DLsite tout en évitant qu'un scan initial ne traite tout en série.
 const FETCH_CONCURRENCY = 3;
+
+export interface ScanResult {
+  status: 'no-folder' | 'empty' | 'ok';
+  gameFolders?: string[];
+}
 
 /**
  * Exécute `worker` sur chaque élément de `items`, avec au plus `limit`
  * exécutions en parallèle.
  */
-async function runWithConcurrencyLimit(items, limit, worker) {
+async function runWithConcurrencyLimit<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
   let index = 0;
 
-  async function processNext() {
+  async function processNext(): Promise<void> {
     while (index < items.length) {
       const item = items[index++];
       await worker(item);
@@ -35,9 +40,8 @@ async function runWithConcurrencyLimit(items, limit, worker) {
 /**
  * Scanne le dossier des jeux, récupère les métadonnées manquantes et retente
  * les images incomplètes.
- * @returns {Promise<{status: 'no-folder' | 'empty' | 'ok', gameFolders?: string[]}>}
  */
-export async function scanGames() {
+export async function scanGames(): Promise<ScanResult> {
   const gamesFolderPath = await getGamesFolderPath();
   if (!gamesFolderPath || !(await window.electronAPI.fsExists(gamesFolderPath))) {
     console.error('Le dossier des jeux n\'existe pas');
