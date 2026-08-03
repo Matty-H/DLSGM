@@ -5,7 +5,7 @@
 /**
  * Formate le temps de jeu en une chaîne lisible.
  */
-export function formatPlayTime(totalPlayTimeSeconds) {
+export function formatPlayTime(totalPlayTimeSeconds: number): string {
   if (totalPlayTimeSeconds <= 0) {
     return '';
   }
@@ -25,14 +25,14 @@ export function formatPlayTime(totalPlayTimeSeconds) {
 /**
  * Formate la date de dernière lecture en une chaîne relative.
  */
-export function formatLastPlayed(lastPlayedDate) {
+export function formatLastPlayed(lastPlayedDate: string | Date | null | undefined): string {
   if (!lastPlayedDate) {
     return '';
   }
 
   const date = typeof lastPlayedDate === 'string' ? new Date(lastPlayedDate) : lastPlayedDate;
   const now = new Date();
-  const diffTime = Math.abs(now - date);
+  const diffTime = Math.abs(now.getTime() - date.getTime());
   const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
   const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
   const diffMinutes = Math.floor(diffTime / (1000 * 60));

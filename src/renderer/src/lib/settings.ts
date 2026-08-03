@@ -1,3 +1,5 @@
+import type { AppSettings } from '../../../shared/ipc-types';
+
 /**
  * Gère la persistance des paramètres de l'application (dossier des jeux,
  * fréquence de rafraîchissement, langue, tri sélectionné) via IPC.
@@ -7,7 +9,11 @@
  * que la persistance.
  */
 
-const DEFAULT_SETTINGS = {
+export interface Settings extends AppSettings {
+  selectedSort: string;
+}
+
+const DEFAULT_SETTINGS: Settings = {
   destinationFolder: '',
   refreshRate: 5,
   language: 'en_US',
@@ -18,7 +24,7 @@ const DEFAULT_SETTINGS = {
  * Charge les paramètres depuis le stockage persistant, fusionnés avec les
  * valeurs par défaut.
  */
-export async function loadSettings() {
+export async function loadSettings(): Promise<Settings> {
   try {
     const savedSettings = await window.electronAPI.getSettings();
     return { ...DEFAULT_SETTINGS, ...savedSettings };
@@ -31,7 +37,7 @@ export async function loadSettings() {
 /**
  * Sauvegarde l'intégralité des paramètres.
  */
-export async function saveSettings(settings) {
+export async function saveSettings(settings: Settings): Promise<boolean> {
   try {
     await window.electronAPI.saveSettings(settings);
     return true;

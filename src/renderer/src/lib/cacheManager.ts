@@ -1,15 +1,20 @@
+import type { GameMetadata } from '../../../shared/ipc-types';
+
 /**
  * Gère le cache des jeux en communiquant avec le processus principal.
  */
+
+export type GameCacheEntry = GameMetadata & Record<string, unknown>;
+export type GameCache = Record<string, GameCacheEntry>;
 
 // Le cache est désormais géré par le store dans le processus principal.
 
 /**
  * Charge le cache depuis le stockage persistant.
  */
-export async function loadCache() {
+export async function loadCache(): Promise<GameCache> {
   try {
-    return await window.electronAPI.getCache();
+    return await window.electronAPI.getCache() as GameCache;
   } catch (error) {
     console.error('Erreur lors du chargement du cache:', error);
     return {};
@@ -19,7 +24,7 @@ export async function loadCache() {
 /**
  * Sauvegarde le cache vers le stockage persistant.
  */
-export async function saveCache(cacheData) {
+export async function saveCache(cacheData: GameCache): Promise<boolean> {
   try {
     return await window.electronAPI.saveCache(cacheData);
   } catch (error) {
@@ -30,15 +35,12 @@ export async function saveCache(cacheData) {
 
 /**
  * Met à jour une entrée spécifique dans le cache.
- * @param {Object} cache Le cache actuel.
- * @param {string} gameId L'identifiant du jeu.
- * @param {Object} newData Les nouvelles données à fusionner.
  */
-export async function updateCacheEntry(cache, gameId, newData) {
+export async function updateCacheEntry(cache: GameCache, gameId: string, newData: Partial<GameCacheEntry>): Promise<boolean> {
   cache[gameId] = {
     ...(cache[gameId] || {}),
     ...newData
-  };
+  } as GameCacheEntry;
 
   return await saveCache(cache);
 }

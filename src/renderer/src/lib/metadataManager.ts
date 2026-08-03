@@ -1,9 +1,16 @@
+import type { GameCache } from './cacheManager.js';
+
 /**
  * Gère les métadonnées des jeux et les catégories.
  */
 
+export interface CategoryInfo {
+  code: string;
+  name: string;
+}
+
 // Correspondance des codes de catégories DLSite et leurs noms d'affichage
-export const categoryMap = {
+export const categoryMap: Record<string, string> = {
   "ACN": "Action",
   "ADV": "Aventure",
   "QIZ": "Quiz",
@@ -33,8 +40,8 @@ export const categoryMap = {
 /**
  * Collecte toutes les catégories présentes dans le cache global.
  */
-export function collectAllCategories(globalCache) {
-  const uniqueCategoryCodes = new Set();
+export function collectAllCategories(globalCache: GameCache): CategoryInfo[] {
+  const uniqueCategoryCodes = new Set<string>();
 
   Object.values(globalCache).forEach(game => {
     if (game.category) {
@@ -55,8 +62,8 @@ export function collectAllCategories(globalCache) {
 /**
  * Collecte tous les genres présents dans le cache global.
  */
-export function collectAllGenres(globalCache) {
-  const genreSet = new Set();
+export function collectAllGenres(globalCache: GameCache): string[] {
+  const genreSet = new Set<string>();
 
   Object.values(globalCache).forEach(game => {
     if (Array.isArray(game.genre)) {
