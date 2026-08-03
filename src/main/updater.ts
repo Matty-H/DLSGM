@@ -3,9 +3,9 @@ import log from 'electron-log';
 
 /**
  * Auto-update via GitHub Releases (electron-builder `publish` config).
- * Ne fonctionne que pour la build NSIS installée — la build `portable`
- * n'a pas de dossier d'installation à mettre à jour en place, c'est un
- * comportement Windows inhérent, pas une limitation à corriger ici.
+ * Fonctionne pour l'installeur NSIS (Windows) et le zip (macOS, utilisé en
+ * interne par l'auto-update même si le dmg reste le moyen d'installation
+ * initial proposé aux utilisateurs).
  */
 export function initAutoUpdater(): void {
   log.transports.file.level = 'info';
