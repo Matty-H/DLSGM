@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { X } from 'lucide-react';
 import { categoryMap } from '../../lib/metadataManager.js';
 
 /** Convertit une date ISO en format DDMMYYYY pour l'affichage dans le formulaire. */
@@ -79,19 +80,16 @@ export default function ManualEditForm({ gameId, gameData, onCancel, onSave }: M
     onSave(updatedData);
   };
 
-  const inputClass = 'rounded border border-border bg-bg p-2.5 text-white';
+  const inputClass = 'input';
   const labelClass = 'text-sm text-text-secondary';
 
   return (
     <div>
       <div className="relative mb-4">
-        <button
-          onClick={onCancel}
-          className="absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-full bg-danger font-bold text-white shadow-lg hover:bg-danger-hover"
-        >
-          ✖
+        <button onClick={onCancel} aria-label="Annuler" className="btn btn-ghost btn-icon absolute right-0 top-0">
+          <X size={14} strokeWidth={1.5} />
         </button>
-        <h3 className="text-xl font-semibold">Modifier {gameId}</h3>
+        <h3 className="pr-9">Modifier {gameId}</h3>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -144,17 +142,17 @@ export default function ManualEditForm({ gameId, gameData, onCancel, onSave }: M
         <div className="flex flex-col gap-2">
           <label className={labelClass}>Image de couverture :</label>
           <div className="flex items-center gap-3">
-            <button onClick={handlePickImage} className="rounded border border-border bg-surface-hover px-3 py-1.5 text-sm text-white">
+            <button onClick={handlePickImage} className="btn btn-secondary">
               Choisir une image
             </button>
             <span className="text-xs text-text-secondary">{manualImagePath ? 'Image sélectionnée' : 'Par défaut'}</span>
           </div>
         </div>
         <div className="mt-2.5 flex gap-3">
-          <button onClick={handleSave} className="flex-1 rounded bg-primary px-5 py-2.5 text-white">
+          <button onClick={handleSave} className="btn btn-primary flex-1">
             Enregistrer
           </button>
-          <button onClick={onCancel} className="rounded border border-border px-5 py-2.5 text-text-secondary">
+          <button onClick={onCancel} className="btn btn-secondary">
             Annuler
           </button>
         </div>

@@ -24,7 +24,7 @@ export default function RatingStars({ value, onChange, max = 5, className = '' }
           className={[
             'text-lg leading-none',
             interactive ? 'cursor-pointer transition-transform hover:scale-125' : '',
-            starValue <= value ? 'text-yellow-400' : 'text-neutral-600'
+            starValue <= value ? 'text-accent-600' : 'text-neutral-400'
           ].join(' ')}
         >
           ★

@@ -3,29 +3,30 @@ import { useEffect } from 'react';
 interface KeyboardNavigationOptions {
   displayedGameIds: string[];
   selectedGameId: string | null;
-  isSettingsOpen: boolean;
+  isLibraryTab: boolean;
   onSelectGame: (gameId: string) => void;
   onClosePanel: () => void;
-  onCloseSettings: () => void;
+  onLeaveTab: () => void;
   onLaunchGame: (gameId: string) => void;
   onCarouselPrev: () => void;
   onCarouselNext: () => void;
 }
 
 /**
- * Raccourcis clavier globaux : Échap (fermer panneaux), Entrée (lancer le
- * jeu sélectionné), flèches gauche/droite (carrousel), flèches haut/bas
- * (naviguer dans la liste affichée). Reproduit à l'identique la logique de
- * l'ancien eventListeners.js, mais pilotée par état React plutôt que par
- * des classes CSS/`document.querySelector`.
+ * Raccourcis clavier globaux : Échap (retour à la bibliothèque depuis un
+ * autre onglet, ou fermer le panneau de détail), Entrée (lancer le jeu
+ * sélectionné), flèches gauche/droite (carrousel), flèches haut/bas
+ * (naviguer dans la liste affichée). La navigation clavier de la
+ * bibliothèque (flèches/entrée/carrousel) n'est active que sur l'onglet
+ * Bibliothèque.
  */
 export function useKeyboardNavigation({
   displayedGameIds,
   selectedGameId,
-  isSettingsOpen,
+  isLibraryTab,
   onSelectGame,
   onClosePanel,
-  onCloseSettings,
+  onLeaveTab,
   onLaunchGame,
   onCarouselPrev,
   onCarouselNext
@@ -33,7 +34,7 @@ export function useKeyboardNavigation({
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
-      const isPanelOpen = selectedGameId !== null;
+      const isPanelOpen = isLibraryTab && selectedGameId !== null;
 
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
         if (e.key === 'Escape') target.blur();
@@ -41,10 +42,15 @@ export function useKeyboardNavigation({
       }
 
       if (e.key === 'Escape') {
-        if (isSettingsOpen) onCloseSettings();
-        if (isPanelOpen) onClosePanel();
+        if (!isLibraryTab) {
+          onLeaveTab();
+        } else if (isPanelOpen) {
+          onClosePanel();
+        }
         return;
       }
+
+      if (!isLibraryTab) return;
 
       if (e.key === 'Enter' && isPanelOpen && selectedGameId) {
         e.preventDefault();
@@ -83,10 +89,10 @@ export function useKeyboardNavigation({
   }, [
     displayedGameIds,
     selectedGameId,
-    isSettingsOpen,
+    isLibraryTab,
     onSelectGame,
     onClosePanel,
-    onCloseSettings,
+    onLeaveTab,
     onLaunchGame,
     onCarouselPrev,
     onCarouselNext

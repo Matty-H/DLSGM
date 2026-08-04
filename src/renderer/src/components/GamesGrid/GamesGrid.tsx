@@ -8,28 +8,30 @@ export interface GamesGridItem {
 export interface GamesGridProps {
   games: GamesGridItem[];
   runningGames: Set<string>;
-  isAnyGameRunning: boolean;
   selectedGameId: string | null;
+  blurAdultContent: boolean;
+  revealedGames: Set<string>;
   getWorkImageSrc: (gameId: string) => string;
   onOpenInfo: (gameId: string) => void;
-  onLaunch: (gameId: string) => void;
+  onReveal: (gameId: string) => void;
 }
 
 export default function GamesGrid({
   games,
   runningGames,
-  isAnyGameRunning,
   selectedGameId,
+  blurAdultContent,
+  revealedGames,
   getWorkImageSrc,
   onOpenInfo,
-  onLaunch
+  onReveal
 }: GamesGridProps) {
   if (games.length === 0) {
-    return <p className="text-text-secondary">Aucun jeu ne correspond aux critères de recherche.</p>;
+    return <div className="py-16 text-center text-text-secondary opacity-60">Aucune œuvre ne correspond à ces filtres.</div>;
   }
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] items-start gap-8">
+    <div className="grid gap-[var(--space-4)]" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
       {games.map(({ id, data }) => (
         <GameCard
           key={id}
@@ -37,10 +39,10 @@ export default function GamesGrid({
           gameData={data}
           imageSrc={getWorkImageSrc(id)}
           isRunning={runningGames.has(id)}
-          isAnyGameRunning={isAnyGameRunning}
           isSelected={selectedGameId === id}
+          isBlurred={data.age_category === 'R18' && blurAdultContent && !revealedGames.has(id)}
           onOpenInfo={onOpenInfo}
-          onLaunch={onLaunch}
+          onReveal={onReveal}
         />
       ))}
     </div>

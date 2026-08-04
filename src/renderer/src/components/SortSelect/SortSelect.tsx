@@ -1,23 +1,25 @@
 export interface SortSelectProps {
   value: string;
   onChange: (value: string) => void;
+  className?: string;
 }
 
 const SORT_OPTIONS = [
-  { value: 'name_asc', label: 'Ordre alphabétique (A-Z)' },
-  { value: 'name_desc', label: 'Ordre alphabétique (Z-A)' },
-  { value: 'last_played', label: 'Dernière fois joué' },
+  { value: 'name_asc', label: 'Alphabétique (A→Z)' },
+  { value: 'name_desc', label: 'Alphabétique (Z→A)' },
+  { value: 'release_date_desc', label: 'Sortie (récent)' },
+  { value: 'release_date_asc', label: 'Sortie (ancien)' },
+  { value: 'playtime_desc', label: 'Temps de jeu' },
   { value: 'last_added', label: 'Dernier ajout' },
-  { value: 'release_date_desc', label: 'Date de sortie (Récent)' },
-  { value: 'release_date_asc', label: 'Date de sortie (Ancien)' }
+  { value: 'last_played', label: 'Dernière fois joué' }
 ];
 
-export default function SortSelect({ value, onChange }: SortSelectProps) {
+export default function SortSelect({ value, onChange, className = '' }: SortSelectProps) {
   return (
     <select
       value={value}
       onChange={e => onChange(e.target.value)}
-      className="h-[42px] min-w-[220px] rounded-xl border border-border bg-surface px-4 text-sm text-white outline-none transition-colors duration-300 hover:border-primary hover:bg-surface-hover"
+      className={`input w-auto cursor-pointer ${className}`}
     >
       {SORT_OPTIONS.map(opt => (
         <option key={opt.value} value={opt.value}>

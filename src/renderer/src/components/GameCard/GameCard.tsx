@@ -1,16 +1,19 @@
+import { Clock } from 'lucide-react';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 import { formatPlayTime } from '../../lib/timeFormatter.js';
-import CategoryBadge from '../CategoryBadge/CategoryBadge';
+import { categoryMap } from '../../lib/metadataManager.js';
+
+const AGE_LABELS: Record<string, string> = { R15: 'R15', R18: 'R18' };
 
 export interface GameCardProps {
   gameId: string;
   gameData: any;
   imageSrc: string;
   isRunning: boolean;
-  isAnyGameRunning: boolean;
   isSelected: boolean;
+  isBlurred: boolean;
   onOpenInfo: (gameId: string) => void;
-  onLaunch: (gameId: string) => void;
+  onReveal: (gameId: string) => void;
 }
 
 export default function GameCard({
@@ -18,60 +21,78 @@ export default function GameCard({
   gameData,
   imageSrc,
   isRunning,
-  isAnyGameRunning,
   isSelected,
+  isBlurred,
   onOpenInfo,
-  onLaunch
+  onReveal
 }: GameCardProps) {
   const gameName = gameData.work_name || gameId;
   const totalPlayTime = gameData.totalPlayTime || 0;
   const rating = gameData.rating || 0;
   const playTimeText = formatPlayTime(totalPlayTime);
-  const playDisabled = isAnyGameRunning && !isRunning;
+  const categoryLabel = gameData.category ? categoryMap[gameData.category] || gameData.category : 'Inconnu';
+  const ageCategory: string = gameData.age_category || 'ALL_AGES';
+  const ageLabel = AGE_LABELS[ageCategory];
 
   return (
     <div
       data-game-id={gameId}
-      className={`group flex flex-col overflow-hidden rounded-app border-2 bg-surface backdrop-blur-app transition-all duration-300 hover:-translate-y-2 hover:border-white/20 hover:shadow-2xl ${
-        isSelected ? 'border-primary shadow-[0_0_15px_rgba(61,90,254,0.4)]' : 'border-transparent'
-      }`}
+      onClick={() => onOpenInfo(gameId)}
+      className="card blueprint elev-sm relative cursor-pointer pb-3"
+      style={isSelected ? { borderColor: 'var(--color-accent-600)' } : undefined}
     >
-      <div className="relative aspect-video overflow-hidden">
-        {gameData.fetchFailed && (
-          <div className="absolute left-2.5 top-2.5 z-10 rounded bg-accent/90 px-2 py-1 text-xs font-bold text-white">
-            ⚠️ Erreur
-          </div>
-        )}
+      <i className="corner tl" />
+      <i className="corner tr" />
+      <i className="corner bl" />
+      <i className="corner br" />
+
+      {gameData.fetchFailed && (
+        <span className="tag tag-outline absolute -top-2 left-3 z-10 bg-bg">Échec sync</span>
+      )}
+      {isRunning && !gameData.fetchFailed && (
+        <span className="tag tag-outline absolute -top-2 left-3 z-10 bg-bg">En cours</span>
+      )}
+
+      <div className="cover-frame relative aspect-[16/10] overflow-hidden">
         <img
           src={imageSrc}
           alt={gameName}
-          onClick={() => onOpenInfo(gameId)}
           onError={e => {
             e.currentTarget.onerror = null;
             e.currentTarget.src = PLACEHOLDER_IMAGE;
           }}
-          className="h-full w-full cursor-pointer object-cover"
+          className="h-full w-full object-cover"
         />
-        <div className="absolute bottom-3 right-3 z-20 flex h-12 w-12 items-center justify-center">
-          <button
-            onClick={() => onLaunch(gameId)}
-            disabled={playDisabled}
-            className={`flex h-full w-full scale-75 items-center justify-center rounded-xl text-2xl opacity-0 shadow-lg transition-all duration-300 group-hover:scale-100 group-hover:opacity-100 ${
-              playDisabled ? 'cursor-not-allowed bg-neutral-600' : 'bg-success hover:bg-success-hover'
-            }`}
+        {isBlurred && (
+          <div
+            onClick={e => {
+              e.stopPropagation();
+              onReveal(gameId);
+            }}
+            className="absolute inset-0 flex items-center justify-center p-2 text-center backdrop-blur-2xl"
+            style={{ background: 'color-mix(in oklab, var(--color-neutral-100) 70%, transparent)' }}
           >
-            {isRunning ? '⏳' : '▶'}
-          </button>
-        </div>
-      </div>
-      <div className="flex items-center justify-between px-3 pb-4 pt-2.5">
-        <CategoryBadge category={gameData.category} />
-        {totalPlayTime > 0 ? (
-          <div className="flex flex-1 items-center justify-center gap-1 text-xs text-text-secondary">⏳ {playTimeText}</div>
-        ) : (
-          <div />
+            <span className="text-xs leading-snug text-white">
+              {ageLabel}
+              <br />
+              Cliquer pour révéler
+            </span>
+          </div>
         )}
-        {rating > 0 ? <div className="text-right text-sm font-bold text-yellow-400">{rating}★</div> : <div />}
+      </div>
+
+      <div className="card-kicker mt-3">{gameData.circle || gameData.author || ''}</div>
+      <div className="card-title text-base">{gameName}</div>
+
+      <div className="my-2 flex flex-wrap gap-1">
+        <span className="tag tag-neutral text-[10px]">{categoryLabel}</span>
+        {ageLabel && <span className="tag tag-outline text-[10px]">{ageLabel}</span>}
+      </div>
+
+      <div className="card-meta">
+        <Clock size={12} strokeWidth={1.5} />
+        <span>{playTimeText}</span>
+        {rating > 0 && <span className="ml-auto text-accent-700">{'★'.repeat(rating)}</span>}
       </div>
     </div>
   );

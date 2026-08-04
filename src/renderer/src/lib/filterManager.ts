@@ -1,4 +1,5 @@
 import type { GameCacheEntry } from './cacheManager.js';
+import { aliasesFor, type GenreAliasGroups } from './genreAliases.js';
 
 /**
  * Prédicat de filtrage pur : détermine si un jeu correspond aux critères de
@@ -12,6 +13,9 @@ export interface GameFilters {
   searchTerm: string;
   selectedGenres: string[];
   selectedRating: number;
+  /** Genres sélectionnés sont des libellés canoniques ; un jeu matche si son
+      tableau `genre` contient l'un de leurs alias (voir lib/genreAliases.ts). */
+  genreAliasGroups: GenreAliasGroups;
 }
 
 export interface GameListItem {
@@ -20,7 +24,7 @@ export interface GameListItem {
 }
 
 export function matchesFilters(game: GameCacheEntry, filters: GameFilters): boolean {
-  const { selectedCategoryCode, searchTerm, selectedGenres, selectedRating } = filters;
+  const { selectedCategoryCode, searchTerm, selectedGenres, selectedRating, genreAliasGroups } = filters;
   const gameName = game.work_name || '';
 
   // Filtrage par note (si sélectionné)
@@ -29,12 +33,14 @@ export function matchesFilters(game: GameCacheEntry, filters: GameFilters): bool
     if (gameRating !== selectedRating) return false;
   }
 
-  // Filtrage par genre (si sélectionné)
+  // Filtrage par genre (si sélectionné) — un genre canonique sélectionné
+  // matche si le jeu a l'un de ses alias liés.
   if (selectedGenres.length > 0) {
     const gameGenres = game.genre || [];
-    const hasMatchingGenre = selectedGenres.some(genre =>
-      gameGenres.includes(genre)
-    );
+    const hasMatchingGenre = selectedGenres.some(genre => {
+      const aliases = aliasesFor(genre, genreAliasGroups);
+      return gameGenres.some(g => aliases.includes(g));
+    });
     if (!hasMatchingGenre) return false;
   }
 
@@ -82,6 +88,11 @@ export function compareGames(a: GameListItem, b: GameListItem, selectedSort: str
       const adA = a.data.addedDate ? new Date(a.data.addedDate) : new Date(0);
       const adB = b.data.addedDate ? new Date(b.data.addedDate) : new Date(0);
       return adB.getTime() - adA.getTime();
+    }
+    case 'playtime_desc': {
+      const ptA = (a.data.totalPlayTime as number) || 0;
+      const ptB = (b.data.totalPlayTime as number) || 0;
+      return ptB - ptA;
     }
     case 'release_date_asc': {
       const rdA = a.data.release_date && a.data.release_date !== 'N/A' ? new Date(a.data.release_date) : new Date(0);

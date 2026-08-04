@@ -13,10 +13,11 @@ export default function Carousel({ workImageSrc, sampleSrcs, activeIndex, onPrev
   const totalImages = 1 + sampleSrcs.length;
 
   return (
-    <div className="relative mb-5 overflow-hidden rounded-app">
+    <div className="relative overflow-hidden">
       <button
         onClick={onClose}
-        className="absolute right-4 top-4 z-[100] flex h-9 w-9 items-center justify-center rounded-full bg-danger font-bold text-white shadow-lg transition-transform hover:scale-110 hover:bg-danger-hover"
+        aria-label="Fermer"
+        className="btn btn-ghost btn-icon absolute right-2 top-2 z-[100] bg-bg/80"
       >
         ✖
       </button>

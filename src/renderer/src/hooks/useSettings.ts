@@ -5,6 +5,8 @@ export interface AppSettings {
   destinationFolder: string;
   refreshRate: number;
   language: string;
+  blurAdultContent: boolean;
+  genreAliasGroups: string[][];
   selectedSort: string;
 }
 
