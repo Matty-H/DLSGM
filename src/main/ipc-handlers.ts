@@ -14,7 +14,9 @@ const IMAGE_DOWNLOAD_TIMEOUT_MS = 15000;
 const settingsStore = new Store('settings.db', {
   destinationFolder: '',
   refreshRate: 5,
-  language: 'en_US'
+  language: 'en_US',
+  blurAdultContent: true,
+  genreAliasGroups: []
 }, 'settings.json');
 
 const cacheStore = new Store('cache.db', {}, 'cache.json');

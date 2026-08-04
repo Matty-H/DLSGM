@@ -64,7 +64,12 @@ export async function scanGames(): Promise<ScanResult> {
   const gamesToFetch = gameFolders.filter(gameId => !cache[gameId]);
   // Jeux déjà en cache mais dont le téléchargement d'images est incomplet :
   // on retente uniquement les images, sans jamais toucher aux métadonnées.
-  const gamesNeedingImages = gameFolders.filter(gameId => cache[gameId] && cache[gameId].imagesComplete === false);
+  // `!== true` (et non `=== false`) pour aussi rattraper les entrées où
+  // imagesComplete n'a jamais été écrit du tout (fetch métadonnées réussi,
+  // mais l'appel de téléchargement d'images ayant levé une exception avant
+  // que le flag ne soit enregistré) — sinon ces jeux restent bloqués sans
+  // image pour toujours, invisibles à la fois du statut "échec" et de ce filtre.
+  const gamesNeedingImages = gameFolders.filter(gameId => cache[gameId] && cache[gameId].imagesComplete !== true);
 
   await runWithConcurrencyLimit(gamesToFetch, FETCH_CONCURRENCY, fetchGameMetadata);
   await runWithConcurrencyLimit(gamesNeedingImages, FETCH_CONCURRENCY, retryMissingImages);

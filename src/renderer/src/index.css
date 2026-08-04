@@ -1,64 +1,237 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap');
 @import "tailwindcss";
 
 /*
- * Tokens portés depuis l'ancien src/renderer/styles/modern.css (:root),
- * pour garder l'identité visuelle actuelle tout en générant des utilitaires
- * Tailwind (bg-primary, text-secondary, rounded-app, backdrop-blur-app, ...).
+ * Design system "Industry" (blueprint wireframe aesthetic), dark variant —
+ * tokens adapted from the design handoff's reference-styles.css (which was
+ * light-mode). Ramps are reversed (100 = darkest, 900 = lightest) rather
+ * than swapping every component rule, since .tag-neutral/.tag-accent/etc.
+ * already reference the ramp generically (e.g. neutral-100 as background,
+ * neutral-800 as text) — reversing the ramp direction alone makes those
+ * read correctly on a dark ground with zero changes to component CSS.
+ * The color, radius, shadow and font custom properties below live in
+ * @theme so Tailwind generates utilities from them (bg-accent-600,
+ * rounded-md, shadow-sm, font-heading, ...). The space scale stays a plain
+ * custom-property scale (not a Tailwind namespace), consumed via arbitrary
+ * values (gap-[var(--space-4)]) where a layout needs to match the handoff.
  */
 @theme {
-  --color-bg: #0b0b0d;
-  --color-surface: rgba(26, 26, 32, 0.6);
-  --color-surface-hover: rgba(45, 45, 55, 0.8);
-  --color-glass: rgba(15, 15, 20, 0.85);
-  --color-glass-border: rgba(255, 255, 255, 0.1);
-  --color-primary: #3d5afe;
-  --color-primary-hover: #2c46e0;
-  --color-accent: #ff4081;
-  --color-success: #2ecc71;
-  --color-success-hover: #27ae60;
-  --color-danger: #e74c3c;
-  --color-danger-hover: #ff2d1a;
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #b0b0b0;
-  --color-border: #30303b;
+  --color-bg: #15171a;
+  --color-surface: #1c1f23;
+  --color-text: #e7e9ea;
+  --color-text-secondary: color-mix(in srgb, var(--color-text) 55%, transparent);
+  --color-accent: #6f9dc7;
+  --color-accent-2: #86a4c2;
+  /* Text color for content sitting on an accent-filled surface (btn-primary,
+     the checked segment of a .seg) — always light regardless of theme, so
+     it's its own token rather than reusing --color-bg (which is now dark). */
+  --color-on-accent: #f2f6fa;
+  --color-divider: color-mix(in srgb, var(--color-text) 16%, transparent);
 
-  --radius-app: 16px;
-  --blur-app: 12px;
+  --color-neutral-100: #1b1d20;
+  --color-neutral-200: #26292d;
+  --color-neutral-300: #34373c;
+  --color-neutral-400: #484c52;
+  --color-neutral-500: #63676e;
+  --color-neutral-600: #83878e;
+  --color-neutral-700: #a6aab0;
+  --color-neutral-800: #cacdd1;
+  --color-neutral-900: #eef0f2;
 
-  --font-sans: 'Inter', sans-serif;
+  --color-accent-100: #17242f;
+  --color-accent-200: #1e2f3d;
+  --color-accent-300: #274050;
+  --color-accent-400: #345670;
+  --color-accent-500: #4a7194;
+  --color-accent-600: #6f9dc7;
+  --color-accent-700: #96b7d8;
+  --color-accent-800: #bcd3e8;
+  --color-accent-900: #e2edf5;
 
-  --animate-slide-in: slideIn 0.3s ease-out;
-  --animate-fade-in: fadeIn 0.3s ease-in;
+  --color-accent-2-100: #1b262f;
+  --color-accent-2-200: #24303a;
+  --color-accent-2-300: #313f4a;
+  --color-accent-2-400: #46586a;
+  --color-accent-2-500: #63798e;
+  --color-accent-2-600: #86a4c2;
+  --color-accent-2-700: #a6bfd4;
+  --color-accent-2-800: #c7d7e5;
+  --color-accent-2-900: #e7eef4;
+
+  --font-heading: "Barlow Condensed", system-ui, sans-serif;
+  --font-body: "Barlow", system-ui, sans-serif;
+  --font-sans: "Barlow", system-ui, sans-serif;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 7px;
+
+  /* Ink-tinted shadows read as depth on a light ground; on a dark ground
+     elevation instead comes from the .blueprint hairline border + corner
+     marks, so these stay deliberately subtle ambient darkening only. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
 }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+:root {
+  --space-1: 3.4px;
+  --space-2: 6.8px;
+  --space-3: 10.2px;
+  --space-4: 13.6px;
+  --space-5: 17px;
+  --space-6: 20.4px;
+  --space-7: 23.8px;
+  --space-8: 27.2px;
 }
 
 body {
   margin: 0;
   overflow: hidden;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
 }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
 
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
+  height: 10px;
 }
-
 ::-webkit-scrollbar-track {
   background: var(--color-bg);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 4px;
+  background: var(--color-neutral-300);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #444;
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Component primitives — ported from the "Industry" design system so the
+   redesigned screens can reuse them exactly as the handoff's markup does.
+   Wrapped in Tailwind's `components` layer so that any Tailwind utility
+   class combined on the same element (e.g. `input pr-8`, `tag text-[10px]`)
+   always wins the cascade regardless of source order, like normal Tailwind
+   component-class + utility-override usage.
+   ══════════════════════════════════════════════════════════════════════ */
+@layer components {
+
+.blueprint {
+  position: relative;
+  border: 1px solid var(--color-divider);
+  border-radius: 0;
 }
+.blueprint > .corner {
+  position: absolute; width: 11px; height: 11px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.blueprint > .corner::before, .blueprint > .corner::after {
+  content: ""; position: absolute; background: currentColor;
+}
+.blueprint > .corner::before { left: 5px; top: 0; width: 1px; height: 100%; }
+.blueprint > .corner::after  { top: 5px; left: 0; width: 100%; height: 1px; }
+.blueprint > .corner.tl { top: -6px; left: -6px; }
+.blueprint > .corner.tr { top: -6px; right: -6px; }
+.blueprint > .corner.bl { bottom: -6px; left: -6px; }
+.blueprint > .corner.br { bottom: -6px; right: -6px; }
+
+/* Cover-image wrapper (aspect-ratio + overflow clip). Deliberately no color
+   treatment — covers are shown as-is, unaltered. */
+.cover-frame { position: relative; overflow: hidden; }
+
+.card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3);
+  background: transparent; border: 1px solid var(--color-divider); border-radius: 0;
+}
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.card-title { font-family: var(--font-heading); font-weight: 600; font-size: 17px; line-height: 1.2; }
+.card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+.card-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-text-secondary); }
+.elev-sm { box-shadow: var(--shadow-sm); }
+.elev-md { box-shadow: var(--shadow-md); }
+.elev-lg { box-shadow: var(--shadow-lg); }
+
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px; border-radius: calc(var(--radius-md) * 0.75);
+}
+.tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+.tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: 600; font-size: 14px; line-height: 1.2;
+  color: var(--color-text);
+  background: transparent; border: 1px solid var(--color-divider); border-radius: 0;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+}
+.btn svg { display: block; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--color-accent); color: var(--color-on-accent); border-color: var(--color-accent); }
+.btn-primary:hover:not(:disabled) { background: var(--color-accent-600); }
+.btn-primary:active:not(:disabled) { background: var(--color-accent-700); }
+.btn-secondary { border-color: var(--color-divider); }
+.btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.btn-ghost { color: var(--color-accent); border-color: transparent; padding-inline: var(--space-1); }
+.btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.btn-icon { width: 36px; height: 36px; padding: 0; }
+.btn-block { width: 100%; margin-top: var(--space-2); }
+
+.field > label { display: block; font-size: 12px; margin-bottom: 5px; color: var(--color-text-secondary); }
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+
+.seg { display: inline-flex; overflow: hidden; border: 1px solid var(--color-divider); border-radius: var(--radius-md); }
+.seg-opt { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 13px; cursor: pointer; }
+.seg-opt input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+.seg-opt:has(input:checked) { background: var(--color-accent); color: var(--color-on-accent); }
+.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-text-secondary); padding: var(--space-2); border-bottom: 1px solid var(--color-divider);
+}
+.table td { padding: var(--space-2); border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); }
+.table tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+
+.hr { height: 1px; border: 0; margin: var(--space-4) 0; background: var(--color-divider); }
+
+.text-muted { color: var(--color-text-secondary); }
+
+} /* @layer components */

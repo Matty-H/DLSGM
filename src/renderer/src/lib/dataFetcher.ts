@@ -36,7 +36,16 @@ export async function fetchGameMetadata(gameId: string): Promise<void> {
     await saveCache(cache);
 
     const imgCacheDir = await getImgCacheDir();
-    const imagesComplete = await window.electronAPI.downloadGameImages(gameId, data, imgCacheDir);
+    // Le téléchargement d'images est isolé dans son propre try/catch : s'il
+    // échoue (réseau, timeout...), imagesComplete doit rester explicitement
+    // `false` plutôt que de ne jamais être écrit — sinon l'entrée échappe au
+    // filtre de rattrapage de gameScanner.ts et reste bloquée sans image.
+    let imagesComplete = false;
+    try {
+      imagesComplete = await window.electronAPI.downloadGameImages(gameId, data, imgCacheDir);
+    } catch (imgError) {
+      console.error(`Erreur lors du téléchargement des images pour ${gameId}:`, imgError);
+    }
 
     // On relit le cache avant de fusionner le statut des images : il a pu être
     // modifié entre-temps (rating, tags...) pendant le téléchargement.
@@ -72,7 +81,12 @@ export async function retryMissingImages(gameId: string): Promise<void> {
   if (!metadata || metadata.fetchFailed || metadata.imagesComplete) return;
 
   const imgCacheDir = await getImgCacheDir();
-  const imagesComplete = await window.electronAPI.downloadGameImages(gameId, metadata, imgCacheDir);
+  let imagesComplete = false;
+  try {
+    imagesComplete = await window.electronAPI.downloadGameImages(gameId, metadata, imgCacheDir);
+  } catch (imgError) {
+    console.error(`Erreur lors du nouveau téléchargement des images pour ${gameId}:`, imgError);
+  }
 
   const refreshedCache = await loadCache();
   if (!refreshedCache[gameId]) return;
