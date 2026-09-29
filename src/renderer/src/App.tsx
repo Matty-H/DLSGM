@@ -67,8 +67,16 @@ export default function App() {
     setCarouselIndex(0);
   }, [selectedGameId]);
 
-  const categories = useMemo(() => collectAllCategories(library.cache), [library.cache]);
-  const rawGenres = useMemo(() => collectAllGenres(library.cache), [library.cache]);
+  // Les fiches des jeux absents du dossier sont conservées dans le cache (pas
+  // de purge), mais seuls les jeux présents alimentent les filtres
+  // et les statistiques.
+  const presentGamesCache = useMemo(
+    () => Object.fromEntries(library.gameFolders.filter(id => library.cache[id]).map(id => [id, library.cache[id]])),
+    [library.gameFolders, library.cache]
+  );
+
+  const categories = useMemo(() => collectAllCategories(presentGamesCache), [presentGamesCache]);
+  const rawGenres = useMemo(() => collectAllGenres(presentGamesCache), [presentGamesCache]);
   const genreAliasGroups = settings?.genreAliasGroups ?? [];
   const genres = useMemo(() => collectCanonicalGenres(rawGenres, genreAliasGroups), [rawGenres, genreAliasGroups]);
 
@@ -192,6 +200,7 @@ export default function App() {
               onUpdateGame={library.updateGame}
               onReplaceGame={library.replaceGame}
               onRemoveGame={library.removeGame}
+              onChooseExecutable={library.chooseExecutable}
               onOpenFolder={openGameFolder}
               onGenreClick={genre => filters.setSelectedGenres([genre])}
               onAfterRetryFetch={library.reloadCache}
@@ -202,7 +211,7 @@ export default function App() {
       )}
 
       {activeTab === 'stats' && (
-        <StatsScreen cache={library.cache} getWorkImageSrc={library.getWorkImageSrc} genreAliasGroups={genreAliasGroups} />
+        <StatsScreen cache={presentGamesCache} getWorkImageSrc={library.getWorkImageSrc} genreAliasGroups={genreAliasGroups} />
       )}
 
       {activeTab === 'settings' && settings && (

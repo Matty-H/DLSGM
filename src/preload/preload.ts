@@ -15,9 +15,11 @@ const electronAPI: ElectronAPI = {
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   updateLanguage: (lang) => ipcRenderer.send('update-language', lang),
 
-  // Gestion du cache
+  // Gestion du cache (écritures par entrée, fusionnées côté main)
   getCache: () => ipcRenderer.invoke('get-cache'),
-  saveCache: (cache) => ipcRenderer.invoke('save-cache', cache),
+  updateCacheEntry: (gameId, patch) => ipcRenderer.invoke('update-cache-entry', gameId, patch),
+  replaceCacheEntry: (gameId, data) => ipcRenderer.invoke('replace-cache-entry', gameId, data),
+  deleteCacheEntry: (gameId) => ipcRenderer.invoke('delete-cache-entry', gameId),
 
   // Dialogue de dossier
   openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
@@ -25,21 +27,17 @@ const electronAPI: ElectronAPI = {
 
   // Opérations système
   listGameFolders: (folderPath) => ipcRenderer.invoke('list-game-folders', folderPath),
-  openPath: (targetPath) => ipcRenderer.invoke('open-path', targetPath),
+  openGameFolder: (gameId) => ipcRenderer.invoke('open-game-folder', gameId),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   launchGame: (gameId) => ipcRenderer.invoke('launch-game', gameId),
-  downloadGameImages: (gameId, metadata, destBaseDir) => ipcRenderer.invoke('download-game-images', gameId, metadata, destBaseDir),
+  chooseGameExecutable: (gameId) => ipcRenderer.invoke('choose-game-executable', gameId),
+  downloadGameImages: (gameId, metadata) => ipcRenderer.invoke('download-game-images', gameId, metadata),
+  resetImageCache: () => ipcRenderer.invoke('reset-image-cache'),
+  setCustomCover: (gameId, sourceImagePath) => ipcRenderer.invoke('set-custom-cover', gameId, sourceImagePath),
+
 
   // Récupération des métadonnées DLsite
   fetchGameMetadata: (gameId, locale) => ipcRenderer.invoke('fetch-game-metadata', gameId, locale),
-
-  // Utilitaires de fichiers (bridgés pour la sécurité)
-  pathJoin: (...args) => ipcRenderer.invoke('path-join', args),
-  fsExists: (path) => ipcRenderer.invoke('fs-exists', path),
-  fsMkdir: (path) => ipcRenderer.invoke('fs-mkdir', path),
-  fsReaddir: (path) => ipcRenderer.invoke('fs-readdir', path),
-  fsRm: (path) => ipcRenderer.invoke('fs-rm', path),
-  fsCopy: (src, dest) => ipcRenderer.invoke('fs-copy', src, dest),
 
   // Événements (du Main vers le Renderer)
   onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', () => callback())
