@@ -1,4 +1,4 @@
-import type { GameToolsInfo, InstalledPatch } from '../../../shared/ipc-types';
+import type { GameToolsInfo, InstalledPatch, SandboxieStatus } from '../../../shared/ipc-types';
 
 /**
  * Outils par jeu (moteur, sauvegardes, patchs) : fines surcouches IPC, sans
@@ -6,7 +6,7 @@ import type { GameToolsInfo, InstalledPatch } from '../../../shared/ipc-types';
  * les afficher.
  */
 
-export type { GameToolsInfo, InstalledPatch };
+export type { GameToolsInfo, InstalledPatch, SandboxieStatus };
 
 /** Langues cibles proposées pour la traduction automatique (codes XUnity). */
 export const TRANSLATION_LANGUAGES: { code: string; label: string }[] = [
@@ -49,3 +49,5 @@ export const openSaveLocation = (gameId: string, index: number) => window.electr
 export const installAutoTranslator = (gameId: string, language: string) => window.electronAPI.installAutoTranslator(gameId, language);
 export const applyUserPatch = (gameId: string, source: 'zip' | 'folder') => window.electronAPI.applyUserPatch(gameId, source);
 export const uninstallLastPatch = (gameId: string) => window.electronAPI.uninstallLastPatch(gameId);
+export const getSandboxieStatus = () => window.electronAPI.getSandboxieStatus();
+export const clearGameSandbox = (gameId: string) => window.electronAPI.clearGameSandbox(gameId);

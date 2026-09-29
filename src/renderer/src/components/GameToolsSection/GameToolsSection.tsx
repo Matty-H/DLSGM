@@ -3,6 +3,7 @@ import {
   TRANSLATION_LANGUAGES,
   applyUserPatch,
   canInstallAutoTranslator,
+  clearGameSandbox,
   describeEngine,
   getGameToolsInfo,
   installAutoTranslator,
@@ -16,6 +17,9 @@ export interface GameToolsSectionProps {
   gameId: string;
   /** Exécutable choisi : le changer peut changer le dossier d'installation détecté. */
   executablePath?: string;
+  /** Jeu exclu de la sandbox Sandboxie (entrée de cache `sandboxDisabled`). */
+  sandboxDisabled: boolean;
+  onSandboxDisabledChange: (disabled: boolean) => void;
 }
 
 const LABEL_CLASS = 'text-[10px] uppercase tracking-wide text-text-secondary';
@@ -23,9 +27,10 @@ const LABEL_CLASS = 'text-[10px] uppercase tracking-wide text-text-secondary';
 /**
  * Moteur détecté, emplacements de sauvegarde, et patchs réversibles
  * (traduction automatique BepInEx + XUnity pour Unity Mono, patchs .zip ou
- * dossier fournis par l'utilisateur — décensure, traduction...).
+ * dossier fournis par l'utilisateur — décensure, traduction...), et sandbox
+ * Sandboxie quand le lancement en sandbox est activé dans les paramètres.
  */
-export default function GameToolsSection({ gameId, executablePath }: GameToolsSectionProps) {
+export default function GameToolsSection({ gameId, executablePath, sandboxDisabled, onSandboxDisabledChange }: GameToolsSectionProps) {
   const [info, setInfo] = useState<GameToolsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -56,7 +61,15 @@ export default function GameToolsSection({ gameId, executablePath }: GameToolsSe
     }
   };
 
+  const handleClearSandbox = () => {
+    const confirmed = window.confirm(
+      "Vider la sandbox de ce jeu ? Tout ce qu'il a écrit hors de son dossier (configuration, sauvegardes dans AppData, registre) sera définitivement supprimé. Son dossier n'est pas touché."
+    );
+    if (confirmed) run('clear-sandbox', () => clearGameSandbox(gameId));
+  };
+
   const lastPatch = info?.patches[info.patches.length - 1];
+  const sandboxed = info !== null && info.sandbox.globallyEnabled && !sandboxDisabled;
   const engineDetails = info ? describeEngine(info) : '';
 
   return (
@@ -89,6 +102,30 @@ export default function GameToolsSection({ gameId, executablePath }: GameToolsSe
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {info?.sandbox.globallyEnabled && (
+        <div>
+          <div className={`${LABEL_CLASS} mb-1`}>Sandbox</div>
+          <label className="flex cursor-pointer items-center gap-2">
+            <input type="checkbox" checked={!sandboxDisabled} onChange={e => onSandboxDisabledChange(!e.target.checked)} />
+            Lancer ce jeu dans Sandboxie
+          </label>
+          {sandboxed && !info.sandbox.available && (
+            <p className="mt-1 text-red-400">Sandboxie-Plus introuvable : le jeu ne pourra pas être lancé.</p>
+          )}
+          {sandboxed && info.sandbox.available && (
+            <>
+              <p className="mt-1 text-text-secondary">
+                Sandbox <span className="font-mono">{info.sandbox.boxName}</span>. Les sauvegardes écrites hors du
+                dossier du jeu (AppData, registre) y sont isolées : les emplacements ci-dessus peuvent sembler vides.
+              </p>
+              <button type="button" disabled={busy !== null} onClick={handleClearSandbox} className="btn btn-ghost mt-1 text-xs">
+                {busy === 'clear-sandbox' ? 'Nettoyage…' : 'Vider la sandbox'}
+              </button>
+            </>
+          )}
         </div>
       )}
 

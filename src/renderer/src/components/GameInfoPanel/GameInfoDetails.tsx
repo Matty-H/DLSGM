@@ -149,7 +149,12 @@ export default function GameInfoDetails({
 
         <div className="hr" />
 
-        <GameToolsSection gameId={gameId} executablePath={gameData.executablePath} />
+        <GameToolsSection
+          gameId={gameId}
+          executablePath={gameData.executablePath}
+          sandboxDisabled={Boolean(gameData.sandboxDisabled)}
+          onSandboxDisabledChange={disabled => onUpdateGame(gameId, { sandboxDisabled: disabled })}
+        />
 
         <div className="hr" />
 

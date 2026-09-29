@@ -6,9 +6,15 @@ import { spawn } from 'child_process';
 import Store from './store';
 import { fetchGameMetadata } from './dlsite-fetcher';
 import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch } from './game-tools';
-import type { AppSettings, GameMetadata, GameToolsInfo, LaunchGameResult } from '../shared/ipc-types';
+import { boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand } from './sandboxie';
+import type { AppSettings, GameMetadata, GameToolsInfo, LaunchGameResult, SandboxieStatus } from '../shared/ipc-types';
 
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 15000;
+
+// Start.exe qui se termine en erreur aussi vite n'a pas lancé le jeu (service
+// Sandboxie arrêté, exécutable refusé...) — heuristique : un vrai jeu qui
+// quitte en erreur dans ce délai compte aussi comme un échec de lancement.
+const SANDBOX_LAUNCH_FAILURE_WINDOW_S = 5;
 
 // Format des IDs DLsite (ex: RJ123456, RJ01234567). Chaque jeu doit vivre
 // dans un dossier portant exactement cet ID, à la racine du dossier de jeux.
@@ -21,7 +27,8 @@ const settingsStore = new Store('settings.db', {
   refreshRate: 5,
   language: 'en_US',
   blurAdultContent: true,
-  genreAliasGroups: []
+  genreAliasGroups: [],
+  sandboxLaunch: false
 }, 'settings.json');
 
 const cacheStore = new Store('cache.db', {}, 'cache.json');
@@ -106,7 +113,7 @@ async function resolveExecutable(gameId: string, gamePath: string): Promise<stri
   return null;
 }
 
-type TrackedLaunchResult = LaunchGameResult & { code?: string };
+type TrackedLaunchResult = LaunchGameResult & { code?: string; exitCode?: number | null };
 
 /** Lance un processus et résout à sa fermeture avec la durée de la session. */
 function runAndTrack(command: string, args: string[], cwd: string | undefined): Promise<TrackedLaunchResult> {
@@ -114,8 +121,8 @@ function runAndTrack(command: string, args: string[], cwd: string | undefined): 
   const gameProcess = spawn(command, args, { cwd, detached: false, stdio: 'ignore' });
 
   return new Promise((resolve) => {
-    gameProcess.on('exit', () => {
-      resolve({ success: true, duration: Math.floor((Date.now() - startTime) / 1000) });
+    gameProcess.on('exit', (exitCode) => {
+      resolve({ success: true, duration: Math.floor((Date.now() - startTime) / 1000), exitCode });
     });
     gameProcess.on('error', (err: NodeJS.ErrnoException) => {
       console.error(`Erreur lors du lancement de l'exécutable: ${err.message}`);
@@ -124,8 +131,29 @@ function runAndTrack(command: string, args: string[], cwd: string | undefined): 
   });
 }
 
-/** Lance l'exécutable d'un jeu et résout à sa fermeture. */
-async function startGameProcess(executablePath: string): Promise<TrackedLaunchResult> {
+/**
+ * Lance l'exécutable d'un jeu — dans sa sandbox Sandboxie si l'option est
+ * active et que le jeu n'en est pas exclu — et résout à sa fermeture.
+ */
+async function startGameProcess(gameId: string, gamePath: string, executablePath: string): Promise<TrackedLaunchResult> {
+  const settings = await settingsStore.getAll() as unknown as AppSettings;
+  const entry = await cacheStore.get(gameId) as GameMetadata | undefined;
+
+  if (process.platform === 'win32' && settings.sandboxLaunch && !entry?.sandboxDisabled) {
+    // Jamais de repli hors sandbox : l'utilisateur a demandé l'isolation.
+    const sandboxieDir = await findSandboxieDir();
+    if (!sandboxieDir) {
+      throw new Error('Sandboxie-Plus est introuvable. Installe-le, désactive le lancement en sandbox dans les paramètres, ou exclus ce jeu de la sandbox.');
+    }
+    const box = await ensureGameBox(sandboxieDir, gameId, gamePath);
+    const { command, args } = sandboxedCommand(sandboxieDir, box, executablePath);
+    const result = await runAndTrack(command, args, path.dirname(executablePath));
+    if (result.success && result.exitCode !== 0 && (result.duration ?? 0) < SANDBOX_LAUNCH_FAILURE_WINDOW_S) {
+      return { success: false, error: `Sandboxie n'a pas pu lancer le jeu (code ${result.exitCode}). Si le jeu refuse de tourner en sandbox, exclus-le depuis sa fiche.` };
+    }
+    return result;
+  }
+
   if (process.platform === 'darwin') {
     // Sur Mac, 'open -W' attend que l'application se ferme
     return runAndTrack('open', ['-W', executablePath], undefined);
@@ -162,9 +190,23 @@ async function getGameToolsInfo(gameId: string): Promise<GameToolsInfo & { gameP
     engine,
     installRoot: path.relative(gamePath, installRootAbs),
     saveLocations: findSaveLocations(installRootAbs, exePath, engine),
-    patches: readPatches(gamePath)
+    patches: readPatches(gamePath),
+    sandbox: await getGameSandboxInfo(gameId)
   };
 }
+
+async function getGameSandboxInfo(gameId: string): Promise<GameToolsInfo['sandbox']> {
+  const settings = await settingsStore.getAll() as unknown as AppSettings;
+  return {
+    globallyEnabled: Boolean(settings.sandboxLaunch),
+    available: (await findSandboxieDir()) !== null,
+    boxName: boxNameFor(gameId)
+  };
+}
+
+// Jeux en cours d'exécution (lancements suivis) : on ne vide pas la sandbox
+// d'un jeu qui tourne encore.
+const runningGames = new Set<string>();
 
 function publicToolsInfo({ gamePath: _g, installRootAbs: _r, ...info }: Awaited<ReturnType<typeof getGameToolsInfo>>): GameToolsInfo {
   return info;
@@ -317,7 +359,15 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
     const executablePath = await resolveExecutable(gameId, gamePath);
     if (!executablePath) throw new Error('Aucun exécutable trouvé pour ce jeu.');
 
-    const { code: _code, ...launchResult } = await startGameProcess(executablePath);
+    let result: TrackedLaunchResult;
+    runningGames.add(gameId);
+    try {
+      result = await startGameProcess(gameId, gamePath, executablePath);
+    } finally {
+      runningGames.delete(gameId);
+    }
+
+    const { code: _code, exitCode: _exitCode, ...launchResult } = result;
     if (launchResult.success) {
       await recordPlaySession(gameId, launchResult.duration || 0);
     }
@@ -390,6 +440,21 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
       uninstallLastPatch(gamePath);
       return publicToolsInfo(await getGameToolsInfo(gameId));
     });
+  });
+
+  // --- Sandbox Sandboxie-Plus ---
+  ipcMain.handle('get-sandboxie-status', async (): Promise<SandboxieStatus> => {
+    const installDir = await findSandboxieDir();
+    return { available: installDir !== null, installDir };
+  });
+
+  ipcMain.handle('clear-game-sandbox', async (event: IpcMainInvokeEvent, gameId: string) => {
+    assertGameId(gameId);
+    if (runningGames.has(gameId)) throw new Error("Le jeu est en cours d'exécution : ferme-le avant de vider sa sandbox.");
+    const sandboxieDir = await findSandboxieDir();
+    if (!sandboxieDir) throw new Error('Sandboxie-Plus est introuvable.');
+    await deleteGameBox(sandboxieDir, gameId);
+    return publicToolsInfo(await getGameToolsInfo(gameId));
   });
 
   // --- Récupération des métadonnées DLsite ---

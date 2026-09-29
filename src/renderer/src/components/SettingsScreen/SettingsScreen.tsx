@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { resetAndRedownloadImages } from '../../lib/dataFetcher.js';
 import { collectCanonicalGenres, isJapaneseText, linkGenres, unlinkGroup, type GenreAliasGroups } from '../../lib/genreAliases.js';
+import { getSandboxieStatus, type SandboxieStatus } from '../../lib/gameTools.js';
 import type { AppSettings } from '../../hooks/useSettings';
 
 export interface SettingsScreenProps {
@@ -31,6 +32,8 @@ export default function SettingsScreen({ settings, onSave, allGenres }: Settings
   const [language, setLanguage] = useState(settings.language);
   const [blurAdultContent, setBlurAdultContent] = useState(settings.blurAdultContent);
   const [genreAliasGroups, setGenreAliasGroups] = useState<GenreAliasGroups>(settings.genreAliasGroups);
+  const [sandboxLaunch, setSandboxLaunch] = useState(settings.sandboxLaunch);
+  const [sandboxieStatus, setSandboxieStatus] = useState<SandboxieStatus | null>(null);
   const [isResettingImages, setIsResettingImages] = useState(false);
   const [primaryPick, setPrimaryPick] = useState('');
   const [secondaryPick, setSecondaryPick] = useState('');
@@ -41,7 +44,18 @@ export default function SettingsScreen({ settings, onSave, allGenres }: Settings
     setLanguage(settings.language);
     setBlurAdultContent(settings.blurAdultContent);
     setGenreAliasGroups(settings.genreAliasGroups);
+    setSandboxLaunch(settings.sandboxLaunch);
   }, [settings]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSandboxieStatus()
+      .then(status => !cancelled && setSandboxieStatus(status))
+      .catch(() => !cancelled && setSandboxieStatus({ available: false, installDir: null }));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const canonicalGenres = useMemo(() => collectCanonicalGenres(allGenres, genreAliasGroups), [allGenres, genreAliasGroups]);
   const englishGenres = useMemo(() => canonicalGenres.filter(g => !isJapaneseText(g)), [canonicalGenres]);
@@ -53,7 +67,7 @@ export default function SettingsScreen({ settings, onSave, allGenres }: Settings
   };
 
   const handleSave = () => {
-    onSave({ ...settings, destinationFolder, refreshRate, language, blurAdultContent, genreAliasGroups });
+    onSave({ ...settings, destinationFolder, refreshRate, language, blurAdultContent, genreAliasGroups, sandboxLaunch });
   };
 
   const handleResetImages = async () => {
@@ -120,6 +134,40 @@ export default function SettingsScreen({ settings, onSave, allGenres }: Settings
               Flouter jusqu'au clic
             </label>
           </div>
+        </div>
+
+        <div className="field">
+          <label id="sandbox-label">Lancement des jeux</label>
+          <div className="seg" role="radiogroup" aria-labelledby="sandbox-label">
+            <label className="seg-opt">
+              <input type="radio" name="sandbox" checked={!sandboxLaunch} onChange={() => setSandboxLaunch(false)} />
+              Normal
+            </label>
+            <label className="seg-opt">
+              <input type="radio" name="sandbox" checked={sandboxLaunch} onChange={() => setSandboxLaunch(true)} />
+              Dans Sandboxie-Plus
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-text-secondary">
+            Chaque jeu tourne dans sa propre sandbox : ce qu'il écrit hors de son dossier (AppData, registre) y est
+            isolé au lieu de polluer Windows. Son dossier reste en accès direct (sauvegardes locales, patchs). Ce
+            n'est pas une machine virtuelle : ça limite les dégâts d'un exécutable douteux sans les rendre impossibles.
+          </p>
+          {sandboxieStatus && (
+            <p className={`mt-1 text-xs ${!sandboxieStatus.available && sandboxLaunch ? 'text-red-400' : 'text-text-secondary'}`}>
+              {sandboxieStatus.available ? (
+                `Sandboxie détecté : ${sandboxieStatus.installDir}`
+              ) : (
+                <>
+                  Sandboxie-Plus n'est pas installé
+                  {sandboxLaunch && ' — les jeux ne pourront pas être lancés tant que ce sera le cas'}.{' '}
+                  <button type="button" className="underline" onClick={() => window.electronAPI.openExternal('https://sandboxie-plus.com/downloads/')}>
+                    Télécharger
+                  </button>
+                </>
+              )}
+            </p>
+          )}
         </div>
 
         <div className="field">

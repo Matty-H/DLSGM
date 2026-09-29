@@ -14,6 +14,12 @@ export interface AppSettings {
   blurAdultContent: boolean;
   /** Groupes de tags de genre liés comme équivalents (ex: doublons JP/EN) — voir lib/genreAliases.ts. */
   genreAliasGroups: string[][];
+  /**
+   * Lance les jeux dans Sandboxie-Plus (Windows), une sandbox par jeu —
+   * voir src/main/sandboxie.ts. Si Sandboxie est introuvable, le lancement
+   * échoue plutôt que de se faire hors sandbox.
+   */
+  sandboxLaunch: boolean;
 }
 
 /**
@@ -61,6 +67,8 @@ export interface GameMetadata {
    * détection automatique au lancement.
    */
   executablePath?: string;
+  /** Jeu exclu de la sandbox (lancé normalement même si `sandboxLaunch` est actif). */
+  sandboxDisabled?: boolean;
 }
 
 export type GameCache = Record<string, GameMetadata>;
@@ -124,6 +132,20 @@ export interface InstalledPatch {
   overwritten: string[];
 }
 
+export interface SandboxieStatus {
+  /** Sandboxie (Plus ou Classic) trouvé sur la machine — toujours faux hors Windows. */
+  available: boolean;
+  installDir: string | null;
+}
+
+export interface GameSandboxInfo {
+  /** Option `sandboxLaunch` des paramètres. */
+  globallyEnabled: boolean;
+  available: boolean;
+  /** Nom de la sandbox Sandboxie du jeu (ex: DLSGMRJ123456). */
+  boxName: string;
+}
+
 export interface GameToolsInfo {
   engine: EngineInfo;
   /** Dossier d'installation (celui de l'exécutable), relatif au dossier du jeu ('' = racine). */
@@ -131,6 +153,7 @@ export interface GameToolsInfo {
   saveLocations: SaveLocation[];
   /** Patchs installés par DLSGM, du plus ancien au plus récent. */
   patches: InstalledPatch[];
+  sandbox: GameSandboxInfo;
 }
 
 export interface ElectronAPI {
@@ -175,6 +198,10 @@ export interface ElectronAPI {
   applyUserPatch(gameId: string, source: 'zip' | 'folder'): Promise<GameToolsInfo | null>;
   uninstallLastPatch(gameId: string): Promise<GameToolsInfo>;
 
+  // Sandbox Sandboxie-Plus
+  getSandboxieStatus(): Promise<SandboxieStatus>;
+  /** Supprime tout ce que le jeu a écrit hors de son dossier ; refusé pendant que le jeu tourne. */
+  clearGameSandbox(gameId: string): Promise<GameToolsInfo>;
 
   // Récupération des métadonnées DLsite (fetch Node pur, sans dépendance Python)
   fetchGameMetadata(gameId: string, locale: string): Promise<GameMetadata>;
