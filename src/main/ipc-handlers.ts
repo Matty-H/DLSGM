@@ -5,7 +5,8 @@ import https from 'https';
 import { spawn } from 'child_process';
 import Store from './store';
 import { fetchGameMetadata } from './dlsite-fetcher';
-import type { AppSettings, GameMetadata, LaunchGameResult } from '../shared/ipc-types';
+import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch } from './game-tools';
+import type { AppSettings, GameMetadata, GameToolsInfo, LaunchGameResult } from '../shared/ipc-types';
 
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 15000;
 
@@ -72,9 +73,10 @@ function findExe(dir: string, depth = 0): string | null {
     return exes.sort((a, b) => fs.statSync(b).size - fs.statSync(a).size)[0];
   }
 
-  // Sinon chercher dans les sous-dossiers
+  // Sinon chercher dans les sous-dossiers (hors métadonnées DLSGM et mods :
+  // BepInEx/XUnity embarquent leurs propres .exe utilitaires)
   for (const f of files) {
-    if (f.isDirectory()) {
+    if (f.isDirectory() && !f.name.startsWith('.') && f.name !== 'BepInEx') {
       const found = findExe(path.join(dir, f.name), depth + 1);
       if (found) return found;
     }
@@ -142,6 +144,42 @@ async function startGameProcess(executablePath: string): Promise<TrackedLaunchRe
     return shellError === '' ? { success: true, duration: 0, untracked: true } : { success: false, error: shellError };
   }
   return result;
+}
+
+/**
+ * Rassemble les infos "outils" d'un jeu. Le dossier d'installation est celui
+ * de l'exécutable (le jeu peut être rangé dans un sous-dossier de RJxxxxxx).
+ */
+async function getGameToolsInfo(gameId: string): Promise<GameToolsInfo & { gamePath: string; installRootAbs: string }> {
+  const gamePath = await getGameDir(gameId);
+  if (!fs.existsSync(gamePath)) throw new Error('Dossier du jeu introuvable');
+  const exePath = await resolveExecutable(gameId, gamePath);
+  const installRootAbs = exePath ? path.dirname(exePath) : gamePath;
+  const engine = detectEngine(installRootAbs, exePath);
+  return {
+    gamePath,
+    installRootAbs,
+    engine,
+    installRoot: path.relative(gamePath, installRootAbs),
+    saveLocations: findSaveLocations(installRootAbs, exePath, engine),
+    patches: readPatches(gamePath)
+  };
+}
+
+function publicToolsInfo({ gamePath: _g, installRootAbs: _r, ...info }: Awaited<ReturnType<typeof getGameToolsInfo>>): GameToolsInfo {
+  return info;
+}
+
+// Une seule opération de patch à la fois par jeu (double clic, etc.).
+const patchingGames = new Set<string>();
+async function withPatchLock<T>(gameId: string, work: () => Promise<T>): Promise<T> {
+  if (patchingGames.has(gameId)) throw new Error('Une opération de patch est déjà en cours pour ce jeu.');
+  patchingGames.add(gameId);
+  try {
+    return await work();
+  } finally {
+    patchingGames.delete(gameId);
+  }
 }
 
 /**
@@ -309,6 +347,49 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
     const saved = await cacheStore.update(gameId, { executablePath: relativePath });
     if (!saved) throw new Error(`Aucune fiche en cache pour ${gameId}.`);
     return relativePath;
+  });
+
+  // --- Outils par jeu (moteur, sauvegardes, patchs) ---
+  ipcMain.handle('get-game-tools-info', async (event: IpcMainInvokeEvent, gameId: string) => {
+    return publicToolsInfo(await getGameToolsInfo(gameId));
+  });
+
+  ipcMain.handle('open-save-location', async (event: IpcMainInvokeEvent, gameId: string, index: number) => {
+    const { saveLocations } = await getGameToolsInfo(gameId);
+    const location = saveLocations[index];
+    if (!location || !fs.existsSync(location.path)) return false;
+    return (await shell.openPath(location.path)) === '';
+  });
+
+  ipcMain.handle('install-auto-translator', async (event: IpcMainInvokeEvent, gameId: string, targetLanguage: string) => {
+    return withPatchLock(gameId, async () => {
+      const info = await getGameToolsInfo(gameId);
+      await installAutoTranslator(info.gamePath, info.installRootAbs, info.engine, targetLanguage);
+      return publicToolsInfo(await getGameToolsInfo(gameId));
+    });
+  });
+
+  ipcMain.handle('apply-user-patch', async (event: IpcMainInvokeEvent, gameId: string, source: 'zip' | 'folder') => {
+    return withPatchLock(gameId, async () => {
+      const info = await getGameToolsInfo(gameId);
+      const result = await showOpenDialog(source === 'zip'
+        ? { title: `Patch pour ${gameId}`, properties: ['openFile'], filters: [{ name: 'Archive zip', extensions: ['zip'] }] }
+        : { title: `Patch pour ${gameId}`, properties: ['openDirectory'] });
+      if (result.canceled || result.filePaths.length === 0) return null;
+
+      const sourcePath = result.filePaths[0];
+      if (isInside(info.gamePath, sourcePath)) throw new Error('Le patch ne peut pas se trouver dans le dossier du jeu lui-même.');
+      await applyUserPatch(info.gamePath, info.installRootAbs, sourcePath);
+      return publicToolsInfo(await getGameToolsInfo(gameId));
+    });
+  });
+
+  ipcMain.handle('uninstall-last-patch', async (event: IpcMainInvokeEvent, gameId: string) => {
+    return withPatchLock(gameId, async () => {
+      const gamePath = await getGameDir(gameId);
+      uninstallLastPatch(gamePath);
+      return publicToolsInfo(await getGameToolsInfo(gameId));
+    });
   });
 
   // --- Récupération des métadonnées DLsite ---
