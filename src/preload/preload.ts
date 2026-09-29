@@ -23,7 +23,6 @@ const electronAPI: ElectronAPI = {
 
   // Dialogue de dossier
   openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
-  openImageDialog: () => ipcRenderer.invoke('open-image-dialog'),
 
   // Opérations système
   listGameFolders: (folderPath) => ipcRenderer.invoke('list-game-folders', folderPath),
@@ -33,7 +32,11 @@ const electronAPI: ElectronAPI = {
   chooseGameExecutable: (gameId) => ipcRenderer.invoke('choose-game-executable', gameId),
   downloadGameImages: (gameId, metadata) => ipcRenderer.invoke('download-game-images', gameId, metadata),
   resetImageCache: () => ipcRenderer.invoke('reset-image-cache'),
-  setCustomCover: (gameId, sourceImagePath) => ipcRenderer.invoke('set-custom-cover', gameId, sourceImagePath),
+  applyGameImages: (gameId, plan) => ipcRenderer.invoke('apply-game-images', gameId, plan),
+
+  // Plein écran
+  toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
+  isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
 
   // Outils par jeu : moteur, sauvegardes, patchs réversibles
   getGameToolsInfo: (gameId) => ipcRenderer.invoke('get-game-tools-info', gameId),
@@ -50,7 +53,14 @@ const electronAPI: ElectronAPI = {
   fetchGameMetadata: (gameId, locale) => ipcRenderer.invoke('fetch-game-metadata', gameId, locale),
 
   // Événements (du Main vers le Renderer)
-  onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', () => callback())
+  onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', () => callback()),
+  onFullscreenChange: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, value: boolean) => callback(value);
+    ipcRenderer.on('fullscreen-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('fullscreen-changed', listener);
+    };
+  }
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

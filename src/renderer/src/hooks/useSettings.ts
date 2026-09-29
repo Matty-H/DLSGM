@@ -8,6 +8,7 @@ export interface AppSettings {
   blurAdultContent: boolean;
   genreAliasGroups: string[][];
   sandboxLaunch: boolean;
+  startFullscreen: boolean;
   selectedSort: string;
 }
 

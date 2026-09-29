@@ -20,29 +20,20 @@ export default function AdvancedFilterPanel({
   onToggleGenre,
   onResetGenres
 }: AdvancedFilterPanelProps) {
-  return (
-    <div
-      className={`overflow-hidden border-b border-divider bg-surface px-6 transition-[max-height,padding] duration-300 ${
-        show ? 'max-h-[500px] overflow-visible py-4' : 'max-h-0 py-0'
-      }`}
-    >
-      <div className="flex items-start gap-8">
-        <div className="flex flex-col gap-2">
-          <label className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Note minimale</label>
-          <div className="input flex h-[36px] w-auto items-center gap-1">
-            <RatingStars value={selectedRating} onChange={val => onRatingChange(val === selectedRating ? 0 : val)} />
-          </div>
-        </div>
+  if (!show) return null;
 
-        <div className="flex flex-col gap-2">
-          <label className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Genres</label>
-          <GenreMultiSelect
-            genres={genres}
-            selectedGenres={selectedGenres}
-            onToggleGenre={onToggleGenre}
-            onReset={onResetGenres}
-          />
+  return (
+    <div className="panel animate-steam-in mx-6 mb-3 flex flex-shrink-0 items-start gap-10 px-5 py-4">
+      <div className="flex flex-col gap-2">
+        <span className="section-title">Note minimale</span>
+        <div className="flex h-[38px] items-center">
+          <RatingStars value={selectedRating} onChange={val => onRatingChange(val === selectedRating ? 0 : val)} />
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="section-title">Genres</span>
+        <GenreMultiSelect genres={genres} selectedGenres={selectedGenres} onToggleGenre={onToggleGenre} onReset={onResetGenres} />
       </div>
     </div>
   );

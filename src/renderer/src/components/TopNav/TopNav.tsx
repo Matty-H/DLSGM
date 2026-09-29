@@ -1,42 +1,69 @@
-import { LayoutGrid, BarChart3, Settings } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { LayoutGrid, BarChart3, Maximize, Minimize, Settings } from 'lucide-react';
 
 export type AppTab = 'library' | 'stats' | 'settings';
 
 export interface TopNavProps {
   activeTab: AppTab;
   onTabChange: (tab: AppTab) => void;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
 }
 
-const TABS: { id: AppTab; label: string; Icon: typeof LayoutGrid }[] = [
+export const TABS: { id: AppTab; label: string; Icon: typeof LayoutGrid }[] = [
   { id: 'library', label: 'Bibliothèque', Icon: LayoutGrid },
   { id: 'stats', label: 'Statistiques', Icon: BarChart3 },
   { id: 'settings', label: 'Paramètres', Icon: Settings }
 ];
 
-export default function TopNav({ activeTab, onTabChange }: TopNavProps) {
+/** Horloge de la barre d'état, comme en haut à droite de SteamOS. */
+function Clock() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <header className="flex flex-shrink-0 items-center gap-5 border-b border-divider px-6 py-3">
-      <div className="mr-2 font-heading text-lg font-semibold tracking-wide">
-        DLSGM<span className="text-accent-500">.</span>
+    <span className="text-[15px] font-semibold tabular-nums text-text-secondary">
+      {now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+    </span>
+  );
+}
+
+export default function TopNav({ activeTab, onTabChange, isFullscreen, onToggleFullscreen }: TopNavProps) {
+  return (
+    <header className="flex flex-shrink-0 items-center gap-2 px-6 pb-2 pt-4">
+      <div className="mr-6 flex items-center gap-2 text-[17px] font-extrabold tracking-wide">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-extrabold text-white">
+          DL
+        </span>
+        DLSGM
       </div>
-      {TABS.map(({ id, label, Icon }) => {
-        const isActive = activeTab === id;
-        return (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onTabChange(id)}
-            className={`-mb-px flex cursor-pointer items-center gap-2 border-b-2 px-3 py-2 text-[13px] ${
-              isActive
-                ? 'border-accent-500 font-semibold text-accent-700'
-                : 'border-transparent text-text hover:text-accent-700'
-            }`}
-          >
-            <Icon size={15} strokeWidth={1.5} />
-            {label}
-          </button>
-        );
-      })}
+      {TABS.map(({ id, label, Icon }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => onTabChange(id)}
+          className={`pill-tab ${activeTab === id ? 'is-active' : ''}`}
+        >
+          <Icon size={15} strokeWidth={2.25} />
+          {label}
+        </button>
+      ))}
+      <div className="ml-auto flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggleFullscreen}
+          className="btn btn-ghost btn-icon rounded-full"
+          title={isFullscreen ? 'Quitter le plein écran (F11)' : 'Plein écran (F11)'}
+          aria-label={isFullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+        >
+          {isFullscreen ? <Minimize size={17} strokeWidth={2.25} /> : <Maximize size={17} strokeWidth={2.25} />}
+        </button>
+        <Clock />
+      </div>
     </header>
   );
 }

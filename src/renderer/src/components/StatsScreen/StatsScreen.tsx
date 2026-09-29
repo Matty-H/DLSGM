@@ -8,62 +8,58 @@ export interface StatsScreenProps {
   cache: GameCache;
   getWorkImageSrc: (gameId: string) => string;
   genreAliasGroups: GenreAliasGroups;
-}
-
-function TileFrame({ kicker, children }: { kicker: string; children: React.ReactNode }) {
-  return (
-    <div className="card blueprint">
-      <i className="corner tl" />
-      <i className="corner tr" />
-      <i className="corner bl" />
-      <i className="corner br" />
-      <div className="card-kicker">{kicker}</div>
-      {children}
-    </div>
-  );
+  /** Ouvre la page du jeu dans la bibliothèque. */
+  onOpenGame: (gameId: string) => void;
 }
 
 function StatTile({ kicker, value }: { kicker: string; value: string }) {
   return (
-    <TileFrame kicker={kicker}>
-      <div className="flex flex-1 items-center">
-        <div className="card-title text-[26px]">{value}</div>
-      </div>
-    </TileFrame>
+    <div className="panel flex flex-col justify-between gap-4 p-5">
+      <div className="section-title">{kicker}</div>
+      <div className="text-[40px] font-extrabold leading-none">{value}</div>
+    </div>
   );
 }
 
-function StatCoverTile({ kicker, gameId, title, imageSrc }: { kicker: string; gameId: string; title: string; imageSrc: string }) {
+/**
+ * Tuile jaquette cliquable (ouvre la page du jeu) : même ratio 4:3 que les
+ * jaquettes de la grille, pour que la couverture ne soit jamais recadrée.
+ */
+function StatCoverTile({ kicker, title, imageSrc, onClick }: { kicker: string; title: string; imageSrc: string; onClick: () => void }) {
   return (
-    <TileFrame kicker={kicker}>
-      <div className="cover-frame aspect-[16/10] overflow-hidden" title={title}>
-        <img
-          src={imageSrc}
-          alt={title}
-          onError={e => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = PLACEHOLDER_IMAGE;
-          }}
-          className="h-full w-full object-cover"
-        />
-      </div>
-    </TileFrame>
+    <button type="button" onClick={onClick} title={title} className="capsule block aspect-[4/3] w-full text-left">
+      <img
+        src={imageSrc}
+        alt={title}
+        onError={e => {
+          e.currentTarget.onerror = null;
+          e.currentTarget.src = PLACEHOLDER_IMAGE;
+        }}
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      <span className="absolute left-2 top-2 rounded-sm bg-black/70 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider backdrop-blur-sm">
+        {kicker}
+      </span>
+      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent px-3 pb-2.5 pt-8">
+        <span className="line-clamp-2 text-[14px] font-bold leading-tight">{title}</span>
+      </span>
+    </button>
   );
 }
 
 function BarRow({ label, count, width, labelWidthClass }: { label: string; count: number; width: string; labelWidthClass: string }) {
   return (
-    <div className={`mb-2 grid items-center gap-3 ${labelWidthClass}`}>
-      <span className="text-[13px]">{label}</span>
-      <div className="relative h-2 bg-neutral-200">
-        <div className="absolute inset-y-0 left-0 bg-accent-500" style={{ width }} />
+    <div className={`mb-2.5 grid items-center gap-3 ${labelWidthClass}`}>
+      <span className="truncate text-[13px] text-text-secondary">{label}</span>
+      <div className="relative h-2 overflow-hidden rounded-full bg-bg-deep">
+        <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-accent to-accent-hover" style={{ width }} />
       </div>
-      <span className="text-right text-xs opacity-60">{count}</span>
+      <span className="text-right text-[13px] font-semibold tabular-nums">{count}</span>
     </div>
   );
 }
 
-export default function StatsScreen({ cache, getWorkImageSrc, genreAliasGroups }: StatsScreenProps) {
+export default function StatsScreen({ cache, getWorkImageSrc, genreAliasGroups, onOpenGame }: StatsScreenProps) {
   const stats = useMemo(() => computeLibraryStats(cache, genreAliasGroups), [cache, genreAliasGroups]);
   const totalHours = Math.round(stats.totalPlayTimeSeconds / 3600);
 
@@ -73,34 +69,29 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreAliasGroups }
   const lastAddedId = gameIdFor(stats.lastAdded);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mb-1 text-[11px] uppercase tracking-widest text-text-secondary opacity-55">Statistiques</div>
-      <h1 className="mb-5">Vue d'ensemble de la collection</h1>
+    <div data-scroll-root className="animate-steam-in min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4">
+      <h1 className="mb-5">Ma collection</h1>
 
-      <div className="mb-6 grid grid-cols-4 gap-[var(--space-4)]">
+      <div className="mb-5 grid grid-cols-4 items-stretch gap-4">
         <StatTile kicker="Œuvres" value={String(stats.totalGames)} />
         <StatTile kicker="Temps de jeu cumulé" value={`${totalHours} h`} />
         {stats.topGame && topGameId ? (
-          <StatCoverTile kicker="La plus jouée" gameId={topGameId} title={stats.topGame.work_name} imageSrc={getWorkImageSrc(topGameId)} />
+          <StatCoverTile kicker="La plus jouée" title={stats.topGame.work_name} imageSrc={getWorkImageSrc(topGameId)} onClick={() => onOpenGame(topGameId)} />
         ) : (
           <StatTile kicker="La plus jouée" value="—" />
         )}
         {stats.lastAdded && lastAddedId ? (
-          <StatCoverTile kicker="Dernier ajout" gameId={lastAddedId} title={stats.lastAdded.work_name} imageSrc={getWorkImageSrc(lastAddedId)} />
+          <StatCoverTile kicker="Dernier ajout" title={stats.lastAdded.work_name} imageSrc={getWorkImageSrc(lastAddedId)} onClick={() => onOpenGame(lastAddedId)} />
         ) : (
           <StatTile kicker="Dernier ajout" value="—" />
         )}
       </div>
 
-      <div className="grid grid-cols-[1.4fr_1fr] gap-[var(--space-4)]">
-        <div className="card blueprint p-5">
-          <i className="corner tl" />
-          <i className="corner tr" />
-          <i className="corner bl" />
-          <i className="corner br" />
-          <div className="card-kicker mb-4">Répartition par genre</div>
+      <div className="grid grid-cols-[1.4fr_1fr] items-start gap-4">
+        <div className="panel p-5">
+          <div className="section-title mb-4">Répartition par genre</div>
           {stats.genreBreakdown.length === 0 ? (
-            <p className="text-sm text-text-secondary">Aucune donnée.</p>
+            <p className="text-sm text-text-muted">Aucune donnée.</p>
           ) : (
             stats.genreBreakdown.map(row => (
               <BarRow key={row.label} {...row} labelWidthClass="grid-cols-[130px_1fr_32px]" />
@@ -108,24 +99,20 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreAliasGroups }
           )}
         </div>
 
-        <div className="card blueprint p-5">
-          <i className="corner tl" />
-          <i className="corner tr" />
-          <i className="corner bl" />
-          <i className="corner br" />
-          <div className="card-kicker mb-4">Classification d'âge</div>
+        <div className="panel p-5">
+          <div className="section-title mb-4">Classification d'âge</div>
           {stats.ageBreakdown.map(row => (
             <BarRow key={row.label} {...row} labelWidthClass="grid-cols-[80px_1fr_32px]" />
           ))}
 
-          <div className="card-kicker mb-3 mt-5">Par catégorie</div>
+          <div className="section-title mb-2 mt-6">Par catégorie</div>
           {stats.categoryBreakdown.length === 0 ? (
-            <p className="text-sm text-text-secondary">Aucune donnée.</p>
+            <p className="text-sm text-text-muted">Aucune donnée.</p>
           ) : (
             stats.categoryBreakdown.map(row => (
-              <div key={row.label} className="flex justify-between border-b border-divider py-1 text-[13px]">
-                <span>{row.label}</span>
-                <span className="opacity-60">{row.count}</span>
+              <div key={row.label} className="flex justify-between border-b border-divider py-2 text-[13px] last:border-0">
+                <span className="text-text-secondary">{row.label}</span>
+                <span className="font-semibold tabular-nums">{row.count}</span>
               </div>
             ))
           )}

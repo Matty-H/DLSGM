@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import TopNav, { type AppTab } from './components/TopNav/TopNav';
+import TopNav, { TABS, type AppTab } from './components/TopNav/TopNav';
 import LibraryToolbar from './components/LibraryToolbar/LibraryToolbar';
 import AdvancedFilterPanel from './components/AdvancedFilterPanel/AdvancedFilterPanel';
 import GamesGrid from './components/GamesGrid/GamesGrid';
@@ -7,24 +7,32 @@ import GameInfoPanel from './components/GameInfoPanel/GameInfoPanel';
 import StatsScreen from './components/StatsScreen/StatsScreen';
 import SettingsScreen from './components/SettingsScreen/SettingsScreen';
 import PanicOverlay from './components/PanicOverlay/PanicOverlay';
+import FooterHints, { type FooterHint } from './components/FooterHints/FooterHints';
 import { useSettings } from './hooks/useSettings';
 import { useFilters } from './hooks/useFilters';
 import { useGamesLibrary } from './hooks/useGamesLibrary';
 import { usePanicButton } from './hooks/usePanicButton';
 import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
+import { useGamepadNavigation } from './hooks/useGamepadNavigation';
+import { useFullscreen } from './hooks/useFullscreen';
+import { useFileDropGuard } from './hooks/useFileDropGuard';
 import { collectAllCategories, collectAllGenres } from './lib/metadataManager.js';
 import { matchesFilters, compareGames } from './lib/filterManager.js';
 import { collectCanonicalGenres } from './lib/genreAliases.js';
 import { openGameFolder } from './lib/osHandler.js';
+import { PAD_LABELS } from './lib/gamepadLayout.js';
 
 export default function App() {
   const { settings, save: saveSettings } = useSettings();
   const library = useGamesLibrary();
   const filters = useFilters('name_asc');
   const panicActive = usePanicButton();
+  const fullscreen = useFullscreen();
+  useFileDropGuard();
 
   const [activeTab, setActiveTab] = useState<AppTab>('library');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [focusedGameId, setFocusedGameId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [revealedGames, setRevealedGames] = useState<Set<string>>(new Set());
@@ -118,6 +126,21 @@ export default function App() {
     library.rescan();
   };
 
+  const handleOpenGame = (gameId: string) => {
+    setFocusedGameId(gameId);
+    setSelectedGameId(gameId);
+  };
+
+  // Au retour à la grille, le focus revient sur la jaquette du jeu quitté
+  // (sinon il retombe sur <body> et la navigation repart du début).
+  const handleCloseGame = () => {
+    const gameId = selectedGameId;
+    setSelectedGameId(null);
+    if (gameId) {
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)?.focus({ preventScroll: true }));
+    }
+  };
+
   const handleReveal = (gameId: string) => {
     setRevealedGames(prev => new Set(prev).add(gameId));
   };
@@ -125,21 +148,109 @@ export default function App() {
   useKeyboardNavigation({
     displayedGameIds,
     selectedGameId,
+    focusedGameId,
     isLibraryTab: activeTab === 'library',
-    onSelectGame: setSelectedGameId,
-    onClosePanel: () => setSelectedGameId(null),
+    onFocusGame: setFocusedGameId,
+    onOpenGame: handleOpenGame,
+    onClosePanel: handleCloseGame,
     onLeaveTab: () => setActiveTab('library'),
     onLaunchGame: library.launch,
-    onCarouselPrev: () => setCarouselIndex(i => Math.max(0, i - 1)),
+    onCarouselPrev: () => setCarouselIndex(i => i - 1),
     onCarouselNext: () => setCarouselIndex(i => i + 1)
   });
 
+  const isGamePageOpen = activeTab === 'library' && selectedGameId !== null;
+
+  const { padType, inPopup } = useGamepadNavigation({
+    enabled: !panicActive,
+    onBack: () => {
+      if (isGamePageOpen) handleCloseGame();
+      else if (activeTab !== 'library') setActiveTab('library');
+    },
+    // LB/RB : images sur la page d'un jeu, catégories dans la grille.
+    onShoulder: delta => {
+      if (isGamePageOpen) {
+        setCarouselIndex(i => i + delta);
+      } else if (activeTab === 'library') {
+        const codes = ['all', ...categories.map(c => c.code)];
+        const index = Math.max(0, codes.indexOf(filters.selectedCategoryCode));
+        filters.setSelectedCategoryCode(codes[(index + delta + codes.length) % codes.length]);
+      }
+    },
+    // LT/RT : onglets principaux.
+    onTrigger: delta => {
+      if (isGamePageOpen) return;
+      const index = TABS.findIndex(t => t.id === activeTab);
+      setActiveTab(TABS[(index + delta + TABS.length) % TABS.length].id);
+    },
+    onSearch: () => {
+      if (isGamePageOpen) return;
+      setActiveTab('library');
+      requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-search-input]')?.focus());
+    },
+    onToggleFullscreen: fullscreen.toggle
+  });
+
+  // Indications du bas : boutons de manette si elle est le dernier
+  // périphérique utilisé (avec les symboles de sa famille : Xbox,
+  // PlayStation, Switch), raccourcis clavier sinon.
+  const pad = padType ? PAD_LABELS[padType] : null;
+  const footerHints: FooterHint[] = pad
+    ? inPopup
+      ? [
+          { keys: ['↑', '↓'], label: 'Parcourir' },
+          { keys: [pad.south], label: 'Choisir' },
+          { keys: [pad.east], label: 'Fermer' }
+        ]
+      : activeTab !== 'library'
+        ? [
+            { keys: [pad.lt, pad.rt], label: 'Onglets' },
+            { keys: [pad.south], label: 'Valider' },
+            { keys: [pad.east], label: 'Bibliothèque' }
+          ]
+        : isGamePageOpen
+          ? [
+              { keys: [pad.lb, pad.rb], label: 'Images' },
+              { keys: [pad.south], label: 'Valider' },
+              { keys: [pad.east], label: 'Retour' }
+            ]
+          : [
+              { keys: [pad.lb, pad.rb], label: 'Catégories' },
+              { keys: [pad.lt, pad.rt], label: 'Onglets' },
+              { keys: [pad.north], label: 'Rechercher' },
+              { keys: [pad.south], label: 'Ouvrir' }
+            ]
+    : activeTab !== 'library'
+      ? [{ keys: ['Échap'], label: 'Bibliothèque' }]
+      : isGamePageOpen
+        ? [
+            { keys: ['←', '→'], label: 'Images' },
+            { keys: ['Entrée'], label: 'Jouer' },
+            { keys: ['Échap'], label: 'Retour' }
+          ]
+        : [
+            { keys: ['←', '↑', '↓', '→'], label: 'Naviguer' },
+            { keys: ['Entrée'], label: 'Ouvrir' }
+          ];
+  footerHints.push(
+    pad ? { keys: [pad.view], label: 'Plein écran' } : { keys: ['F11'], label: 'Plein écran' },
+    { keys: ['Alt', 'Espace'], label: "Masquer l'application" }
+  );
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden font-body">
-      <TopNav activeTab={activeTab} onTabChange={setActiveTab} />
+    <div className="flex h-screen flex-col overflow-clip font-body">
+      <TopNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        isFullscreen={fullscreen.isFullscreen}
+        onToggleFullscreen={fullscreen.toggle}
+      />
 
       {activeTab === 'library' && (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        // overflow-clip (et non hidden) : un conteneur overflow-hidden reste
+        // défilable par script, et le scrollIntoView de la jaquette ciblée le
+        // décalerait, masquant le haut de la page de jeu superposée.
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip">
           <LibraryToolbar
             searchTerm={filters.searchTerm}
             onSearchTermChange={filters.setSearchTerm}
@@ -151,6 +262,7 @@ export default function App() {
             showAdvancedFilters={showAdvancedFilters}
             onToggleAdvancedFilters={() => setShowAdvancedFilters(prev => !prev)}
             onResetFilters={handleResetFilters}
+            resultCount={displayedGames.length}
           />
 
           <AdvancedFilterPanel
@@ -163,60 +275,73 @@ export default function App() {
             onResetGenres={() => filters.setSelectedGenres([])}
           />
 
-          <div className="flex min-h-0 flex-1 items-start gap-[var(--space-5)] overflow-y-auto p-6">
-            <div className="min-w-0 flex-1">
-              {library.status === 'loading' && <p className="text-text-secondary">Chargement...</p>}
-              {library.status === 'no-folder' && (
-                <p className="text-text-secondary">
-                  Dossier des jeux non configuré ou introuvable. Veuillez le définir dans les paramètres.
-                </p>
-              )}
-              {library.status === 'empty' && <p className="text-text-secondary">Aucun jeu trouvé dans le dossier sélectionné.</p>}
-              {library.status === 'ok' && (
-                <GamesGrid
-                  games={displayedGames}
-                  runningGames={library.runningGames}
-                  selectedGameId={selectedGameId}
-                  blurAdultContent={settings?.blurAdultContent ?? true}
-                  revealedGames={revealedGames}
-                  getWorkImageSrc={library.getWorkImageSrc}
-                  onOpenInfo={setSelectedGameId}
-                  onReveal={handleReveal}
-                />
-              )}
-            </div>
-
-            <GameInfoPanel
-              gameId={selectedGameId}
-              gameData={selectedGameId ? library.cache[selectedGameId] : undefined}
-              carouselIndex={carouselIndex}
-              onCarouselIndexChange={setCarouselIndex}
-              getWorkImageSrc={library.getWorkImageSrc}
-              getSampleImageSrc={library.getSampleImageSrc}
-              onClose={() => setSelectedGameId(null)}
-              onLaunch={library.launch}
-              isRunning={selectedGameId ? library.runningGames.has(selectedGameId) : false}
-              isAnyGameRunning={library.isAnyGameRunning}
-              onUpdateGame={library.updateGame}
-              onReplaceGame={library.replaceGame}
-              onRemoveGame={library.removeGame}
-              onChooseExecutable={library.chooseExecutable}
-              onOpenFolder={openGameFolder}
-              onGenreClick={genre => filters.setSelectedGenres([genre])}
-              onAfterRetryFetch={library.reloadCache}
-              genreAliasGroups={genreAliasGroups}
-            />
+          <div data-scroll-root className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-2">
+            {library.status === 'loading' && <p className="text-text-secondary">Chargement...</p>}
+            {library.status === 'no-folder' && (
+              <p className="text-text-secondary">
+                Dossier des jeux non configuré ou introuvable. Veuillez le définir dans les paramètres.
+              </p>
+            )}
+            {library.status === 'empty' && <p className="text-text-secondary">Aucun jeu trouvé dans le dossier sélectionné.</p>}
+            {library.status === 'ok' && (
+              <GamesGrid
+                games={displayedGames}
+                runningGames={library.runningGames}
+                focusedGameId={focusedGameId}
+                blurAdultContent={settings?.blurAdultContent ?? true}
+                revealedGames={revealedGames}
+                getWorkImageSrc={library.getWorkImageSrc}
+                onOpenInfo={handleOpenGame}
+                onReveal={handleReveal}
+                onFocusGame={setFocusedGameId}
+              />
+            )}
           </div>
+
+          <GameInfoPanel
+            gameId={selectedGameId}
+            gameData={selectedGameId ? library.cache[selectedGameId] : undefined}
+            carouselIndex={carouselIndex}
+            onCarouselIndexChange={setCarouselIndex}
+            getWorkImageSrc={library.getWorkImageSrc}
+            getSampleImageSrc={library.getSampleImageSrc}
+            onClose={handleCloseGame}
+            onLaunch={library.launch}
+            isRunning={selectedGameId ? library.runningGames.has(selectedGameId) : false}
+            isAnyGameRunning={library.isAnyGameRunning}
+            onUpdateGame={library.updateGame}
+            onReplaceGame={library.replaceGame}
+            onRemoveGame={library.removeGame}
+            onChooseExecutable={library.chooseExecutable}
+            onOpenFolder={openGameFolder}
+            onGenreClick={genre => {
+              filters.setSelectedGenres([genre]);
+              setSelectedGameId(null);
+            }}
+            onAfterRetryFetch={library.reloadCache}
+            genreAliasGroups={genreAliasGroups}
+            allGenres={rawGenres}
+          />
         </div>
       )}
 
       {activeTab === 'stats' && (
-        <StatsScreen cache={presentGamesCache} getWorkImageSrc={library.getWorkImageSrc} genreAliasGroups={genreAliasGroups} />
+        <StatsScreen
+          cache={presentGamesCache}
+          getWorkImageSrc={library.getWorkImageSrc}
+          genreAliasGroups={genreAliasGroups}
+          onOpenGame={gameId => {
+            setActiveTab('library');
+            handleOpenGame(gameId);
+          }}
+        />
       )}
 
       {activeTab === 'settings' && settings && (
         <SettingsScreen settings={settings} onSave={handleSaveSettings} allGenres={rawGenres} />
       )}
+
+      <FooterHints hints={footerHints} />
 
       <PanicOverlay active={panicActive} />
     </div>

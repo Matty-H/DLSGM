@@ -105,11 +105,25 @@ export function useGamesLibrary() {
     }
   }, []);
 
+  // `?v=` : change quand les images d'un jeu sont modifiées à la main
+  // (imagesVersion), sinon Chromium réaffiche l'ancienne image depuis son
+  // cache mémoire, l'URL étant identique. Ignoré par le protocole atom://.
+  const imageVersionQuery = useCallback(
+    (gameId: string) => (cache[gameId]?.imagesVersion ? `?v=${cache[gameId].imagesVersion}` : ''),
+    [cache]
+  );
+
   /** URL `atom://` de la couverture d'un jeu, servie par main depuis le cache d'images. */
-  const getWorkImageSrc = useCallback((gameId: string) => `atom://img/${gameId}/work_image.jpg`, []);
+  const getWorkImageSrc = useCallback(
+    (gameId: string) => `atom://img/${gameId}/work_image.jpg${imageVersionQuery(gameId)}`,
+    [imageVersionQuery]
+  );
 
   /** URL `atom://` d'une image d'échantillon (1-indexée, comme dans le cache). */
-  const getSampleImageSrc = useCallback((gameId: string, index: number) => `atom://img/${gameId}/sample_${index}.jpg`, []);
+  const getSampleImageSrc = useCallback(
+    (gameId: string, index: number) => `atom://img/${gameId}/sample_${index}.jpg${imageVersionQuery(gameId)}`,
+    [imageVersionQuery]
+  );
 
   return {
     cache,

@@ -1,3 +1,5 @@
+import Select from '../Select/Select';
+
 export interface SortSelectProps {
   value: string;
   onChange: (value: string) => void;
@@ -12,20 +14,16 @@ const SORT_OPTIONS = [
   { value: 'playtime_desc', label: 'Temps de jeu' },
   { value: 'last_added', label: 'Dernier ajout' },
   { value: 'last_played', label: 'Dernière fois joué' }
-];
+].map(opt => ({ value: opt.value, label: `Trier : ${opt.label}` }));
 
 export default function SortSelect({ value, onChange, className = '' }: SortSelectProps) {
   return (
-    <select
+    <Select
       value={value}
-      onChange={e => onChange(e.target.value)}
-      className={`input w-auto cursor-pointer ${className}`}
-    >
-      {SORT_OPTIONS.map(opt => (
-        <option key={opt.value} value={opt.value}>
-          {opt.label}
-        </option>
-      ))}
-    </select>
+      options={SORT_OPTIONS}
+      onChange={onChange}
+      aria-label="Trier par"
+      className={`w-auto min-w-[200px] font-semibold ${className}`}
+    />
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Select from '../Select/Select';
 import {
   TRANSLATION_LANGUAGES,
   applyUserPatch,
@@ -22,7 +23,7 @@ export interface GameToolsSectionProps {
   onSandboxDisabledChange: (disabled: boolean) => void;
 }
 
-const LABEL_CLASS = 'text-[10px] uppercase tracking-wide text-text-secondary';
+const LABEL_CLASS = 'text-[12px] text-text-muted';
 
 /**
  * Moteur détecté, emplacements de sauvegarde, et patchs réversibles
@@ -73,7 +74,7 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
   const engineDetails = info ? describeEngine(info) : '';
 
   return (
-    <div className="mb-3 flex flex-col gap-3 text-xs">
+    <div className="flex flex-col gap-4 text-[13px]">
       <div>
         <div className={LABEL_CLASS}>Moteur</div>
         {info ? (
@@ -96,7 +97,7 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
                 {!location.exists && <span className="text-text-secondary"> (pas encore créé)</span>}
               </span>
               {location.exists && (
-                <button type="button" onClick={() => openSaveLocation(gameId, index)} className="btn btn-ghost flex-shrink-0 text-xs">
+                <button type="button" onClick={() => openSaveLocation(gameId, index)} className="btn btn-ghost flex-shrink-0 px-2 py-1 text-[13px]">
                   Ouvrir
                 </button>
               )}
@@ -108,12 +109,12 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
       {info?.sandbox.globallyEnabled && (
         <div>
           <div className={`${LABEL_CLASS} mb-1`}>Sandbox</div>
-          <label className="flex cursor-pointer items-center gap-2">
-            <input type="checkbox" checked={!sandboxDisabled} onChange={e => onSandboxDisabledChange(!e.target.checked)} />
+          <label className="flex cursor-pointer items-center justify-between gap-3">
             Lancer ce jeu dans Sandboxie
+            <input type="checkbox" className="toggle" checked={!sandboxDisabled} onChange={e => onSandboxDisabledChange(!e.target.checked)} />
           </label>
           {sandboxed && !info.sandbox.available && (
-            <p className="mt-1 text-red-400">Sandboxie-Plus introuvable : le jeu ne pourra pas être lancé.</p>
+            <p className="mt-1 text-danger">Sandboxie-Plus introuvable : le jeu ne pourra pas être lancé.</p>
           )}
           {sandboxed && info.sandbox.available && (
             <>
@@ -121,7 +122,7 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
                 Sandbox <span className="font-mono">{info.sandbox.boxName}</span>. Les sauvegardes écrites hors du
                 dossier du jeu (AppData, registre) y sont isolées : les emplacements ci-dessus peuvent sembler vides.
               </p>
-              <button type="button" disabled={busy !== null} onClick={handleClearSandbox} className="btn btn-ghost mt-1 text-xs">
+              <button type="button" disabled={busy !== null} onClick={handleClearSandbox} className="btn btn-ghost mt-1 px-2 py-1 text-[13px]">
                 {busy === 'clear-sandbox' ? 'Nettoyage…' : 'Vider la sandbox'}
               </button>
             </>
@@ -135,18 +136,19 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
 
           {canInstallAutoTranslator(info) && (
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <select value={language} onChange={e => setLanguage(e.target.value)} className="input cursor-pointer text-xs" disabled={busy !== null}>
-                {TRANSLATION_LANGUAGES.map(l => (
-                  <option key={l.code} value={l.code}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={language}
+                options={TRANSLATION_LANGUAGES.map(l => ({ value: l.code, label: l.label }))}
+                onChange={setLanguage}
+                aria-label="Langue de traduction"
+                className="w-auto flex-1 text-[13px]"
+                disabled={busy !== null}
+              />
               <button
                 type="button"
                 disabled={busy !== null}
                 onClick={() => run('translate', () => installAutoTranslator(gameId, language))}
-                className="btn btn-secondary text-xs"
+                className="btn text-[13px]"
               >
                 {busy === 'translate' ? 'Installation…' : 'Traduction auto (BepInEx)'}
               </button>
@@ -157,16 +159,16 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
           )}
 
           {info.patches.map(patch => (
-            <div key={patch.id} className="truncate" title={patch.name}>
-              • {patch.name}
+            <div key={patch.id} className="mb-1 truncate rounded-sm bg-bg-deep px-2.5 py-1.5" title={patch.name}>
+              {patch.name}
             </div>
           ))}
 
           <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" disabled={busy !== null} onClick={() => run('zip', () => applyUserPatch(gameId, 'zip'))} className="btn btn-secondary text-xs">
+            <button type="button" disabled={busy !== null} onClick={() => run('zip', () => applyUserPatch(gameId, 'zip'))} className="btn text-[13px]">
               {busy === 'zip' ? 'Application…' : 'Patch .zip…'}
             </button>
-            <button type="button" disabled={busy !== null} onClick={() => run('folder', () => applyUserPatch(gameId, 'folder'))} className="btn btn-secondary text-xs">
+            <button type="button" disabled={busy !== null} onClick={() => run('folder', () => applyUserPatch(gameId, 'folder'))} className="btn text-[13px]">
               {busy === 'folder' ? 'Application…' : 'Patch dossier…'}
             </button>
             {lastPatch && (
@@ -174,7 +176,7 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
                 type="button"
                 disabled={busy !== null}
                 onClick={() => run('uninstall', () => uninstallLastPatch(gameId))}
-                className="btn btn-ghost text-xs"
+                className="btn btn-ghost text-[13px]"
                 title={`Désinstaller : ${lastPatch.name}`}
               >
                 {busy === 'uninstall' ? 'Désinstallation…' : 'Retirer le dernier patch'}
@@ -184,7 +186,7 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
         </div>
       )}
 
-      {error && <p className="text-red-400">{error}</p>}
+      {error && <p className="text-danger">{error}</p>}
     </div>
   );
 }

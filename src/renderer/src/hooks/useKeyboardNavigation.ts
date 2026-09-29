@@ -2,9 +2,13 @@ import { useEffect } from 'react';
 
 interface KeyboardNavigationOptions {
   displayedGameIds: string[];
+  /** Jeu dont la page de détail est ouverte. */
   selectedGameId: string | null;
+  /** Jaquette ciblée dans la grille (page de détail fermée). */
+  focusedGameId: string | null;
   isLibraryTab: boolean;
-  onSelectGame: (gameId: string) => void;
+  onFocusGame: (gameId: string) => void;
+  onOpenGame: (gameId: string) => void;
   onClosePanel: () => void;
   onLeaveTab: () => void;
   onLaunchGame: (gameId: string) => void;
@@ -12,19 +16,29 @@ interface KeyboardNavigationOptions {
   onCarouselNext: () => void;
 }
 
+/** Nombre de colonnes réellement rendues par la grille (auto-fill). */
+function gridColumnCount(): number {
+  const grid = document.querySelector<HTMLElement>('[data-games-grid]');
+  if (!grid) return 1;
+  const columns = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length;
+  return Math.max(1, columns);
+}
+
 /**
- * Raccourcis clavier globaux : Échap (retour à la bibliothèque depuis un
- * autre onglet, ou fermer le panneau de détail), Entrée (lancer le jeu
- * sélectionné), flèches gauche/droite (carrousel), flèches haut/bas
- * (naviguer dans la liste affichée). La navigation clavier de la
- * bibliothèque (flèches/entrée/carrousel) n'est active que sur l'onglet
- * Bibliothèque.
+ * Raccourcis clavier globaux, façon navigation à la manette de SteamOS :
+ * - grille : flèches pour déplacer le focus entre les jaquettes (haut/bas
+ *   d'une rangée), Entrée pour ouvrir la page du jeu ciblé ;
+ * - page d'un jeu : Entrée pour lancer, gauche/droite pour le carrousel
+ *   (haut/bas restent au défilement natif), Échap pour revenir à la grille ;
+ * - autre onglet : Échap pour revenir à la bibliothèque.
  */
 export function useKeyboardNavigation({
   displayedGameIds,
   selectedGameId,
+  focusedGameId,
   isLibraryTab,
-  onSelectGame,
+  onFocusGame,
+  onOpenGame,
   onClosePanel,
   onLeaveTab,
   onLaunchGame,
@@ -36,7 +50,7 @@ export function useKeyboardNavigation({
       const target = e.target as HTMLElement;
       const isPanelOpen = isLibraryTab && selectedGameId !== null;
 
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
         if (e.key === 'Escape') target.blur();
         return;
       }
@@ -52,35 +66,44 @@ export function useKeyboardNavigation({
 
       if (!isLibraryTab) return;
 
-      if (e.key === 'Enter' && isPanelOpen && selectedGameId) {
-        e.preventDefault();
-        onLaunchGame(selectedGameId);
-        return;
-      }
-
-      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && isPanelOpen) {
-        e.preventDefault();
-        if (e.key === 'ArrowLeft') onCarouselPrev();
-        else onCarouselNext();
-        return;
-      }
-
-      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        let nextGameId: string | null = null;
-
-        if (!selectedGameId) {
-          if (displayedGameIds.length > 0) nextGameId = displayedGameIds[0];
-        } else {
-          const currentIndex = displayedGameIds.indexOf(selectedGameId);
-          if (e.key === 'ArrowDown' && currentIndex < displayedGameIds.length - 1) {
-            nextGameId = displayedGameIds[currentIndex + 1];
-          } else if (e.key === 'ArrowUp' && currentIndex > 0) {
-            nextGameId = displayedGameIds[currentIndex - 1];
-          }
+      // Entrée sur un bouton focalisé doit activer ce bouton, pas lancer le jeu.
+      if (e.key === 'Enter' && target.tagName !== 'BUTTON' && target.tagName !== 'A') {
+        if (isPanelOpen && selectedGameId) {
+          e.preventDefault();
+          onLaunchGame(selectedGameId);
+        } else if (!isPanelOpen && focusedGameId) {
+          e.preventDefault();
+          onOpenGame(focusedGameId);
         }
+        return;
+      }
 
-        if (nextGameId) onSelectGame(nextGameId);
+      if (isPanelOpen) {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          if (e.key === 'ArrowLeft') onCarouselPrev();
+          else onCarouselNext();
+        }
+        return;
+      }
+
+      const deltas: Record<string, () => number> = {
+        ArrowLeft: () => -1,
+        ArrowRight: () => 1,
+        ArrowUp: () => -gridColumnCount(),
+        ArrowDown: () => gridColumnCount()
+      };
+      if (!(e.key in deltas) || displayedGameIds.length === 0) return;
+      e.preventDefault();
+
+      const currentIndex = focusedGameId ? displayedGameIds.indexOf(focusedGameId) : -1;
+      if (currentIndex === -1) {
+        onFocusGame(displayedGameIds[0]);
+        return;
+      }
+      const nextIndex = currentIndex + deltas[e.key]();
+      if (nextIndex >= 0 && nextIndex < displayedGameIds.length) {
+        onFocusGame(displayedGameIds[nextIndex]);
       }
     }
 
@@ -89,8 +112,10 @@ export function useKeyboardNavigation({
   }, [
     displayedGameIds,
     selectedGameId,
+    focusedGameId,
     isLibraryTab,
-    onSelectGame,
+    onFocusGame,
+    onOpenGame,
     onClosePanel,
     onLeaveTab,
     onLaunchGame,

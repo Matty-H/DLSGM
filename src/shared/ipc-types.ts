@@ -20,6 +20,21 @@ export interface AppSettings {
    * échoue plutôt que de se faire hors sandbox.
    */
   sandboxLaunch: boolean;
+  /** Ouvre la fenêtre en plein écran au démarrage (F11 bascule à tout moment). */
+  startFullscreen: boolean;
+}
+
+/**
+ * Image d'une liste d'échantillons après édition manuelle : un échantillon
+ * existant (`sample_<keep>.jpg`, 1-indexé) déplacé à sa nouvelle position,
+ * ou une nouvelle image fournie en octets (JPEG, PNG, GIF ou WebP).
+ */
+export type GameImageSource = { keep: number } | { data: Uint8Array };
+
+export interface GameImagesPlan {
+  cover: 'keep' | 'remove' | { data: Uint8Array };
+  /** Liste finale et ordonnée des échantillons ; ceux qui n'y figurent pas sont supprimés. */
+  samples: GameImageSource[];
 }
 
 /**
@@ -175,7 +190,6 @@ export interface ElectronAPI {
 
   // Dialogues
   openFolderDialog(): Promise<string | null>;
-  openImageDialog(): Promise<string | null>;
 
   // Opérations système
   /** `null` si le dossier n'existe pas (distinct d'un dossier vide). */
@@ -187,7 +201,13 @@ export interface ElectronAPI {
   chooseGameExecutable(gameId: string): Promise<string | null>;
   downloadGameImages(gameId: string, metadata: GameMetadata): Promise<boolean>;
   resetImageCache(): Promise<void>;
-  setCustomCover(gameId: string, sourceImagePath: string): Promise<boolean>;
+  /** Applique les modifications d'images de l'édition manuelle (couverture + échantillons). */
+  applyGameImages(gameId: string, plan: GameImagesPlan): Promise<boolean>;
+
+  // Plein écran
+  /** Bascule le plein écran ; renvoie le nouvel état. */
+  toggleFullscreen(): Promise<boolean>;
+  isFullscreen(): Promise<boolean>;
 
   // Outils par jeu : moteur, sauvegardes, patchs réversibles
   getGameToolsInfo(gameId: string): Promise<GameToolsInfo>;
@@ -208,4 +228,6 @@ export interface ElectronAPI {
 
   // Événements (du Main vers le Renderer)
   onPanicTriggered(callback: () => void): void;
+  /** Abonnement aux changements de plein écran (F11, bouton, paramètre) ; renvoie la fonction de désabonnement. */
+  onFullscreenChange(callback: (isFullscreen: boolean) => void): () => void;
 }
