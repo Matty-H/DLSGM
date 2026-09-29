@@ -9,6 +9,7 @@ export interface AppSettings {
   genreAliasGroups: string[][];
   sandboxLaunch: boolean;
   startFullscreen: boolean;
+  lanSharePort: number;
   selectedSort: string;
 }
 

@@ -22,6 +22,55 @@ export interface AppSettings {
   sandboxLaunch: boolean;
   /** Ouvre la fenêtre en plein écran au démarrage (F11 bascule à tout moment). */
   startFullscreen: boolean;
+  /** Port TCP écouté pour recevoir des jeux en réseau local (voir src/main/lan-share.ts). */
+  lanSharePort: number;
+}
+
+/** PC du réseau local dont la réception est ouverte (réponse à la découverte UDP). */
+export interface LanPeer {
+  name: string;
+  host: string;
+  port: number;
+}
+
+export interface LanReceiverStatus {
+  running: boolean;
+  port: number;
+  /** Code à saisir sur le PC qui envoie ; régénéré à chaque ouverture. */
+  code: string | null;
+  deviceName: string;
+  /** Adresses IPv4 de ce PC sur le réseau local. */
+  addresses: string[];
+  /** Raison d'un arrêt que l'utilisateur n'a pas demandé (trop de codes erronés...). */
+  stoppedReason?: string;
+}
+
+export interface LanTransferProgress {
+  /** Identifiant stable du transfert (clé côté renderer). */
+  key: string;
+  direction: 'send' | 'receive';
+  gameId: string;
+  /** Nom ou adresse de l'autre PC. */
+  peer: string;
+  totalBytes: number;
+  transferredBytes: number;
+  totalFiles: number;
+  doneFiles: number;
+  state: 'active' | 'done' | 'failed' | 'cancelled';
+  error?: string;
+}
+
+export interface LanSendRequest {
+  host: string;
+  port: number;
+  code: string;
+  gameIds: string[];
+}
+
+export interface LanSendResult {
+  sent: string[];
+  failed: { gameId: string; error: string }[];
+  cancelled: boolean;
 }
 
 /**
@@ -226,8 +275,24 @@ export interface ElectronAPI {
   // Récupération des métadonnées DLsite (fetch Node pur, sans dépendance Python)
   fetchGameMetadata(gameId: string, locale: string): Promise<GameMetadata>;
 
+  // Échange de jeux en réseau local (voir src/main/lan-share.ts)
+  getLanReceiverStatus(): Promise<LanReceiverStatus>;
+  /** Ouvre la réception sur `port` avec un nouveau code d'appairage. */
+  startLanReceiver(port: number): Promise<LanReceiverStatus>;
+  /** Ferme la réception et annule les transferts entrants en cours. */
+  stopLanReceiver(): Promise<LanReceiverStatus>;
+  /** Cherche (broadcast UDP) les PC dont la réception est ouverte. */
+  discoverLanPeers(): Promise<LanPeer[]>;
+  /** Envoie les jeux un par un ; un seul envoi à la fois. */
+  sendGamesOverLan(request: LanSendRequest): Promise<LanSendResult>;
+  cancelLanSend(): Promise<void>;
+
   // Événements (du Main vers le Renderer)
   onPanicTriggered(callback: () => void): void;
+  /** Progression des envois et réceptions ; renvoie la fonction de désabonnement. */
+  onLanTransferProgress(callback: (progress: LanTransferProgress) => void): () => void;
+  /** Changements d'état de la réception non demandés par le renderer (arrêt automatique). */
+  onLanReceiverStatus(callback: (status: LanReceiverStatus) => void): () => void;
   /** Abonnement aux changements de plein écran (F11, bouton, paramètre) ; renvoie la fonction de désabonnement. */
   onFullscreenChange(callback: (isFullscreen: boolean) => void): () => void;
 }

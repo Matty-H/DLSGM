@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react';
-import { LayoutGrid, BarChart3, Maximize, Minimize, Settings } from 'lucide-react';
+import { LayoutGrid, BarChart3, Maximize, Minimize, Settings, ArrowLeftRight } from 'lucide-react';
 
-export type AppTab = 'library' | 'stats' | 'settings';
+export type AppTab = 'library' | 'stats' | 'share' | 'settings';
 
 export interface TopNavProps {
   activeTab: AppTab;
   onTabChange: (tab: AppTab) => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  /** Réception réseau local ouverte : pastille sur l'onglet Partage. */
+  isReceiving?: boolean;
 }
 
 export const TABS: { id: AppTab; label: string; Icon: typeof LayoutGrid }[] = [
   { id: 'library', label: 'Bibliothèque', Icon: LayoutGrid },
   { id: 'stats', label: 'Statistiques', Icon: BarChart3 },
+  { id: 'share', label: 'Partage', Icon: ArrowLeftRight },
   { id: 'settings', label: 'Paramètres', Icon: Settings }
 ];
 
@@ -32,7 +35,7 @@ function Clock() {
   );
 }
 
-export default function TopNav({ activeTab, onTabChange, isFullscreen, onToggleFullscreen }: TopNavProps) {
+export default function TopNav({ activeTab, onTabChange, isFullscreen, onToggleFullscreen, isReceiving }: TopNavProps) {
   return (
     <header className="flex flex-shrink-0 items-center gap-2 px-6 pb-2 pt-4">
       <div className="mr-6 flex items-center gap-2 text-[17px] font-extrabold tracking-wide">
@@ -50,6 +53,9 @@ export default function TopNav({ activeTab, onTabChange, isFullscreen, onToggleF
         >
           <Icon size={15} strokeWidth={2.25} />
           {label}
+          {id === 'share' && isReceiving && (
+            <span className="h-2 w-2 rounded-full bg-play" title="Réception ouverte" aria-label="Réception ouverte" />
+          )}
         </button>
       ))}
       <div className="ml-auto flex items-center gap-3">

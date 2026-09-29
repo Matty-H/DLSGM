@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ElectronAPI } from '../shared/ipc-types';
+import type { ElectronAPI, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -52,8 +52,30 @@ const electronAPI: ElectronAPI = {
   // Récupération des métadonnées DLsite
   fetchGameMetadata: (gameId, locale) => ipcRenderer.invoke('fetch-game-metadata', gameId, locale),
 
+  // Échange de jeux en réseau local
+  getLanReceiverStatus: () => ipcRenderer.invoke('get-lan-receiver-status'),
+  startLanReceiver: (port) => ipcRenderer.invoke('start-lan-receiver', port),
+  stopLanReceiver: () => ipcRenderer.invoke('stop-lan-receiver'),
+  discoverLanPeers: () => ipcRenderer.invoke('discover-lan-peers'),
+  sendGamesOverLan: (request) => ipcRenderer.invoke('send-games-over-lan', request),
+  cancelLanSend: () => ipcRenderer.invoke('cancel-lan-send'),
+
   // Événements (du Main vers le Renderer)
   onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', () => callback()),
+  onLanTransferProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: LanTransferProgress) => callback(progress);
+    ipcRenderer.on('lan-transfer-progress', listener);
+    return () => {
+      ipcRenderer.removeListener('lan-transfer-progress', listener);
+    };
+  },
+  onLanReceiverStatus: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: LanReceiverStatus) => callback(status);
+    ipcRenderer.on('lan-receiver-status', listener);
+    return () => {
+      ipcRenderer.removeListener('lan-receiver-status', listener);
+    };
+  },
   onFullscreenChange: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, value: boolean) => callback(value);
     ipcRenderer.on('fullscreen-changed', listener);

@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: Settings = {
   genreAliasGroups: KNOWN_GENRE_PAIRS,
   sandboxLaunch: false,
   startFullscreen: false,
+  lanSharePort: 47821,
   selectedSort: 'name_asc'
 };
 
