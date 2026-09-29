@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadCache, saveCache } from '../lib/cacheManager.js';
+import { loadCache, updateCacheEntry, replaceCacheEntry, deleteCacheEntry } from '../lib/cacheManager.js';
 import { scanGames } from '../lib/gameScanner.js';
-import { launchGame as launchGameIpc } from '../lib/osHandler.js';
+import { launchGame as launchGameIpc, chooseGameExecutable } from '../lib/osHandler.js';
 
 export type LibraryStatus = 'loading' | 'no-folder' | 'empty' | 'ok';
 
@@ -16,12 +16,7 @@ export function useGamesLibrary() {
   const [gameFolders, setGameFolders] = useState<string[]>([]);
   const [status, setStatus] = useState<LibraryStatus>('loading');
   const [runningGames, setRunningGames] = useState<Set<string>>(new Set());
-  const [userDataPath, setUserDataPath] = useState<string>('');
   const scanningRef = useRef(false);
-
-  useEffect(() => {
-    window.electronAPI.getUserDataPath().then((p: string) => setUserDataPath(p.replace(/\\/g, '/')));
-  }, []);
 
   const reloadCache = useCallback(async () => {
     const c = await loadCache();
@@ -69,51 +64,52 @@ export function useGamesLibrary() {
           next.delete(gameId);
           return next;
         });
+        // Le temps de jeu a été enregistré par le main à la fermeture du jeu.
         await reloadCache();
       }
     },
     [reloadCache]
   );
 
+  // Les mutations mettent à jour l'état React de façon optimiste, puis
+  // n'envoient au main que l'entrée concernée — jamais le cache complet, dont
+  // la copie React peut être périmée (ex: pendant un scan, avant reloadCache).
+
   /** Fusionne `patch` dans l'entrée `gameId` du cache et persiste le résultat. */
   const updateGame = useCallback((gameId: string, patch: Record<string, any>) => {
-    setCache(prev => {
-      const next = { ...prev, [gameId]: { ...prev[gameId], ...patch } };
-      saveCache(next);
-      return next;
-    });
+    setCache(prev => ({ ...prev, [gameId]: { ...prev[gameId], ...patch } }));
+    updateCacheEntry(gameId, patch);
   }, []);
 
   /** Remplace entièrement une entrée (édition manuelle) et persiste le résultat. */
   const replaceGame = useCallback((gameId: string, data: Record<string, any>) => {
-    setCache(prev => {
-      const next = { ...prev, [gameId]: data };
-      saveCache(next);
-      return next;
-    });
+    setCache(prev => ({ ...prev, [gameId]: data }));
+    replaceCacheEntry(gameId, data as any);
   }, []);
 
   /** Supprime une entrée du cache (ex: "Réessayer" sur un échec de fetch) et persiste. */
-  const removeGame = useCallback((gameId: string) => {
+  const removeGame = useCallback(async (gameId: string) => {
     setCache(prev => {
       const next = { ...prev };
       delete next[gameId];
-      saveCache(next);
       return next;
     });
+    await deleteCacheEntry(gameId);
   }, []);
 
-  /** Chemin `atom://` de l'image de couverture d'un jeu (construit localement pour éviter un aller-retour IPC par carte). */
-  const getWorkImageSrc = useCallback(
-    (gameId: string) => `atom:///${userDataPath}/img_cache/${gameId}/work_image.jpg`,
-    [userDataPath]
-  );
+  /** Choisit (et mémorise côté main) l'exécutable à lancer pour ce jeu. */
+  const chooseExecutable = useCallback(async (gameId: string) => {
+    const executablePath = await chooseGameExecutable(gameId);
+    if (executablePath) {
+      setCache(prev => ({ ...prev, [gameId]: { ...prev[gameId], executablePath } }));
+    }
+  }, []);
 
-  /** Chemin `atom://` d'une image d'échantillon (1-indexée, comme dans le cache). */
-  const getSampleImageSrc = useCallback(
-    (gameId: string, index: number) => `atom:///${userDataPath}/img_cache/${gameId}/sample_${index}.jpg`,
-    [userDataPath]
-  );
+  /** URL `atom://` de la couverture d'un jeu, servie par main depuis le cache d'images. */
+  const getWorkImageSrc = useCallback((gameId: string) => `atom://img/${gameId}/work_image.jpg`, []);
+
+  /** URL `atom://` d'une image d'échantillon (1-indexée, comme dans le cache). */
+  const getSampleImageSrc = useCallback((gameId: string, index: number) => `atom://img/${gameId}/sample_${index}.jpg`, []);
 
   return {
     cache,
@@ -121,13 +117,13 @@ export function useGamesLibrary() {
     status,
     runningGames,
     isAnyGameRunning,
-    userDataPath,
     rescan,
     reloadCache,
     launch,
     updateGame,
     replaceGame,
     removeGame,
+    chooseExecutable,
     getWorkImageSrc,
     getSampleImageSrc
   };

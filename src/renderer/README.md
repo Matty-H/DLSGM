@@ -24,5 +24,5 @@ La logique dans `src/lib/` était auparavant mêlée à de la manipulation direc
 ## Abstractions importantes
 
 - **Cache mémoire de la liste de dossiers** (`useGamesLibrary`) : le dossier de jeux n'est relu qu'après un scan explicite, pas à chaque frappe de recherche.
-- **Chemins d'image `atom://`** construits localement (pas d'aller-retour IPC par carte de jeu) à partir du `userDataPath` récupéré une seule fois.
+- **Chemins d'image `atom://`** construits localement (`atom://img/<ID>/<fichier>`, pas d'aller-retour IPC par carte de jeu) ; le main ne sert que le dossier `img_cache`.
 - **Fallback image** : toutes les images utilisent `PLACEHOLDER_IMAGE` (SVG inline, `src/lib/constants.ts`) en cas d'erreur de chargement.

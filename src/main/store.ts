@@ -24,6 +24,10 @@ class Store {
   private legacyPath: string | null;
   private db: Datastore<StoredDoc>;
   private ready: Promise<void>;
+  // File d'attente des écritures : chaque opération lecture-modification-
+  // écriture s'exécute seule, sinon deux `update` concurrents sur la même clé
+  // (ou un `setAll` en parallèle) pourraient écraser le travail de l'autre.
+  private writeQueue: Promise<unknown> = Promise.resolve();
 
   /**
    * @param fileName Nom du fichier NeDB (ex: 'cache.db').
@@ -92,17 +96,63 @@ class Store {
    */
   async get(key: string): Promise<unknown> {
     await this.ready;
+    await this.writeQueue; // lit après les écritures déjà demandées
     const doc = await this.db.findOneAsync({ _id: key });
     return doc ? doc.value : undefined;
+  }
+
+  private serialize<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.writeQueue.then(async () => {
+      await this.ready;
+      return operation();
+    });
+    // La file continue même si une opération échoue ; l'erreur reste
+    // propagée à l'appelant via `result`.
+    this.writeQueue = result.catch(() => undefined);
+    return result;
   }
 
   /**
    * Définit une valeur pour une clé et persiste uniquement ce document.
    */
-  async set(key: string, val: unknown): Promise<void> {
-    await this.ready;
-    await this.db.updateAsync({ _id: key }, { _id: key, value: val }, { upsert: true });
-    await this.db.compactDatafileAsync();
+  set(key: string, val: unknown): Promise<void> {
+    return this.serialize(async () => {
+      await this.db.updateAsync({ _id: key }, { _id: key, value: val }, { upsert: true });
+      await this.db.compactDatafileAsync();
+    });
+  }
+
+  /**
+   * Fusionne atomiquement `patch` (ou le résultat de `patch(valeurActuelle)`)
+   * dans la valeur objet d'une clé. Ne crée jamais d'entrée : renvoie false si
+   * la clé n'existe pas, pour ne pas fabriquer une entrée partielle (ex: un
+   * simple `{ imagesComplete }` sans métadonnées) à partir d'une clé supprimée
+   * entre-temps.
+   */
+  update(
+    key: string,
+    patch: Record<string, unknown> | ((current: Record<string, unknown>) => Record<string, unknown>)
+  ): Promise<boolean> {
+    return this.serialize(async () => {
+      const doc = await this.db.findOneAsync({ _id: key });
+      if (!doc) return false;
+      const current = (doc.value ?? {}) as Record<string, unknown>;
+      const changes = typeof patch === 'function' ? patch(current) : patch;
+      await this.db.updateAsync({ _id: key }, { _id: key, value: { ...current, ...changes } }, {});
+      await this.db.compactDatafileAsync();
+      return true;
+    });
+  }
+
+  /**
+   * Supprime une clé.
+   */
+  delete(key: string): Promise<boolean> {
+    return this.serialize(async () => {
+      const removed = await this.db.removeAsync({ _id: key }, {});
+      if (removed > 0) await this.db.compactDatafileAsync();
+      return removed > 0;
+    });
   }
 
   /**
@@ -111,6 +161,7 @@ class Store {
    */
   async getAll(): Promise<Record<string, unknown>> {
     await this.ready;
+    await this.writeQueue; // lit après les écritures déjà demandées
     const docs = await this.db.findAsync({});
     const result: Record<string, unknown> = {};
     docs.forEach(doc => { result[doc._id] = doc.value; });
@@ -123,9 +174,8 @@ class Store {
    * crash pendant l'écriture ne peut donc affecter que les entrées qui
    * changent réellement à cet instant, jamais la bibliothèque entière.
    */
-  async setAll(data: Record<string, unknown>): Promise<void> {
-    await this.ready;
-    await this._writeAll(data);
+  setAll(data: Record<string, unknown>): Promise<void> {
+    return this.serialize(() => this._writeAll(data));
   }
 
   private async _writeAll(data: Record<string, unknown>): Promise<void> {

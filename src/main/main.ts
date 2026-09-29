@@ -1,6 +1,8 @@
-import { app, BrowserWindow, globalShortcut, protocol } from 'electron';
+import { app, BrowserWindow, globalShortcut, net, protocol } from 'electron';
 import path from 'path';
-import { setupIpcHandlers } from './ipc-handlers';
+import fs from 'fs';
+import { pathToFileURL } from 'url';
+import { setupIpcHandlers, getImgCacheDir, isInside } from './ipc-handlers';
 import { initAutoUpdater } from './updater';
 
 let mainWindow: BrowserWindow | null = null;
@@ -37,9 +39,6 @@ function createWindow(): void {
 
   // Ouvrir les outils de développement en mode dev (optionnel)
   // mainWindow.webContents.openDevTools();
-
-  // Initialisation des gestionnaires IPC
-  setupIpcHandlers(mainWindow);
 }
 
 // Enregistrement du protocole atom pour charger les images locales
@@ -49,18 +48,21 @@ protocol.registerSchemesAsPrivileged([
 
 // Initialisation de l'application
 app.whenReady().then(() => {
-  protocol.registerFileProtocol('atom', (request, callback) => {
-    // Nettoie l'URL pour obtenir un chemin de fichier valide
-    let filePath = decodeURIComponent(request.url.replace(/^atom:\/\/[/]*/, ''));
+  // atom://img/<ID>/<fichier> -> <userData>/img_cache/<ID>/<fichier>. Le
+  // protocole ne sert que le cache d'images : tout chemin qui en sort
+  // (../, chemin absolu) est refusé, au lieu d'exposer tout le disque.
+  protocol.handle('atom', (request) => {
+    const imgCacheDir = getImgCacheDir();
+    const { pathname } = new URL(request.url);
+    const filePath = path.join(imgCacheDir, decodeURIComponent(pathname));
 
-    // Correction spécifique pour Windows : restauration du colon (C:/ au lieu de C/)
-    if (process.platform === 'win32' && /^[a-zA-Z]\//.test(filePath)) {
-      filePath = filePath[0] + ':' + filePath.substring(1);
+    if (!isInside(imgCacheDir, filePath) || !fs.existsSync(filePath)) {
+      return new Response(null, { status: 404 });
     }
-
-    callback({ path: path.normalize(filePath) });
+    return net.fetch(pathToFileURL(filePath).toString());
   });
 
+  setupIpcHandlers(() => mainWindow);
   createWindow();
 
   // Vérification des mises à jour (build packagée uniquement — en dev, il

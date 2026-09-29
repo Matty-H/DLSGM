@@ -56,6 +56,11 @@ export interface GameMetadata {
   fetchFailed?: boolean;
   lastFetchAttempt?: string;
   error?: string;
+  /**
+   * Exécutable choisi par l'utilisateur, relatif au dossier du jeu. Absent :
+   * détection automatique au lancement.
+   */
+  executablePath?: string;
 }
 
 export type GameCache = Record<string, GameMetadata>;
@@ -64,6 +69,11 @@ export interface LaunchGameResult {
   success: boolean;
   duration?: number;
   error?: string;
+  /**
+   * Jeu lancé via le shell (ex: exécutable exigeant les droits admin) : son
+   * processus n'est pas suivi, donc aucun temps de jeu n'est comptabilisé.
+   */
+  untracked?: boolean;
 }
 
 export interface ElectronAPI {
@@ -75,31 +85,33 @@ export interface ElectronAPI {
   saveSettings(settings: AppSettings): Promise<boolean>;
   updateLanguage(lang: string): void;
 
-  // Gestion du cache
+  // Gestion du cache — écritures par entrée uniquement, fusionnées côté main :
+  // jamais de réécriture du cache complet depuis le renderer (voir Store).
   getCache(): Promise<GameCache>;
-  saveCache(cache: GameCache): Promise<boolean>;
+  /** Fusionne `patch` dans l'entrée existante ; sans effet (false) si l'entrée n'existe pas. */
+  updateCacheEntry(gameId: string, patch: Partial<GameMetadata> & Record<string, unknown>): Promise<boolean>;
+  replaceCacheEntry(gameId: string, data: GameMetadata): Promise<boolean>;
+  deleteCacheEntry(gameId: string): Promise<boolean>;
 
   // Dialogues
   openFolderDialog(): Promise<string | null>;
   openImageDialog(): Promise<string | null>;
 
   // Opérations système
-  listGameFolders(folderPath: string): Promise<string[]>;
-  openPath(targetPath: string): Promise<boolean>;
+  /** `null` si le dossier n'existe pas (distinct d'un dossier vide). */
+  listGameFolders(folderPath: string): Promise<string[] | null>;
+  openGameFolder(gameId: string): Promise<boolean>;
   openExternal(url: string): Promise<boolean>;
   launchGame(gameId: string): Promise<LaunchGameResult>;
-  downloadGameImages(gameId: string, metadata: GameMetadata, destBaseDir: string): Promise<boolean>;
+  /** Ouvre un sélecteur dans le dossier du jeu ; renvoie le chemin relatif mémorisé, ou null si annulé. */
+  chooseGameExecutable(gameId: string): Promise<string | null>;
+  downloadGameImages(gameId: string, metadata: GameMetadata): Promise<boolean>;
+  resetImageCache(): Promise<void>;
+  setCustomCover(gameId: string, sourceImagePath: string): Promise<boolean>;
+
 
   // Récupération des métadonnées DLsite (fetch Node pur, sans dépendance Python)
   fetchGameMetadata(gameId: string, locale: string): Promise<GameMetadata>;
-
-  // Utilitaires de fichiers (bridgés pour la sécurité)
-  pathJoin(...args: string[]): Promise<string>;
-  fsExists(path: string): Promise<boolean>;
-  fsMkdir(path: string): Promise<void>;
-  fsReaddir(path: string): Promise<string[]>;
-  fsRm(path: string): Promise<void>;
-  fsCopy(src: string, dest: string): Promise<boolean>;
 
   // Événements (du Main vers le Renderer)
   onPanicTriggered(callback: () => void): void;

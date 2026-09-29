@@ -18,6 +18,7 @@ export interface GameInfoDetailsProps {
   isAnyGameRunning: boolean;
   onUpdateGame: (gameId: string, patch: Record<string, any>) => void;
   onOpenFolder: (gameId: string) => void;
+  onChooseExecutable: (gameId: string) => void;
   onGenreClick: (genre: string) => void;
   onEdit: () => void;
   genreAliasGroups: GenreAliasGroups;
@@ -42,6 +43,7 @@ export default function GameInfoDetails({
   isAnyGameRunning,
   onUpdateGame,
   onOpenFolder,
+  onChooseExecutable,
   onGenreClick,
   onEdit,
   genreAliasGroups
@@ -128,6 +130,15 @@ export default function GameInfoDetails({
           <i className="corner br" />
           {isRunning ? 'En cours…' : 'Lancer le jeu'}
         </button>
+
+        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-text-secondary">
+          <span className="min-w-0 truncate" title={gameData.executablePath || undefined}>
+            Exécutable : {gameData.executablePath || 'détection automatique'}
+          </span>
+          <button type="button" onClick={() => onChooseExecutable(gameId)} className="btn btn-ghost flex-shrink-0 text-xs">
+            Choisir…
+          </button>
+        </div>
 
         <CustomTagsEditor
           tags={customTags}

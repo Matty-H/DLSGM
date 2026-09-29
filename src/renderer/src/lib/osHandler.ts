@@ -1,4 +1,3 @@
-import { loadCache, updateCacheEntry } from './cacheManager.js';
 import { loadSettings } from './settings.js';
 import type { LaunchGameResult } from '../../../shared/ipc-types';
 
@@ -24,34 +23,26 @@ export async function getGamesFolderPath(): Promise<string | null> {
  */
 export async function openGameFolder(gameId: string): Promise<void> {
   try {
-    const gamesDirPath = await getGamesFolderPath();
-    if (!gamesDirPath) {
-      throw new Error('Dossier de jeux non configuré');
-    }
-
-    const targetFolderPath = await window.electronAPI.pathJoin(gamesDirPath, gameId);
-    const success = await window.electronAPI.openPath(targetFolderPath);
-
+    const success = await window.electronAPI.openGameFolder(gameId);
     if (!success) {
-      throw new Error('Impossible d\'ouvrir le dossier');
+      throw new Error("Impossible d'ouvrir le dossier");
     }
   } catch (error) {
     alert((error as Error).message);
-    console.error('Erreur lors de l\'ouverture du dossier:', error);
+    console.error("Erreur lors de l'ouverture du dossier:", error);
   }
 }
 
 /**
- * Lance un jeu et enregistre le temps de jeu réel de la session.
+ * Lance un jeu. Le temps de jeu de la session est enregistré par le
+ * processus principal à la fermeture du jeu.
  */
 export async function launchGame(gameId: string): Promise<LaunchGameResult> {
   try {
     const result = await window.electronAPI.launchGame(gameId);
-
-    if (result.success) {
-      await updateGameTime(gameId, result.duration || 0);
+    if (!result.success) {
+      alert(`Impossible de lancer le jeu : ${result.error ?? 'erreur inconnue'}`);
     }
-
     return result;
   } catch (error) {
     alert((error as Error).message);
@@ -61,17 +52,15 @@ export async function launchGame(gameId: string): Promise<LaunchGameResult> {
 }
 
 /**
- * Met à jour les statistiques de jeu.
+ * Ouvre un sélecteur dans le dossier du jeu pour choisir (et mémoriser)
+ * l'exécutable à lancer. Renvoie le chemin relatif choisi, ou null si annulé.
  */
-export async function updateGameTime(gameId: string, sessionTimeInSeconds: number): Promise<void> {
-  const cache = await loadCache();
-  const gameEntry = cache[gameId] || {};
-
-  const currentTotalTime = (gameEntry.totalPlayTime as number) || 0;
-  const newTotalTime = currentTotalTime + sessionTimeInSeconds;
-
-  await updateCacheEntry(cache, gameId, {
-    totalPlayTime: newTotalTime,
-    lastPlayed: new Date().toISOString()
-  });
+export async function chooseGameExecutable(gameId: string): Promise<string | null> {
+  try {
+    return await window.electronAPI.chooseGameExecutable(gameId);
+  } catch (error) {
+    alert((error as Error).message);
+    console.error("Erreur lors du choix de l'exécutable:", error);
+    return null;
+  }
 }

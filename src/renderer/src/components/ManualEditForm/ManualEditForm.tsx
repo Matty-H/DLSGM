@@ -71,9 +71,7 @@ export default function ManualEditForm({ gameId, gameData, onCancel, onSave }: M
     };
 
     if (manualImagePath) {
-      const userDataPath = await window.electronAPI.getUserDataPath();
-      const destPath = await window.electronAPI.pathJoin(userDataPath, 'img_cache', gameId, 'work_image.jpg');
-      await window.electronAPI.fsCopy(manualImagePath, destPath);
+      await window.electronAPI.setCustomCover(gameId, manualImagePath);
       updatedData.work_image = 'manual';
     }
 
