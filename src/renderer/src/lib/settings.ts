@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS: Settings = {
   blurAdultContent: true,
   genreAliasGroups: KNOWN_GENRE_PAIRS,
   sandboxLaunch: false,
+  startFullscreen: false,
   selectedSort: 'name_asc'
 };
 

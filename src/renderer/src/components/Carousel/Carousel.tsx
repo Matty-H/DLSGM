@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 
 export interface CarouselProps {
@@ -6,60 +7,70 @@ export interface CarouselProps {
   activeIndex: number;
   onPrev: () => void;
   onNext: () => void;
-  onClose: () => void;
+  onSelect: (index: number) => void;
 }
 
-export default function Carousel({ workImageSrc, sampleSrcs, activeIndex, onPrev, onNext, onClose }: CarouselProps) {
-  const totalImages = 1 + sampleSrcs.length;
+/**
+ * Bandeau "hero" de la page d'un jeu : l'image active est affichée entière
+ * (object-contain) au centre, sur un fond constitué de la même image floutée,
+ * comme les illustrations de fond de SteamOS.
+ */
+export default function Carousel({ workImageSrc, sampleSrcs, activeIndex, onPrev, onNext, onSelect }: CarouselProps) {
+  const srcs = [workImageSrc, ...sampleSrcs];
+  const totalImages = srcs.length;
+  // Les flèches clavier incrémentent l'index sans connaître le nombre
+  // d'images : on le ramène ici dans l'intervalle (défilement circulaire).
+  const current = ((activeIndex % totalImages) + totalImages) % totalImages;
+  const activeSrc = srcs[current];
 
   return (
-    <div className="relative overflow-hidden">
-      <button
-        onClick={onClose}
-        aria-label="Fermer"
-        className="btn btn-ghost btn-icon absolute right-2 top-2 z-[100] bg-bg/80"
-      >
-        ✖
-      </button>
-      <div className="relative aspect-video bg-black">
-        <div className="flex h-full">
-          <img
-            src={workImageSrc}
-            onError={e => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = PLACEHOLDER_IMAGE;
-            }}
-            className={`h-full w-full object-contain ${activeIndex === 0 ? 'block' : 'hidden'}`}
-          />
-          {sampleSrcs.map((src, i) => (
-            <img
-              key={src}
-              src={src}
-              onError={e => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.style.display = 'none';
-              }}
-              className={`h-full w-full object-contain ${activeIndex === i + 1 ? 'block' : 'hidden'}`}
-            />
-          ))}
-        </div>
-        {totalImages > 1 && (
-          <>
-            <button
-              onClick={onPrev}
-              className="absolute inset-y-0 left-0 z-10 w-12 bg-black/30 text-2xl text-white transition-colors hover:bg-black/60"
-            >
-              ❮
-            </button>
-            <button
-              onClick={onNext}
-              className="absolute inset-y-0 right-0 z-10 w-12 bg-black/30 text-2xl text-white transition-colors hover:bg-black/60"
-            >
-              ❯
-            </button>
-          </>
-        )}
-      </div>
+    <div className="group relative h-full w-full overflow-hidden bg-bg-deep">
+      <img src={activeSrc} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-2xl" />
+
+      {srcs.map((src, i) => (
+        <img
+          key={src}
+          src={src}
+          onError={e => {
+            e.currentTarget.onerror = null;
+            if (i === 0) e.currentTarget.src = PLACEHOLDER_IMAGE;
+            else e.currentTarget.style.display = 'none';
+          }}
+          className={`relative h-full w-full object-contain ${current === i ? 'block' : 'hidden'}`}
+        />
+      ))}
+
+      {totalImages > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={onPrev}
+            aria-label="Image précédente"
+            className="btn btn-icon absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
+          >
+            <ChevronLeft size={20} strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            onClick={onNext}
+            aria-label="Image suivante"
+            className="btn btn-icon absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
+          >
+            <ChevronRight size={20} strokeWidth={2.5} />
+          </button>
+          <div className="absolute right-6 top-4 z-10 flex gap-1.5">
+            {srcs.map((src, i) => (
+              <button
+                key={src}
+                type="button"
+                aria-label={`Image ${i + 1}`}
+                onClick={() => onSelect(i)}
+                className={`h-1.5 rounded-full transition-all ${current === i ? 'w-6 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

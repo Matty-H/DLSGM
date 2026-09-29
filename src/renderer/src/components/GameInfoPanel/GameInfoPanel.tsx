@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import FetchFailedView from '../FetchFailedView/FetchFailedView';
 import ManualEditForm from '../ManualEditForm/ManualEditForm';
 import GameInfoDetails from './GameInfoDetails';
@@ -25,13 +25,16 @@ export interface GameInfoPanelProps {
   onGenreClick: (genre: string) => void;
   onAfterRetryFetch: () => void;
   genreAliasGroups: GenreAliasGroups;
+  /** Genres existants dans la bibliothèque (sélection dans l'édition manuelle). */
+  allGenres: string[];
 }
 
 /**
- * Panneau latéral de détail d'un jeu (docké à droite de la grille, comme le
- * mockup) : bascule entre la vue détaillée, la vue d'échec de fetch
- * (avec retry/édition manuelle), et le formulaire d'édition manuelle, selon
- * l'état de la fiche sélectionnée.
+ * Page de détail d'un jeu, affichée par-dessus la grille (qui reste montée,
+ * pour conserver sa position de défilement au retour) comme la page de jeu
+ * de SteamOS. Bascule entre la vue détaillée, la vue d'échec de fetch (avec
+ * retry/édition manuelle), et le formulaire d'édition manuelle, selon l'état
+ * de la fiche sélectionnée.
  */
 export default function GameInfoPanel({
   gameId,
@@ -51,7 +54,8 @@ export default function GameInfoPanel({
   onOpenFolder,
   onGenreClick,
   onAfterRetryFetch,
-  genreAliasGroups
+  genreAliasGroups,
+  allGenres
 }: GameInfoPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -61,30 +65,47 @@ export default function GameInfoPanel({
 
   if (!gameId) return null;
 
+  const showDetails = gameData && !gameData.fetchFailed && !isEditing;
+
   return (
-    // Hauteur bornée à la zone visible (sous la barre du haut et la barre
-    // d'outils) avec défilement interne : sinon, le panneau étant sticky, sa
-    // partie basse n'est atteignable qu'en faisant défiler toute la grille.
-    // Le défilement est sur un conteneur intérieur pour ne pas rogner les
-    // coins décoratifs, positionnés hors de la carte.
-    <div className="card blueprint elev-md sticky top-0 flex max-h-[calc(100vh-11.5rem)] w-[380px] flex-shrink-0 flex-col">
-      <i className="corner tl" />
-      <i className="corner tr" />
-      <i className="corner bl" />
-      <i className="corner br" />
-      <button type="button" onClick={onClose} aria-label="Fermer" className="btn btn-ghost btn-icon absolute right-2 top-2 z-10">
-        <X size={14} strokeWidth={1.5} />
+    // data-nav-scope : la manette ne navigue que dans cette page tant qu'elle
+    // est ouverte (pas dans la grille cachée dessous).
+    <div key={gameId} data-nav-scope className="animate-steam-in absolute inset-0 z-20 overflow-y-auto bg-bg">
+      <button
+        type="button"
+        onClick={onClose}
+        className="btn absolute left-6 top-4 z-30 rounded-full bg-black/55 pl-2.5 backdrop-blur-md"
+      >
+        <ChevronLeft size={18} strokeWidth={2.5} />
+        Bibliothèque
       </button>
 
-      <div className="-mx-2 min-h-0 overflow-y-auto overflow-x-hidden px-2 pb-4">
-        {!gameData ? (
-          <p className="p-3">Informations non disponibles pour {gameId}.</p>
-        ) : gameData.fetchFailed ? (
-          <div className="p-3">
+      {showDetails ? (
+        <GameInfoDetails
+          gameId={gameId}
+          gameData={gameData}
+          carouselIndex={carouselIndex}
+          onCarouselIndexChange={onCarouselIndexChange}
+          getWorkImageSrc={getWorkImageSrc}
+          getSampleImageSrc={getSampleImageSrc}
+          onLaunch={onLaunch}
+          isRunning={isRunning}
+          isAnyGameRunning={isAnyGameRunning}
+          onUpdateGame={onUpdateGame}
+          onOpenFolder={onOpenFolder}
+          onChooseExecutable={onChooseExecutable}
+          onGenreClick={onGenreClick}
+          onEdit={() => setIsEditing(true)}
+          genreAliasGroups={genreAliasGroups}
+        />
+      ) : (
+        <div className="mx-auto max-w-[760px] px-8 pb-10 pt-20">
+          {!gameData ? (
+            <p className="text-text-secondary">Informations non disponibles pour {gameId}.</p>
+          ) : gameData.fetchFailed && !isEditing ? (
             <FetchFailedView
               gameId={gameId}
               error={gameData.error}
-              onClose={onClose}
               onRetry={() => {
                 onRemoveGame(gameId)
                   .then(() => fetchGameMetadata(gameId))
@@ -94,40 +115,22 @@ export default function GameInfoPanel({
               onManualEdit={() => setIsEditing(true)}
               onOpenFolder={() => onOpenFolder(gameId)}
             />
-          </div>
-        ) : isEditing ? (
-          <div className="p-3">
+          ) : (
             <ManualEditForm
               gameId={gameId}
               gameData={gameData}
+              getWorkImageSrc={getWorkImageSrc}
+              getSampleImageSrc={getSampleImageSrc}
+              allGenres={allGenres}
               onCancel={() => setIsEditing(false)}
               onSave={data => {
                 onReplaceGame(gameId, data);
                 setIsEditing(false);
               }}
             />
-          </div>
-        ) : (
-          <GameInfoDetails
-            gameId={gameId}
-            gameData={gameData}
-            carouselIndex={carouselIndex}
-            onCarouselIndexChange={onCarouselIndexChange}
-            getWorkImageSrc={getWorkImageSrc}
-            getSampleImageSrc={getSampleImageSrc}
-            onClose={onClose}
-            onLaunch={onLaunch}
-            isRunning={isRunning}
-            isAnyGameRunning={isAnyGameRunning}
-            onUpdateGame={onUpdateGame}
-            onOpenFolder={onOpenFolder}
-            onChooseExecutable={onChooseExecutable}
-            onGenreClick={onGenreClick}
-            onEdit={() => setIsEditing(true)}
-            genreAliasGroups={genreAliasGroups}
-          />
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

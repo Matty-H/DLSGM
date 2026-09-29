@@ -2,7 +2,7 @@ import { app, BrowserWindow, globalShortcut, net, protocol } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
-import { setupIpcHandlers, getImgCacheDir, isInside } from './ipc-handlers';
+import { setupIpcHandlers, getImgCacheDir, getSettings, isInside } from './ipc-handlers';
 import { initAutoUpdater } from './updater';
 
 let mainWindow: BrowserWindow | null = null;
@@ -23,8 +23,32 @@ function createWindow(): void {
       sandbox: true,             // Sécurité : activé
       preload: path.join(__dirname, '..', 'preload', 'preload.js')
     },
-    backgroundColor: '#121212'   // Évite le flash blanc au chargement
+    backgroundColor: '#0e141b'   // Évite le flash blanc au chargement
   });
+
+  const window = mainWindow;
+
+  // Un fichier lâché hors d'une zone de dépôt ferait naviguer la fenêtre vers
+  // ce fichier (et quitter l'application) : toute navigation est refusée,
+  // l'interface est une page unique.
+  window.webContents.on('will-navigate', (event) => event.preventDefault());
+
+  // F11 bascule le plein écran. Intercepté ici (et non dans la page) pour
+  // ne pas entrer en conflit avec l'accélérateur du menu par défaut.
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F11') {
+      event.preventDefault();
+      window.setFullScreen(!window.isFullScreen());
+    }
+  });
+  window.on('enter-full-screen', () => window.webContents.send('fullscreen-changed', true));
+  window.on('leave-full-screen', () => window.webContents.send('fullscreen-changed', false));
+
+  getSettings()
+    .then(settings => {
+      if (settings.startFullscreen && !window.isDestroyed()) window.setFullScreen(true);
+    })
+    .catch(error => console.error('Lecture des paramètres de plein écran impossible:', error));
 
   // Chargement de l'interface : serveur de dev Vite si présent (npm run dev),
   // sinon le build de production (npm start / app packagée). Le renderer

@@ -7,9 +7,17 @@ import Store from './store';
 import { fetchGameMetadata } from './dlsite-fetcher';
 import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch } from './game-tools';
 import { boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand } from './sandboxie';
-import type { AppSettings, GameMetadata, GameToolsInfo, LaunchGameResult, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, GameImagesPlan, GameMetadata, GameToolsInfo, LaunchGameResult, SandboxieStatus } from '../shared/ipc-types';
 
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 15000;
+
+// Taille maximale d'une image ajoutée à la main (glisser-déposer / parcourir).
+const MAX_MANUAL_IMAGE_BYTES = 30 * 1024 * 1024;
+
+// Marqueur (à la place d'une URL DLsite) d'une image fournie par
+// l'utilisateur : rien à télécharger, et à préserver lors d'un reset du
+// cache d'images puisqu'elle n'existe nulle part ailleurs.
+const MANUAL_IMAGE = 'manual';
 
 // Start.exe qui se termine en erreur aussi vite n'a pas lancé le jeu (service
 // Sandboxie arrêté, exécutable refusé...) — heuristique : un vrai jeu qui
@@ -28,7 +36,8 @@ const settingsStore = new Store('settings.db', {
   language: 'en_US',
   blurAdultContent: true,
   genreAliasGroups: [],
-  sandboxLaunch: false
+  sandboxLaunch: false,
+  startFullscreen: false
 }, 'settings.json');
 
 const cacheStore = new Store('cache.db', {}, 'cache.json');
@@ -48,6 +57,31 @@ function assertGameId(gameId: unknown): asserts gameId is string {
 export function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/** Paramètres persistés (lus par main.ts au démarrage, ex: plein écran). */
+export async function getSettings(): Promise<AppSettings> {
+  return await settingsStore.getAll() as unknown as AppSettings;
+}
+
+/**
+ * Vérifie qu'une donnée reçue du renderer est bien une image (signature
+ * JPEG, PNG, GIF ou WebP) de taille raisonnable, avant de l'écrire sur disque.
+ */
+function assertImageBytes(data: unknown): asserts data is Uint8Array {
+  if (!(data instanceof Uint8Array)) throw new Error('Image invalide.');
+  if (data.byteLength === 0 || data.byteLength > MAX_MANUAL_IMAGE_BYTES) {
+    throw new Error(`Image vide ou trop lourde (max ${MAX_MANUAL_IMAGE_BYTES / 1024 / 1024} Mo).`);
+  }
+  const b = data;
+  const isJpeg = b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  const isPng = b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+  const isGif = b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38;
+  const ascii = (from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
+  const isWebp = b.byteLength > 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP';
+  if (!isJpeg && !isPng && !isGif && !isWebp) {
+    throw new Error('Format d\'image non pris en charge (JPEG, PNG, GIF ou WebP).');
+  }
 }
 
 export function getImgCacheDir(): string {
@@ -306,20 +340,6 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
     return null;
   });
 
-  ipcMain.handle('open-image-dialog', async () => {
-    const result = await showOpenDialog({
-      properties: ['openFile'],
-      filters: [
-        { name: 'Images', extensions: ['jpg', 'png', 'gif', 'webp', 'jpeg'] }
-      ]
-    });
-
-    if (!result.canceled && result.filePaths.length > 0) {
-      return result.filePaths[0];
-    }
-    return null;
-  });
-
   // --- Opérations Système ---
   // Renvoie null (et non []) si le dossier n'existe pas, pour que l'appelant
   // distingue "dossier introuvable" de "dossier vide".
@@ -466,22 +486,106 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
   // --- Cache d'images ---
   // Canaux dédiés, à la place des anciens fs-rm / fs-copy / fs-mkdir
   // génériques qui acceptaient n'importe quel chemin venant du renderer.
+  // Les images ajoutées à la main (work_image / sample_images === 'manual')
+  // sont conservées : elles ne sont téléchargeables nulle part, les supprimer
+  // les perdrait définitivement.
   ipcMain.handle('reset-image-cache', async () => {
     const imgCacheDir = getImgCacheDir();
-    fs.rmSync(imgCacheDir, { recursive: true, force: true });
+    const cache = await cacheStore.getAll() as Record<string, Partial<GameMetadata> | undefined>;
     fs.mkdirSync(imgCacheDir, { recursive: true });
+
+    for (const entry of fs.readdirSync(imgCacheDir, { withFileTypes: true })) {
+      const entryPath = path.join(imgCacheDir, entry.name);
+      const metadata = entry.isDirectory() ? cache[entry.name] : undefined;
+      const keep = new Set<string>();
+      if (metadata?.work_image === MANUAL_IMAGE) keep.add('work_image.jpg');
+      (metadata?.sample_images ?? []).forEach((src, i) => {
+        if (src === MANUAL_IMAGE) keep.add(`sample_${i + 1}.jpg`);
+      });
+
+      if (keep.size === 0) {
+        fs.rmSync(entryPath, { recursive: true, force: true });
+        continue;
+      }
+      for (const file of fs.readdirSync(entryPath)) {
+        if (!keep.has(file)) fs.rmSync(path.join(entryPath, file), { recursive: true, force: true });
+      }
+    }
   });
 
-  ipcMain.handle('set-custom-cover', async (event: IpcMainInvokeEvent, gameId: string, sourceImagePath: string) => {
+  // Applique en une fois les modifications d'images de l'édition manuelle :
+  // couverture conservée / remplacée / supprimée, et nouvelle liste
+  // d'échantillons, chacun étant soit un échantillon existant (renuméroté à
+  // sa nouvelle position), soit une image fournie en octets par le renderer
+  // (jamais un chemin : le renderer n'a pas à désigner de fichier du disque).
+  // Tout est validé avant de toucher au disque ; les échantillons passent par
+  // des fichiers `.staged` pour que les renumérotations ne s'écrasent pas.
+  ipcMain.handle('apply-game-images', async (event: IpcMainInvokeEvent, gameId: string, plan: GameImagesPlan) => {
     assertGameId(gameId);
-    if (!/\.(jpe?g|png|gif|webp)$/i.test(sourceImagePath) || !fs.existsSync(sourceImagePath)) {
-      throw new Error('Image invalide ou introuvable.');
+    if (!plan || typeof plan !== 'object' || !Array.isArray(plan.samples)) throw new Error('Plan d\'images invalide.');
+
+    const kept = new Set<number>();
+    for (const sample of plan.samples) {
+      if (!sample || typeof sample !== 'object') throw new Error('Plan d\'images invalide.');
+      if ('keep' in sample) {
+        if (!Number.isInteger(sample.keep) || sample.keep < 1 || kept.has(sample.keep)) throw new Error('Plan d\'images invalide.');
+        kept.add(sample.keep);
+      } else {
+        assertImageBytes(sample.data);
+      }
     }
+    if (plan.cover !== 'keep' && plan.cover !== 'remove') {
+      if (!plan.cover || typeof plan.cover !== 'object') throw new Error('Plan d\'images invalide.');
+      assertImageBytes(plan.cover.data);
+    }
+
     const gameImgDir = path.join(getImgCacheDir(), gameId);
     fs.mkdirSync(gameImgDir, { recursive: true });
-    fs.copyFileSync(sourceImagePath, path.join(gameImgDir, 'work_image.jpg'));
+    const isSample = (file: string) => /^sample_\d+\.jpg$/.test(file);
+    const isStaged = (file: string) => /^sample_\d+\.jpg\.staged$/.test(file);
+
+    // Restes d'une exécution interrompue.
+    for (const file of fs.readdirSync(gameImgDir)) {
+      if (isStaged(file)) fs.rmSync(path.join(gameImgDir, file), { force: true });
+    }
+
+    plan.samples.forEach((sample, i) => {
+      const staged = path.join(gameImgDir, `sample_${i + 1}.jpg.staged`);
+      if ('keep' in sample) {
+        const current = path.join(gameImgDir, `sample_${sample.keep}.jpg`);
+        // Échantillon jamais téléchargé : il le sera plus tard, à sa nouvelle position.
+        if (fs.existsSync(current)) fs.renameSync(current, staged);
+      } else {
+        fs.writeFileSync(staged, sample.data);
+      }
+    });
+
+    for (const file of fs.readdirSync(gameImgDir)) {
+      if (isSample(file)) fs.rmSync(path.join(gameImgDir, file), { force: true });
+    }
+    for (const file of fs.readdirSync(gameImgDir)) {
+      if (isStaged(file)) fs.renameSync(path.join(gameImgDir, file), path.join(gameImgDir, file.slice(0, -'.staged'.length)));
+    }
+
+    const coverPath = path.join(gameImgDir, 'work_image.jpg');
+    if (plan.cover === 'remove') {
+      fs.rmSync(coverPath, { force: true });
+    } else if (plan.cover !== 'keep') {
+      fs.writeFileSync(`${coverPath}.staged`, plan.cover.data);
+      fs.renameSync(`${coverPath}.staged`, coverPath);
+    }
     return true;
   });
+
+  // --- Plein écran ---
+  ipcMain.handle('toggle-fullscreen', () => {
+    const window = getWindow();
+    if (!window) return false;
+    window.setFullScreen(!window.isFullScreen());
+    return window.isFullScreen();
+  });
+
+  ipcMain.handle('is-fullscreen', () => getWindow()?.isFullScreen() ?? false);
 
   // --- Téléchargement d'images ---
   // Écrit dans un fichier `.part`, renommé seulement une fois complet : un
@@ -558,9 +662,9 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
 
     let allSucceeded = true;
 
-    // 'manual' = jaquette choisie par l'utilisateur (set-custom-cover) : rien
+    // 'manual' = jaquette choisie par l'utilisateur (apply-game-images) : rien
     // à télécharger, et la retenter à chaque scan échouerait indéfiniment.
-    if (metadata.work_image && metadata.work_image !== 'manual') {
+    if (metadata.work_image && metadata.work_image !== MANUAL_IMAGE) {
       const url = metadata.work_image.startsWith('http') ? metadata.work_image : `https:${metadata.work_image}`;
       const ok = await downloadIfMissing(url, path.join(gameDir, 'work_image.jpg'));
       allSucceeded = allSucceeded && ok;
@@ -568,6 +672,8 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
 
     if (metadata.sample_images && Array.isArray(metadata.sample_images)) {
       for (let i = 0; i < metadata.sample_images.length; i++) {
+        // Échantillon ajouté à la main : rien à télécharger.
+        if (metadata.sample_images[i] === MANUAL_IMAGE) continue;
         const url = metadata.sample_images[i].startsWith('http') ? metadata.sample_images[i] : `https:${metadata.sample_images[i]}`;
         const ok = await downloadIfMissing(url, path.join(gameDir, `sample_${i + 1}.jpg`));
         allSucceeded = allSucceeded && ok;

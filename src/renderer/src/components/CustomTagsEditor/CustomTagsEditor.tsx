@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus, X } from 'lucide-react';
 
 export interface CustomTagsEditorProps {
   tags: string[];
@@ -20,12 +21,17 @@ export default function CustomTagsEditor({ tags, onAddTag, onRemoveTag }: Custom
   return (
     <div>
       {tags.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2">
+        <div className="mb-3 flex flex-wrap gap-1.5">
           {tags.map(tag => (
-            <span key={tag} className="tag tag-neutral">
+            <span key={tag} className="tag pr-1.5">
               {tag}
-              <button onClick={() => onRemoveTag(tag)} className="ml-1.5 text-text-secondary hover:text-accent">
-                x
+              <button
+                type="button"
+                onClick={() => onRemoveTag(tag)}
+                aria-label={`Retirer ${tag}`}
+                className="rounded-sm p-0.5 text-text-muted hover:bg-white/10 hover:text-text"
+              >
+                <X size={12} strokeWidth={2.5} />
               </button>
             </span>
           ))}
@@ -37,11 +43,11 @@ export default function CustomTagsEditor({ tags, onAddTag, onRemoveTag }: Custom
           value={newTag}
           onChange={e => setNewTag(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="Ajouter un tag..."
+          placeholder="Ajouter un tag…"
           className="input flex-1"
         />
-        <button onClick={handleAdd} className="btn btn-secondary btn-icon">
-          +
+        <button type="button" onClick={handleAdd} aria-label="Ajouter le tag" className="btn btn-icon">
+          <Plus size={17} strokeWidth={2.5} />
         </button>
       </div>
     </div>

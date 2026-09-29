@@ -1,37 +1,37 @@
-import { X } from 'lucide-react';
+import { FolderOpen, Pencil, RotateCcw, TriangleAlert } from 'lucide-react';
 
 export interface FetchFailedViewProps {
   gameId: string;
   error?: string;
-  onClose: () => void;
   onRetry: () => void;
   onManualEdit: () => void;
   onOpenFolder: () => void;
 }
 
-export default function FetchFailedView({ gameId, error, onClose, onRetry, onManualEdit, onOpenFolder }: FetchFailedViewProps) {
+export default function FetchFailedView({ gameId, error, onRetry, onManualEdit, onOpenFolder }: FetchFailedViewProps) {
   return (
-    <div>
-      <div className="relative mb-4">
-        <button onClick={onClose} aria-label="Fermer" className="btn btn-ghost btn-icon absolute right-0 top-0">
-          <X size={14} strokeWidth={1.5} />
-        </button>
-        <h3 className="pr-9">{gameId}</h3>
-        <p className="my-2.5 font-semibold text-accent-700">⚠️ Échec de la récupération des données.</p>
-        <p>
-          <strong>Erreur :</strong> {error || 'Inconnue'}
-        </p>
-        <div className="mt-2 flex gap-2">
-          <button onClick={onRetry} className="btn btn-primary">
-            Réessayer
-          </button>
-          <button onClick={onManualEdit} className="btn btn-secondary">
-            Modifier manuellement
-          </button>
+    <div className="panel p-6">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-danger/15 text-danger">
+          <TriangleAlert size={20} strokeWidth={2.25} />
+        </span>
+        <div>
+          <h3 className="mb-0.5">{gameId}</h3>
+          <p className="m-0 text-text-secondary">Échec de la récupération des données.</p>
         </div>
       </div>
-      <div className="mt-8 flex flex-wrap gap-3">
-        <button onClick={onOpenFolder} className="btn btn-secondary">
+      <p className="mb-5 rounded-sm bg-bg-deep px-3 py-2 font-mono text-[13px] text-text-secondary">{error || 'Erreur inconnue'}</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onRetry} className="btn btn-primary">
+          <RotateCcw size={15} strokeWidth={2.25} />
+          Réessayer
+        </button>
+        <button type="button" onClick={onManualEdit} className="btn">
+          <Pencil size={15} strokeWidth={2.25} />
+          Modifier manuellement
+        </button>
+        <button type="button" onClick={onOpenFolder} className="btn btn-ghost">
+          <FolderOpen size={15} strokeWidth={2.25} />
           Ouvrir le dossier
         </button>
       </div>

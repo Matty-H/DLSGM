@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Download, Eye, FolderOpen, Gamepad2, HardDrive, Library, Link2, X, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages } from '../../lib/dataFetcher.js';
 import { collectCanonicalGenres, isJapaneseText, linkGenres, unlinkGroup, type GenreAliasGroups } from '../../lib/genreAliases.js';
 import { getSandboxieStatus, type SandboxieStatus } from '../../lib/gameTools.js';
 import type { AppSettings } from '../../hooks/useSettings';
+import Select from '../Select/Select';
 
 export interface SettingsScreenProps {
   settings: AppSettings;
@@ -26,6 +28,34 @@ function nearestPreset(minutes: number): number {
   , REFRESH_PRESETS[0].value);
 }
 
+type SettingsSection = 'library' | 'display' | 'launch' | 'genres' | 'storage';
+
+const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
+  { id: 'library', label: 'Bibliothèque', Icon: Library },
+  { id: 'display', label: 'Affichage', Icon: Eye },
+  { id: 'launch', label: 'Lancement', Icon: Gamepad2 },
+  { id: 'genres', label: 'Genres liés', Icon: Link2 },
+  { id: 'storage', label: 'Stockage', Icon: HardDrive }
+];
+
+/** Ligne de réglage SteamOS : libellé et description à gauche, contrôle à droite. */
+function SettingRow({ label, description, children }: { label: string; description?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-6 border-b border-divider py-4 last:border-0">
+      <div className="min-w-0">
+        <div className="text-[15px] font-semibold">{label}</div>
+        {description && <div className="mt-1 text-[13px] leading-relaxed text-text-muted">{description}</div>}
+      </div>
+      {children && <div className="flex flex-shrink-0 items-center gap-2">{children}</div>}
+    </div>
+  );
+}
+
+/**
+ * Paramètres façon SteamOS : menu de sections à gauche, lignes de réglage à
+ * droite. Les modifications restent locales jusqu'à "Enregistrer" (le
+ * parent rescanne la bibliothèque à l'enregistrement).
+ */
 export default function SettingsScreen({ settings, onSave, allGenres }: SettingsScreenProps) {
   const [destinationFolder, setDestinationFolder] = useState(settings.destinationFolder);
   const [refreshRate, setRefreshRate] = useState(settings.refreshRate);
@@ -33,10 +63,12 @@ export default function SettingsScreen({ settings, onSave, allGenres }: Settings
   const [blurAdultContent, setBlurAdultContent] = useState(settings.blurAdultContent);
   const [genreAliasGroups, setGenreAliasGroups] = useState<GenreAliasGroups>(settings.genreAliasGroups);
   const [sandboxLaunch, setSandboxLaunch] = useState(settings.sandboxLaunch);
+  const [startFullscreen, setStartFullscreen] = useState(settings.startFullscreen);
   const [sandboxieStatus, setSandboxieStatus] = useState<SandboxieStatus | null>(null);
   const [isResettingImages, setIsResettingImages] = useState(false);
   const [primaryPick, setPrimaryPick] = useState('');
   const [secondaryPick, setSecondaryPick] = useState('');
+  const [section, setSection] = useState<SettingsSection>('library');
 
   useEffect(() => {
     setDestinationFolder(settings.destinationFolder);
@@ -45,6 +77,7 @@ export default function SettingsScreen({ settings, onSave, allGenres }: Settings
     setBlurAdultContent(settings.blurAdultContent);
     setGenreAliasGroups(settings.genreAliasGroups);
     setSandboxLaunch(settings.sandboxLaunch);
+    setStartFullscreen(settings.startFullscreen);
   }, [settings]);
 
   useEffect(() => {
@@ -61,13 +94,22 @@ export default function SettingsScreen({ settings, onSave, allGenres }: Settings
   const englishGenres = useMemo(() => canonicalGenres.filter(g => !isJapaneseText(g)), [canonicalGenres]);
   const japaneseGenres = useMemo(() => canonicalGenres.filter(g => isJapaneseText(g)), [canonicalGenres]);
 
+  const isDirty =
+    destinationFolder !== settings.destinationFolder ||
+    refreshRate !== settings.refreshRate ||
+    language !== settings.language ||
+    blurAdultContent !== settings.blurAdultContent ||
+    sandboxLaunch !== settings.sandboxLaunch ||
+    startFullscreen !== settings.startFullscreen ||
+    JSON.stringify(genreAliasGroups) !== JSON.stringify(settings.genreAliasGroups);
+
   const handleBrowse = async () => {
     const folderPath = await window.electronAPI.openFolderDialog();
     if (folderPath) setDestinationFolder(folderPath);
   };
 
   const handleSave = () => {
-    onSave({ ...settings, destinationFolder, refreshRate, language, blurAdultContent, genreAliasGroups, sandboxLaunch });
+    onSave({ ...settings, destinationFolder, refreshRate, language, blurAdultContent, genreAliasGroups, sandboxLaunch, startFullscreen });
   };
 
   const handleResetImages = async () => {
@@ -91,169 +133,198 @@ export default function SettingsScreen({ settings, onSave, allGenres }: Settings
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6">
-      <div className="mb-1 text-[11px] uppercase tracking-widest text-text-secondary opacity-55">Paramètres</div>
-      <h1 className="mb-5">Compte et bibliothèque</h1>
-
-      <div className="grid max-w-[520px] gap-4">
-        <div className="field">
-          <label htmlFor="folder">Dossier de bibliothèque</label>
-          <div className="flex gap-2">
-            <input id="folder" readOnly value={destinationFolder} className="input" />
-            <button type="button" onClick={handleBrowse} className="btn btn-secondary">
-              Parcourir
-            </button>
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="refresh">Fréquence de rafraîchissement du cache</label>
-          <select
-            id="refresh"
-            value={nearestPreset(refreshRate)}
-            onChange={e => setRefreshRate(Number(e.target.value))}
-            className="input cursor-pointer"
+    <div className="animate-steam-in flex min-h-0 flex-1 gap-6 overflow-hidden px-6 pb-6 pt-4">
+      <nav className="flex w-[240px] flex-shrink-0 flex-col gap-1">
+        <h1 className="mb-4 px-3">Paramètres</h1>
+        {SECTIONS.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setSection(id)}
+            className={`flex items-center gap-3 rounded-sm px-3 py-2.5 text-left text-[15px] font-semibold transition-colors ${
+              section === id ? 'bg-focus text-on-focus' : 'text-text-secondary hover:bg-white/10 hover:text-text'
+            }`}
           >
-            {REFRESH_PRESETS.map(({ value, label }) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
+            <Icon size={18} strokeWidth={2.25} />
+            {label}
+          </button>
+        ))}
 
-        <div className="field">
-          <label id="privacy-label">Contenu adulte (R18)</label>
-          <div className="seg" role="radiogroup" aria-labelledby="privacy-label">
-            <label className="seg-opt">
-              <input type="radio" name="privacy" checked={!blurAdultContent} onChange={() => setBlurAdultContent(false)} />
-              Afficher normalement
-            </label>
-            <label className="seg-opt">
-              <input type="radio" name="privacy" checked={blurAdultContent} onChange={() => setBlurAdultContent(true)} />
-              Flouter jusqu'au clic
-            </label>
-          </div>
-        </div>
-
-        <div className="field">
-          <label id="sandbox-label">Lancement des jeux</label>
-          <div className="seg" role="radiogroup" aria-labelledby="sandbox-label">
-            <label className="seg-opt">
-              <input type="radio" name="sandbox" checked={!sandboxLaunch} onChange={() => setSandboxLaunch(false)} />
-              Normal
-            </label>
-            <label className="seg-opt">
-              <input type="radio" name="sandbox" checked={sandboxLaunch} onChange={() => setSandboxLaunch(true)} />
-              Dans Sandboxie-Plus
-            </label>
-          </div>
-          <p className="mt-2 text-xs text-text-secondary">
-            Chaque jeu tourne dans sa propre sandbox : ce qu'il écrit hors de son dossier (AppData, registre) y est
-            isolé au lieu de polluer Windows. Son dossier reste en accès direct (sauvegardes locales, patchs). Ce
-            n'est pas une machine virtuelle : ça limite les dégâts d'un exécutable douteux sans les rendre impossibles.
-          </p>
-          {sandboxieStatus && (
-            <p className={`mt-1 text-xs ${!sandboxieStatus.available && sandboxLaunch ? 'text-red-400' : 'text-text-secondary'}`}>
-              {sandboxieStatus.available ? (
-                `Sandboxie détecté : ${sandboxieStatus.installDir}`
-              ) : (
-                <>
-                  Sandboxie-Plus n'est pas installé
-                  {sandboxLaunch && ' — les jeux ne pourront pas être lancés tant que ce sera le cas'}.{' '}
-                  <button type="button" className="underline" onClick={() => window.electronAPI.openExternal('https://sandboxie-plus.com/downloads/')}>
-                    Télécharger
-                  </button>
-                </>
-              )}
-            </p>
-          )}
-        </div>
-
-        <div className="field">
-          <label>Langue</label>
-          <div className="seg">
-            <label className="seg-opt">
-              <input type="radio" name="language" checked={language === 'en_US'} onChange={() => setLanguage('en_US')} />
-              🇬🇧 English
-            </label>
-            <label className="seg-opt">
-              <input type="radio" name="language" checked={language === 'ja_JP'} onChange={() => setLanguage('ja_JP')} />
-              🇯🇵 日本語
-            </label>
-          </div>
-        </div>
-
-        <div className="field">
-          <label>Genres liés</label>
-          <p className="mb-2 text-xs text-text-secondary">
-            DLsite fournit parfois le même genre en japonais et en anglais selon la langue de récupération (ex: "Anal" /
-            "アナル"). Lie-les pour qu'ils comptent comme un seul genre dans les filtres et les statistiques — le premier
-            choisi devient le libellé affiché.
-          </p>
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <label className="mb-1 block text-[11px] uppercase tracking-wide text-text-secondary">
-                Anglais (principal)
-              </label>
-              <select value={primaryPick} onChange={e => setPrimaryPick(e.target.value)} className="input cursor-pointer">
-                <option value="">Genre anglais…</option>
-                {englishGenres.map(g => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="mb-1 block text-[11px] uppercase tracking-wide text-text-secondary">Japonais (fusionné)</label>
-              <select value={secondaryPick} onChange={e => setSecondaryPick(e.target.value)} className="input cursor-pointer">
-                <option value="">Genre japonais…</option>
-                {japaneseGenres.map(g => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button type="button" onClick={handleLink} disabled={!primaryPick || !secondaryPick} className="btn btn-secondary">
-              Lier
-            </button>
-          </div>
-          {genreAliasGroups.length > 0 && (
-            <div className="mt-3 flex flex-col gap-1.5">
-              {genreAliasGroups.map(group => (
-                <div key={group[0]} className="flex items-center justify-between gap-2 text-sm">
-                  <span>{group.join(' ↔ ')}</span>
-                  <button
-                    type="button"
-                    aria-label={`Délier ${group[0]}`}
-                    onClick={() => setGenreAliasGroups(prev => unlinkGroup(prev, group[0]))}
-                    className="btn btn-ghost btn-icon"
-                  >
-                    <X size={14} strokeWidth={1.5} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="field">
-          <label>Cache images</label>
-          <button type="button" onClick={handleResetImages} disabled={isResettingImages} className="btn btn-secondary">
-            {isResettingImages ? 'Réinitialisation en cours…' : 'Réinitialiser le cache images'}
+        <div className="mt-auto flex flex-col gap-2 px-1">
+          {isDirty && <span className="text-[12px] text-text-muted">Modifications non enregistrées</span>}
+          <button type="button" onClick={handleSave} disabled={!isDirty} className="btn btn-primary btn-block py-3">
+            Enregistrer
           </button>
         </div>
-      </div>
+      </nav>
 
-      <button type="button" onClick={handleSave} className="btn btn-primary blueprint mt-6">
-        <i className="corner tl" />
-        <i className="corner tr" />
-        <i className="corner bl" />
-        <i className="corner br" />
-        Enregistrer
-      </button>
+      <div data-scroll-root className="panel max-h-full min-h-0 flex-1 self-start overflow-y-auto px-6 py-2">
+        {section === 'library' && (
+          <>
+            <SettingRow label="Dossier de bibliothèque" description={destinationFolder || 'Aucun dossier sélectionné'}>
+              <button type="button" onClick={handleBrowse} className="btn">
+                <FolderOpen size={16} strokeWidth={2.25} />
+                Parcourir
+              </button>
+            </SettingRow>
+
+            <SettingRow label="Rafraîchissement du cache" description="Relit périodiquement le cache pour afficher les données mises à jour en arrière-plan.">
+              <Select
+                value={nearestPreset(refreshRate)}
+                options={REFRESH_PRESETS}
+                onChange={setRefreshRate}
+                aria-label="Fréquence de rafraîchissement du cache"
+                className="w-[200px]"
+              />
+            </SettingRow>
+
+            <SettingRow label="Langue des métadonnées" description="Langue utilisée pour récupérer les fiches depuis DLsite.">
+              <div className="seg">
+                <label className="seg-opt">
+                  <input type="radio" name="language" checked={language === 'en_US'} onChange={() => setLanguage('en_US')} />
+                  English
+                </label>
+                <label className="seg-opt">
+                  <input type="radio" name="language" checked={language === 'ja_JP'} onChange={() => setLanguage('ja_JP')} />
+                  日本語
+                </label>
+              </div>
+            </SettingRow>
+          </>
+        )}
+
+        {section === 'display' && (
+          <>
+            <SettingRow label="Flouter le contenu adulte (R18)" description="Les jaquettes R18 restent floutées dans la grille jusqu'à un clic.">
+              <input
+                type="checkbox"
+                className="toggle"
+                aria-label="Flouter le contenu adulte"
+                checked={blurAdultContent}
+                onChange={e => setBlurAdultContent(e.target.checked)}
+              />
+            </SettingRow>
+            <SettingRow
+              label="Démarrer en plein écran"
+              description="F11, le bouton en haut à droite ou le bouton View de la manette basculent le plein écran à tout moment."
+            >
+              <input
+                type="checkbox"
+                className="toggle"
+                aria-label="Démarrer en plein écran"
+                checked={startFullscreen}
+                onChange={e => setStartFullscreen(e.target.checked)}
+              />
+            </SettingRow>
+          </>
+        )}
+
+        {section === 'launch' && (
+          <SettingRow
+            label="Lancer les jeux dans Sandboxie-Plus"
+            description={
+              <>
+                Chaque jeu tourne dans sa propre sandbox : ce qu'il écrit hors de son dossier (AppData, registre) y est
+                isolé au lieu de polluer Windows. Son dossier reste en accès direct (sauvegardes locales, patchs). Ce
+                n'est pas une machine virtuelle : ça limite les dégâts d'un exécutable douteux sans les rendre impossibles.
+                {sandboxieStatus && (
+                  <span className={`mt-2 block ${!sandboxieStatus.available && sandboxLaunch ? 'text-danger' : ''}`}>
+                    {sandboxieStatus.available ? (
+                      `Sandboxie détecté : ${sandboxieStatus.installDir}`
+                    ) : (
+                      <>
+                        Sandboxie-Plus n'est pas installé
+                        {sandboxLaunch && ' — les jeux ne pourront pas être lancés tant que ce sera le cas'}.{' '}
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 font-semibold text-accent hover:underline"
+                          onClick={() => window.electronAPI.openExternal('https://sandboxie-plus.com/downloads/')}
+                        >
+                          <Download size={13} strokeWidth={2.5} />
+                          Télécharger
+                        </button>
+                      </>
+                    )}
+                  </span>
+                )}
+              </>
+            }
+          >
+            <input
+              type="checkbox"
+              className="toggle"
+              aria-label="Lancer les jeux dans Sandboxie-Plus"
+              checked={sandboxLaunch}
+              onChange={e => setSandboxLaunch(e.target.checked)}
+            />
+          </SettingRow>
+        )}
+
+        {section === 'genres' && (
+          <div className="py-4">
+            <div className="text-[15px] font-semibold">Lier des genres</div>
+            <p className="mb-4 mt-1 text-[13px] leading-relaxed text-text-muted">
+              DLsite fournit parfois le même genre en japonais et en anglais selon la langue de récupération (ex: "Anal" /
+              "アナル"). Lie-les pour qu'ils comptent comme un seul genre dans les filtres et les statistiques — le premier
+              choisi devient le libellé affiché.
+            </p>
+            <div className="flex items-end gap-2">
+              <div className="field flex-1">
+                <label htmlFor="genre-primary">Anglais (principal)</label>
+                <Select
+                  id="genre-primary"
+                  value={primaryPick}
+                  options={englishGenres.map(g => ({ value: g, label: g }))}
+                  onChange={setPrimaryPick}
+                  placeholder="Genre anglais…"
+                />
+              </div>
+              <div className="field flex-1">
+                <label htmlFor="genre-secondary">Japonais (fusionné)</label>
+                <Select
+                  id="genre-secondary"
+                  value={secondaryPick}
+                  options={japaneseGenres.map(g => ({ value: g, label: g }))}
+                  onChange={setSecondaryPick}
+                  placeholder="Genre japonais…"
+                />
+              </div>
+              <button type="button" onClick={handleLink} disabled={!primaryPick || !secondaryPick} className="btn">
+                <Link2 size={16} strokeWidth={2.25} />
+                Lier
+              </button>
+            </div>
+            {genreAliasGroups.length > 0 && (
+              <div className="mt-5 flex flex-col">
+                {genreAliasGroups.map(group => (
+                  <div key={group[0]} className="flex items-center justify-between gap-2 border-b border-divider py-1.5 text-sm last:border-0">
+                    <span>{group.join(' ↔ ')}</span>
+                    <button
+                      type="button"
+                      aria-label={`Délier ${group[0]}`}
+                      onClick={() => setGenreAliasGroups(prev => unlinkGroup(prev, group[0]))}
+                      className="btn btn-ghost btn-icon"
+                    >
+                      <X size={16} strokeWidth={2.25} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {section === 'storage' && (
+          <SettingRow
+            label="Cache images"
+            description="Supprime et retélécharge toutes les jaquettes et images depuis DLsite. Irréversible, et peut prendre du temps."
+          >
+            <button type="button" onClick={handleResetImages} disabled={isResettingImages} className="btn">
+              {isResettingImages ? 'Réinitialisation en cours…' : 'Réinitialiser'}
+            </button>
+          </SettingRow>
+        )}
+      </div>
     </div>
   );
 }
