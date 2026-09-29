@@ -7,7 +7,8 @@ import Store from './store';
 import { fetchGameMetadata } from './dlsite-fetcher';
 import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch } from './game-tools';
 import { boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand } from './sandboxie';
-import type { AppSettings, GameImagesPlan, GameMetadata, GameToolsInfo, LaunchGameResult, SandboxieStatus } from '../shared/ipc-types';
+import { DEFAULT_LAN_PORT, LanShare } from './lan-share';
+import type { AppSettings, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, SandboxieStatus } from '../shared/ipc-types';
 
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 15000;
 
@@ -37,7 +38,8 @@ const settingsStore = new Store('settings.db', {
   blurAdultContent: true,
   genreAliasGroups: [],
   sandboxLaunch: false,
-  startFullscreen: false
+  startFullscreen: false,
+  lanSharePort: DEFAULT_LAN_PORT
 }, 'settings.json');
 
 const cacheStore = new Store('cache.db', {}, 'cache.json');
@@ -270,6 +272,16 @@ async function recordPlaySession(gameId: string, durationSeconds: number): Promi
   }));
 }
 
+// Échange de jeux en réseau local. Créé par setupIpcHandlers (il a besoin
+// de la fenêtre pour notifier le renderer), fermé à l'arrêt par main.ts.
+let lanShare: LanShare | null = null;
+
+/** Ferme la réception réseau local (le port) avant de quitter. */
+export async function shutdownLanShare(): Promise<void> {
+  lanShare?.cancelSend();
+  await lanShare?.stopReceiver();
+}
+
 /**
  * Enregistre les handlers IPC. À n'appeler qu'une fois : sur macOS la fenêtre
  * peut être recréée (événement `activate`), d'où `getWindow` plutôt qu'une
@@ -283,6 +295,24 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
 
   // --- Infos App ---
   ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
+
+  // --- Échange de jeux en réseau local ---
+  const share = new LanShare({
+    getDestinationFolder: async () => (await getSettings()).destinationFolder,
+    getImgCacheDir,
+    getCacheEntry: async gameId => await cacheStore.get(gameId) as GameMetadata | undefined,
+    insertCacheEntry: (gameId, entry) => cacheStore.insert(gameId, entry),
+    emitProgress: progress => getWindow()?.webContents.send('lan-transfer-progress', progress),
+    emitReceiverStatus: status => getWindow()?.webContents.send('lan-receiver-status', status)
+  });
+  lanShare = share;
+
+  ipcMain.handle('get-lan-receiver-status', () => share.status());
+  ipcMain.handle('start-lan-receiver', (event: IpcMainInvokeEvent, port: number) => share.startReceiver(port));
+  ipcMain.handle('stop-lan-receiver', () => share.stopReceiver());
+  ipcMain.handle('discover-lan-peers', () => share.discoverPeers());
+  ipcMain.handle('send-games-over-lan', (event: IpcMainInvokeEvent, request: LanSendRequest) => share.sendGames(request, getGameDir));
+  ipcMain.handle('cancel-lan-send', () => share.cancelSend());
 
   // --- Gestion des Paramètres ---
   ipcMain.handle('get-settings', () => {

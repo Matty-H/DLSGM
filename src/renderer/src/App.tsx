@@ -6,6 +6,7 @@ import GamesGrid from './components/GamesGrid/GamesGrid';
 import GameInfoPanel from './components/GameInfoPanel/GameInfoPanel';
 import StatsScreen from './components/StatsScreen/StatsScreen';
 import SettingsScreen from './components/SettingsScreen/SettingsScreen';
+import ShareScreen from './components/ShareScreen/ShareScreen';
 import PanicOverlay from './components/PanicOverlay/PanicOverlay';
 import FooterHints, { type FooterHint } from './components/FooterHints/FooterHints';
 import { useSettings } from './hooks/useSettings';
@@ -16,6 +17,7 @@ import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
 import { useGamepadNavigation } from './hooks/useGamepadNavigation';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useFileDropGuard } from './hooks/useFileDropGuard';
+import { useLanShare } from './hooks/useLanShare';
 import { collectAllCategories, collectAllGenres } from './lib/metadataManager.js';
 import { matchesFilters, compareGames } from './lib/filterManager.js';
 import { collectCanonicalGenres } from './lib/genreAliases.js';
@@ -29,6 +31,8 @@ export default function App() {
   const panicActive = usePanicButton();
   const fullscreen = useFullscreen();
   useFileDropGuard();
+  // Un jeu reçu d'un autre PC apparaît dans le dossier : rescan pour l'afficher.
+  const lanShare = useLanShare({ onGameReceived: () => library.rescan() });
 
   const [activeTab, setActiveTab] = useState<AppTab>('library');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
@@ -114,6 +118,11 @@ export default function App() {
   ]);
 
   const displayedGameIds = useMemo(() => displayedGames.map(g => g.id), [displayedGames]);
+
+  const shareableGames = useMemo(
+    () => library.gameFolders.map(id => ({ id, name: (library.cache[id]?.work_name as string | undefined) || id })),
+    [library.gameFolders, library.cache]
+  );
 
   const handleResetFilters = () => {
     filters.resetFilters();
@@ -244,6 +253,7 @@ export default function App() {
         onTabChange={setActiveTab}
         isFullscreen={fullscreen.isFullscreen}
         onToggleFullscreen={fullscreen.toggle}
+        isReceiving={lanShare.receiver?.running ?? false}
       />
 
       {activeTab === 'library' && (
@@ -334,6 +344,15 @@ export default function App() {
             setActiveTab('library');
             handleOpenGame(gameId);
           }}
+        />
+      )}
+
+      {activeTab === 'share' && settings && (
+        <ShareScreen
+          share={lanShare}
+          games={shareableGames}
+          port={settings.lanSharePort}
+          onPortChange={lanSharePort => saveSettings({ ...settings, lanSharePort })}
         />
       )}
 

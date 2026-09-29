@@ -2,7 +2,7 @@ import { app, BrowserWindow, globalShortcut, net, protocol } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
-import { setupIpcHandlers, getImgCacheDir, getSettings, isInside } from './ipc-handlers';
+import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare } from './ipc-handlers';
 import { initAutoUpdater } from './updater';
 
 let mainWindow: BrowserWindow | null = null;
@@ -110,6 +110,8 @@ app.whenReady().then(() => {
 // Libération des raccourcis à la fermeture
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  // Ferme le port de réception réseau local et annule les transferts en cours.
+  shutdownLanShare().catch(error => console.error('Fermeture du partage réseau local:', error));
 });
 
 // Quitter quand toutes les fenêtres sont fermées (sauf sur Mac)

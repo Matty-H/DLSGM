@@ -123,6 +123,20 @@ class Store {
   }
 
   /**
+   * Crée la clé avec `val` seulement si elle n'existe pas encore (vérification
+   * et écriture dans la même opération sérialisée). Renvoie false, sans rien
+   * écrire, si la clé existe déjà.
+   */
+  insert(key: string, val: unknown): Promise<boolean> {
+    return this.serialize(async () => {
+      if (await this.db.findOneAsync({ _id: key })) return false;
+      await this.db.insertAsync({ _id: key, value: val });
+      await this.db.compactDatafileAsync();
+      return true;
+    });
+  }
+
+  /**
    * Fusionne atomiquement `patch` (ou le résultat de `patch(valeurActuelle)`)
    * dans la valeur objet d'une clé. Ne crée jamais d'entrée : renvoie false si
    * la clé n'existe pas, pour ne pas fabriquer une entrée partielle (ex: un

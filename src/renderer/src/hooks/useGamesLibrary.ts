@@ -17,6 +17,9 @@ export function useGamesLibrary() {
   const [status, setStatus] = useState<LibraryStatus>('loading');
   const [runningGames, setRunningGames] = useState<Set<string>>(new Set());
   const scanningRef = useRef(false);
+  // Scan demandé pendant un scan (ex: jeu reçu en réseau local) : relancé à
+  // la fin du scan en cours au lieu d'être ignoré.
+  const rescanPendingRef = useRef(false);
 
   const reloadCache = useCallback(async () => {
     const c = await loadCache();
@@ -25,18 +28,24 @@ export function useGamesLibrary() {
   }, []);
 
   const rescan = useCallback(async () => {
-    if (scanningRef.current) return;
+    if (scanningRef.current) {
+      rescanPendingRef.current = true;
+      return;
+    }
     scanningRef.current = true;
     try {
-      const result = await scanGames();
-      if (result.status === 'ok') {
-        setGameFolders(result.gameFolders ?? []);
-        await reloadCache();
-        setStatus('ok');
-      } else {
-        setGameFolders([]);
-        setStatus(result.status);
-      }
+      do {
+        rescanPendingRef.current = false;
+        const result = await scanGames();
+        if (result.status === 'ok') {
+          setGameFolders(result.gameFolders ?? []);
+          await reloadCache();
+          setStatus('ok');
+        } else {
+          setGameFolders([]);
+          setStatus(result.status);
+        }
+      } while (rescanPendingRef.current);
     } finally {
       scanningRef.current = false;
     }
