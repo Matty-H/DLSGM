@@ -35,6 +35,13 @@ const electronAPI: ElectronAPI = {
   resetImageCache: () => ipcRenderer.invoke('reset-image-cache'),
   setCustomCover: (gameId, sourceImagePath) => ipcRenderer.invoke('set-custom-cover', gameId, sourceImagePath),
 
+  // Outils par jeu : moteur, sauvegardes, patchs réversibles
+  getGameToolsInfo: (gameId) => ipcRenderer.invoke('get-game-tools-info', gameId),
+  openSaveLocation: (gameId, index) => ipcRenderer.invoke('open-save-location', gameId, index),
+  installAutoTranslator: (gameId, targetLanguage) => ipcRenderer.invoke('install-auto-translator', gameId, targetLanguage),
+  applyUserPatch: (gameId, source) => ipcRenderer.invoke('apply-user-patch', gameId, source),
+  uninstallLastPatch: (gameId) => ipcRenderer.invoke('uninstall-last-patch', gameId),
+
 
   // Récupération des métadonnées DLsite
   fetchGameMetadata: (gameId, locale) => ipcRenderer.invoke('fetch-game-metadata', gameId, locale),

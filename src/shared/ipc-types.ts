@@ -76,6 +76,63 @@ export interface LaunchGameResult {
   untracked?: boolean;
 }
 
+export type GameEngine =
+  | 'unity'
+  | 'rpgmaker-mz'
+  | 'rpgmaker-mv'
+  | 'rpgmaker-vxace'
+  | 'rpgmaker-vx'
+  | 'rpgmaker-xp'
+  | 'wolf'
+  | 'renpy'
+  | 'kirikiri'
+  | 'tyrano'
+  | 'godot'
+  | 'unreal'
+  | 'gamemaker'
+  | 'cocos2d'
+  | 'html5'
+  | 'unknown';
+
+export interface EngineInfo {
+  engine: GameEngine;
+  label: string;
+  /** Architecture de l'exécutable (en-tête PE), null si inconnue ou non-Windows. */
+  arch: 'x64' | 'x86' | null;
+  unityBackend?: 'mono' | 'il2cpp';
+  unityVersion?: string | null;
+  /** Société / produit Unity (`<Jeu>_Data/app.info`) : déterminent le dossier LocalLow. */
+  unityCompany?: string | null;
+  unityProduct?: string | null;
+}
+
+export interface SaveLocation {
+  label: string;
+  path: string;
+  /** Faux si le dossier attendu n'existe pas (encore) — ex: jeu jamais lancé. */
+  exists: boolean;
+}
+
+export interface InstalledPatch {
+  id: string;
+  name: string;
+  kind: 'auto-translator' | 'custom';
+  installedAt: string;
+  /** Fichiers ajoutés, relatifs au dossier du jeu (supprimés à la désinstallation). */
+  added: string[];
+  /** Fichiers écrasés, relatifs au dossier du jeu (restaurés depuis .dlsgm/backup). */
+  overwritten: string[];
+}
+
+export interface GameToolsInfo {
+  engine: EngineInfo;
+  /** Dossier d'installation (celui de l'exécutable), relatif au dossier du jeu ('' = racine). */
+  installRoot: string;
+  saveLocations: SaveLocation[];
+  /** Patchs installés par DLSGM, du plus ancien au plus récent. */
+  patches: InstalledPatch[];
+}
+
 export interface ElectronAPI {
   // Infos App
   getUserDataPath(): Promise<string>;
@@ -108,6 +165,15 @@ export interface ElectronAPI {
   downloadGameImages(gameId: string, metadata: GameMetadata): Promise<boolean>;
   resetImageCache(): Promise<void>;
   setCustomCover(gameId: string, sourceImagePath: string): Promise<boolean>;
+
+  // Outils par jeu : moteur, sauvegardes, patchs réversibles
+  getGameToolsInfo(gameId: string): Promise<GameToolsInfo>;
+  /** Ouvre l'emplacement de sauvegarde n° `index` de getGameToolsInfo (jamais un chemin libre). */
+  openSaveLocation(gameId: string, index: number): Promise<boolean>;
+  installAutoTranslator(gameId: string, targetLanguage: string): Promise<GameToolsInfo>;
+  /** Ouvre un sélecteur (.zip ou dossier) puis applique le patch ; null si annulé. */
+  applyUserPatch(gameId: string, source: 'zip' | 'folder'): Promise<GameToolsInfo | null>;
+  uninstallLastPatch(gameId: string): Promise<GameToolsInfo>;
 
 
   // Récupération des métadonnées DLsite (fetch Node pur, sans dépendance Python)

@@ -1,6 +1,7 @@
 import Carousel from '../Carousel/Carousel';
 import RatingStars from '../RatingStars/RatingStars';
 import CustomTagsEditor from '../CustomTagsEditor/CustomTagsEditor';
+import GameToolsSection from '../GameToolsSection/GameToolsSection';
 import { categoryMap } from '../../lib/metadataManager.js';
 import { formatPlayTime } from '../../lib/timeFormatter.js';
 import { canonicalGenre, type GenreAliasGroups } from '../../lib/genreAliases.js';
@@ -145,6 +146,10 @@ export default function GameInfoDetails({
           onAddTag={tag => onUpdateGame(gameId, { customTags: [...customTags, tag] })}
           onRemoveTag={tag => onUpdateGame(gameId, { customTags: customTags.filter(t => t !== tag) })}
         />
+
+        <div className="hr" />
+
+        <GameToolsSection gameId={gameId} executablePath={gameData.executablePath} />
 
         <div className="hr" />
 
