@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, net, protocol } from 'electron';
+import { app, BrowserWindow, globalShortcut, Menu, net, protocol } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
@@ -36,9 +36,21 @@ function createWindow(): void {
   // F11 bascule le plein écran. Intercepté ici (et non dans la page) pour
   // ne pas entrer en conflit avec l'accélérateur du menu par défaut.
   window.webContents.on('before-input-event', (event, input) => {
-    if (input.type === 'keyDown' && input.key === 'F11') {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F11') {
       event.preventDefault();
       window.setFullScreen(!window.isFullScreen());
+    }
+    // Sans menu (Windows/Linux), les raccourcis de développement du menu
+    // par défaut disparaissent : F12 (outils de dev) et Ctrl+R (recharger)
+    // restent disponibles hors build packagée.
+    if (!app.isPackaged && input.key === 'F12') {
+      event.preventDefault();
+      window.webContents.toggleDevTools();
+    }
+    if (!app.isPackaged && input.control && input.key.toLowerCase() === 'r') {
+      event.preventDefault();
+      window.webContents.reload();
     }
   });
   window.on('enter-full-screen', () => window.webContents.send('fullscreen-changed', true));
@@ -72,6 +84,11 @@ protocol.registerSchemesAsPrivileged([
 
 // Initialisation de l'application
 app.whenReady().then(() => {
+  // Pas de barre de menu "File, Edit, View, Window, Help" sous Windows/Linux :
+  // l'app n'en a pas l'usage (copier/coller et F11 fonctionnent sans). Sur
+  // macOS le menu reste : Cmd+C/V/Q en dépendent, et il n'apparaît pas dans
+  // la fenêtre de toute façon.
+  if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   // atom://img/<ID>/<fichier> -> <userData>/img_cache/<ID>/<fichier>. Le
   // protocole ne sert que le cache d'images : tout chemin qui en sort
   // (../, chemin absolu) est refusé, au lieu d'exposer tout le disque.
