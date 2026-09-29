@@ -42,6 +42,9 @@ const electronAPI: ElectronAPI = {
   applyUserPatch: (gameId, source) => ipcRenderer.invoke('apply-user-patch', gameId, source),
   uninstallLastPatch: (gameId) => ipcRenderer.invoke('uninstall-last-patch', gameId),
 
+  // Sandbox Sandboxie-Plus
+  getSandboxieStatus: () => ipcRenderer.invoke('get-sandboxie-status'),
+  clearGameSandbox: (gameId) => ipcRenderer.invoke('clear-game-sandbox', gameId),
 
   // Récupération des métadonnées DLsite
   fetchGameMetadata: (gameId, locale) => ipcRenderer.invoke('fetch-game-metadata', gameId, locale),

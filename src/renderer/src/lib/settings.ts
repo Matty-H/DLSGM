@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: Settings = {
   language: 'en_US',
   blurAdultContent: true,
   genreAliasGroups: KNOWN_GENRE_PAIRS,
+  sandboxLaunch: false,
   selectedSort: 'name_asc'
 };
 

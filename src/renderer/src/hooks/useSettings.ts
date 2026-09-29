@@ -7,6 +7,7 @@ export interface AppSettings {
   language: string;
   blurAdultContent: boolean;
   genreAliasGroups: string[][];
+  sandboxLaunch: boolean;
   selectedSort: string;
 }
 
