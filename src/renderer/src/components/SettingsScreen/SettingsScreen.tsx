@@ -12,7 +12,13 @@ import { addCollection, moveCollection, removeCollection, type GameCollection } 
 import Select from '../Select/Select';
 
 // Même format que la validation côté main (src/main/dlsite-net.ts).
-const PROXY_REGEX = /^(https?|socks[45]?):\/\/[A-Za-z0-9.\-[\]:]+:\d{1,5}$/;
+const PROXY_REGEX = /^(https?|socks[45]?):\/\/(?:([^:@/\s]+)(?::([^@/\s]*))?@)?([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\]):(\d{1,5})$/;
+
+/** Même règle que main (src/main/proxy-config.ts) : SOCKS4 n'accepte pas d'identifiants. */
+const isValidProxy = (value: string) => {
+  const match = PROXY_REGEX.exec(value);
+  return match !== null && !(/^socks4?$/.test(match[1]) && match[2] !== undefined);
+};
 
 export interface SettingsScreenProps {
   settings: AppSettings;
@@ -154,6 +160,7 @@ export default function SettingsScreen({
   const [sandboxLaunch, setSandboxLaunch] = useState(settings.sandboxLaunch);
   const [startFullscreen, setStartFullscreen] = useState(settings.startFullscreen);
   const [dlsiteProxy, setDlsiteProxy] = useState(settings.dlsiteProxy ?? '');
+  const [proxyTest, setProxyTest] = useState<string | null>(null);
   const [collections, setCollections] = useState<GameCollection[]>(settings.collections ?? []);
   const [newCollectionName, setNewCollectionName] = useState('');
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
@@ -219,7 +226,7 @@ export default function SettingsScreen({
     if (folderPath) setDestinationFolder(folderPath);
   };
 
-  const proxyValid = dlsiteProxy.trim() === '' || PROXY_REGEX.test(dlsiteProxy.trim());
+  const proxyValid = dlsiteProxy.trim() === '' || isValidProxy(dlsiteProxy.trim());
   // Noms de collections renommées : ni vides, ni en double.
   const collectionNames = collections.map(c => c.name.trim().toLocaleLowerCase());
   const collectionsValid = collectionNames.every((name, i) => name !== '' && collectionNames.indexOf(name) === i);
@@ -365,13 +372,35 @@ export default function SettingsScreen({
               label="Proxy pour DLsite"
               description={
                 <>
-                  Utilisé pour les fiches et les images DLsite (ex: un proxy japonais pour les œuvres restreintes par
-                  région), en permanence — pour un VPN à la demande, voir PIA ci-dessous. Vide : proxy de Windows. Formats : http://hôte:port ou socks5://hôte:port — un proxy de
-                  navigateur (extension) n'a pas d'effet ici, il faut son adresse.
-                  {!proxyValid && <span className="mt-1 block text-danger">Adresse invalide (ex: http://127.0.0.1:8080).</span>}
+                  Utilisé pour les fiches et les images DLsite, en permanence (ex: un proxy japonais pour les œuvres
+                  restreintes par région) — pour un VPN à la demande, voir PIA ci-dessous. Vide : proxy de Windows.
+                  Formats : http://hôte:port, socks5://hôte:port, avec identifiants socks5://identifiant:motdepasse@hôte:port
+                  (caractères spéciaux encodés en %XX). Le mot de passe est chiffré (Windows) et ne s'affiche plus ensuite.
+                  Un proxy de navigateur (extension) n'a pas d'effet ici, il faut son adresse.
+                  {proxyTest && proxyTest !== 'running' && (
+                    <span className={`mt-1 block ${proxyTest.startsWith('Échec') ? 'text-danger' : 'text-text-secondary'}`}>{proxyTest}</span>
+                  )}
+                  {!proxyValid && <span className="mt-1 block text-danger">Adresse invalide (ex: socks5://identifiant:motdepasse@1.2.3.4:1080 ; pas d'identifiants en SOCKS4).</span>}
                 </>
               }
             >
+              <button
+                type="button"
+                className="btn"
+                disabled={proxyTest === 'running' || dlsiteProxy.trim() !== (settings.dlsiteProxy ?? '')}
+                title={dlsiteProxy.trim() !== (settings.dlsiteProxy ?? '') ? "Enregistre d'abord le proxy" : 'Tester l’accès à DLsite avec ce proxy'}
+                onClick={async () => {
+                  setProxyTest('running');
+                  try {
+                    const { status, ms } = await window.electronAPI.testDlsiteConnection();
+                    setProxyTest(status < 400 ? `DLsite répond (HTTP ${status}, ${ms} ms).` : `DLsite répond, mais avec une erreur HTTP ${status}.`);
+                  } catch (error) {
+                    setProxyTest(`Échec : ${ipcErrorMessage(error)}`);
+                  }
+                }}
+              >
+                {proxyTest === 'running' ? 'Test…' : 'Tester'}
+              </button>
               <input
                 className="input w-[260px]"
                 placeholder="Proxy système"

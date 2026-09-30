@@ -112,7 +112,7 @@ app.whenReady().then(async () => {
   await getSettings()
     .then(async settings => {
       setTrayEnabled(Boolean(settings.closeToTray), getWindow);
-      await applyDlsiteProxy(settings.dlsiteProxy);
+      await applyDlsiteProxy(settings.dlsiteProxy, settings.dlsiteProxySecret);
     })
     .catch(error => console.error('Application des paramètres au démarrage impossible:', error));
   createWindow();
