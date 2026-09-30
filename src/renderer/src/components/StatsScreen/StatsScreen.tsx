@@ -1,13 +1,15 @@
 import { useMemo } from 'react';
 import type { GameCache, GameCacheEntry } from '../../lib/cacheManager.js';
-import { computeLibraryStats } from '../../lib/statsManager.js';
+import { computeLibraryStats, computeWeeklyPlayTime, recentSessions } from '../../lib/statsManager.js';
+import { formatSessionDuration } from '../../lib/timeFormatter.js';
+import PlayTimeChart from './PlayTimeChart';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
-import type { GenreAliasGroups } from '../../lib/genreAliases.js';
+import type { GenreNames } from '../../lib/genreNames.js';
 
 export interface StatsScreenProps {
   cache: GameCache;
   getWorkImageSrc: (gameId: string) => string;
-  genreAliasGroups: GenreAliasGroups;
+  genreNames: GenreNames;
   /** Ouvre la page du jeu dans la bibliothèque. */
   onOpenGame: (gameId: string) => void;
 }
@@ -59,9 +61,11 @@ function BarRow({ label, count, width, labelWidthClass }: { label: string; count
   );
 }
 
-export default function StatsScreen({ cache, getWorkImageSrc, genreAliasGroups, onOpenGame }: StatsScreenProps) {
-  const stats = useMemo(() => computeLibraryStats(cache, genreAliasGroups), [cache, genreAliasGroups]);
+export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpenGame }: StatsScreenProps) {
+  const stats = useMemo(() => computeLibraryStats(cache, genreNames), [cache, genreNames]);
   const totalHours = Math.round(stats.totalPlayTimeSeconds / 3600);
+  const weeks = useMemo(() => computeWeeklyPlayTime(cache), [cache]);
+  const sessions = useMemo(() => recentSessions(cache), [cache]);
 
   const gameIdFor = (entry: GameCacheEntry | null) =>
     entry ? Object.keys(cache).find(id => cache[id] === entry) ?? null : null;
@@ -87,9 +91,43 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreAliasGroups, 
         )}
       </div>
 
+      <div className="mb-4 grid grid-cols-[1.4fr_1fr] items-stretch gap-4">
+        <div className="panel p-5">
+          <div className="section-title mb-4">Temps de jeu par semaine</div>
+          {sessions.length === 0 ? (
+            <p className="text-sm text-text-muted">L'historique des sessions commence à la prochaine partie lancée depuis DLSGM.</p>
+          ) : (
+            <PlayTimeChart weeks={weeks} />
+          )}
+        </div>
+
+        <div className="panel p-5">
+          <div className="section-title mb-3">Dernières sessions</div>
+          {sessions.length === 0 ? (
+            <p className="text-sm text-text-muted">Aucune session enregistrée.</p>
+          ) : (
+            sessions.map(session => (
+              <button
+                key={`${session.gameId}-${session.start}`}
+                type="button"
+                onClick={() => onOpenGame(session.gameId)}
+                className="flex w-full items-baseline gap-3 border-b border-divider py-2 text-left text-[13px] last:border-0 hover:text-accent"
+              >
+                <span className="min-w-0 flex-1 truncate">{session.name}</span>
+                <span className="flex-shrink-0 text-text-muted">
+                  {new Date(session.start).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                </span>
+                <span className="w-[56px] flex-shrink-0 text-right font-semibold tabular-nums">{formatSessionDuration(session.duration)}</span>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-[1.4fr_1fr] items-start gap-4">
         <div className="panel p-5">
           <div className="section-title mb-4">Répartition par genre</div>
+
           {stats.genreBreakdown.length === 0 ? (
             <p className="text-sm text-text-muted">Aucune donnée.</p>
           ) : (

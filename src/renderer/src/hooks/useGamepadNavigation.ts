@@ -93,7 +93,7 @@ const gap = (aStart: number, aEnd: number, bStart: number, bEnd: number) => Math
  * Navigation spatiale : l'élément focalisable le plus proche dans la
  * direction demandée, en favorisant ceux alignés avec l'élément courant.
  */
-function moveFocus(direction: Direction) {
+export function moveFocus(direction: Direction) {
   const scope = navScope();
   const current = document.activeElement as HTMLElement | null;
   if (!current || current === document.body || !scope.contains(current)) {

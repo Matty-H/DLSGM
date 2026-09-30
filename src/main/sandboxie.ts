@@ -130,6 +130,44 @@ export async function ensureGameBox(sandboxieDir: string, gameId: string, gamePa
   return box;
 }
 
+/**
+ * Dossier racine de la sandbox d'un jeu sur le disque (`FileRootPath` de la
+ * sandbox, sinon des réglages globaux, sinon la valeur par défaut de
+ * Sandboxie), ou null si sa valeur contient une variable non prise en
+ * charge ici.
+ */
+export async function boxFileRoot(sandboxieDir: string, gameId: string): Promise<string | null> {
+  const sbieIni = path.join(sandboxieDir, 'SbieIni.exe');
+  const box = boxNameFor(gameId);
+  const configured =
+    (await query(sbieIni, box, 'FileRootPath')) ||
+    (await query(sbieIni, 'GlobalSettings', 'FileRootPath')) ||
+    '\\??\\%SystemDrive%\\Sandbox\\%USER%\\%SANDBOX%';
+  const variables: Record<string, string | undefined> = {
+    sandbox: box,
+    user: process.env.USERNAME,
+    systemdrive: process.env.SystemDrive || 'C:'
+  };
+  const expanded = configured
+    .replace(/^\\\?\?\\/, '')
+    .replace(/%(\w+)%/g, (whole, name: string) => variables[name.toLowerCase()] ?? whole);
+  return expanded.includes('%') || !path.isAbsolute(expanded) ? null : expanded;
+}
+
+/**
+ * Chemin, dans la sandbox dont la racine est `fileRoot`, où Sandboxie
+ * redirige les écritures faites à `realPath` : le profil de l'utilisateur
+ * sous `user\current`, le reste sous `drive\<lettre>`.
+ */
+export function sandboxedPathFor(fileRoot: string, homeDir: string, realPath: string): string | null {
+  const relToHome = path.relative(homeDir, realPath);
+  if (relToHome && !relToHome.startsWith('..') && !path.isAbsolute(relToHome)) {
+    return path.join(fileRoot, 'user', 'current', relToHome);
+  }
+  const drive = /^([A-Za-z]):[\\/](.*)$/.exec(realPath);
+  return drive ? path.join(fileRoot, 'drive', drive[1].toUpperCase(), drive[2]) : null;
+}
+
 /** Commande et arguments pour lancer `executablePath` dans la sandbox du jeu, en attendant sa fin. */
 export function sandboxedCommand(sandboxieDir: string, box: string, executablePath: string): { command: string; args: string[] } {
   return { command: path.join(sandboxieDir, 'Start.exe'), args: [`/box:${box}`, '/wait', executablePath] };

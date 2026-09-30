@@ -6,9 +6,11 @@ export interface GenreMultiSelectProps {
   selectedGenres: string[];
   onToggleGenre: (genre: string) => void;
   onReset: () => void;
+  /** Libellé affiché d'un genre (clé japonaise → traduction selon la langue d'affichage). */
+  labelFor?: (genre: string) => string;
 }
 
-export default function GenreMultiSelect({ genres, selectedGenres, onToggleGenre, onReset }: GenreMultiSelectProps) {
+export default function GenreMultiSelect({ genres, selectedGenres, onToggleGenre, onReset, labelFor = g => g }: GenreMultiSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +58,7 @@ export default function GenreMultiSelect({ genres, selectedGenres, onToggleGenre
                 >
                   {checked && <Check size={12} strokeWidth={3} />}
                 </span>
-                <span>{genre}</span>
+                <span>{labelFor(genre)}</span>
               </button>
             );
           })}

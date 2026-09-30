@@ -222,17 +222,27 @@ export function detectEngine(root: string, exePath: string | null): EngineInfo {
 // --- Emplacements de sauvegarde ------------------------------------------
 
 /**
+ * Emplacement de sauvegarde avec, quand le dossier contient aussi autre chose
+ * que des sauvegardes (racine d'un jeu RPG Maker VX/XP), le filtre des seuls
+ * fichiers de sauvegarde de son premier niveau — utilisé par la copie des
+ * sauvegardes (save-backups.ts), qui ne doit pas copier tout le jeu.
+ */
+export interface SaveSource extends SaveLocation {
+  fileFilter?: RegExp;
+}
+
+/**
  * Emplacements de sauvegarde probables selon le moteur. Chemins "attendus"
  * inclus même s'ils n'existent pas encore (jeu jamais lancé), avec `exists`
  * pour que l'interface les distingue.
  */
-export function findSaveLocations(root: string, exePath: string | null, info: EngineInfo): SaveLocation[] {
+export function findSaveLocations(root: string, exePath: string | null, info: EngineInfo): SaveSource[] {
   const home = app.getPath('home');
   const roaming = app.getPath('appData');
   const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
   const localLow = path.join(home, 'AppData', 'LocalLow');
   const exeBase = exePath ? path.basename(exePath, path.extname(exePath)) : null;
-  const candidates: { label: string; path: string }[] = [];
+  const candidates: { label: string; path: string; fileFilter?: RegExp }[] = [];
 
   switch (info.engine) {
     case 'unity':
@@ -250,7 +260,7 @@ export function findSaveLocations(root: string, exePath: string | null, info: En
     case 'rpgmaker-vx':
     case 'rpgmaker-xp':
       // Fichiers SaveNN.rvdata2/.rvdata/.rxdata à la racine du jeu.
-      candidates.push({ label: 'Dossier du jeu (SaveNN)', path: root });
+      candidates.push({ label: 'Dossier du jeu (SaveNN)', path: root, fileFilter: /^Save\d+\.(rvdata2?|rxdata)$/i });
       break;
     case 'wolf':
       candidates.push({ label: 'Sauvegardes', path: path.join(root, 'Save') });

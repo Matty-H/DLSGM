@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadSettings, saveSettings as persistSettings } from '../lib/settings.js';
+import type { GameCollection } from '../../../shared/ipc-types';
 
 export interface AppSettings {
   destinationFolder: string;
@@ -10,7 +11,14 @@ export interface AppSettings {
   sandboxLaunch: boolean;
   startFullscreen: boolean;
   lanSharePort: number;
+  dlsiteProxy: string;
+  collections: GameCollection[];
+  autoBackupSaves: boolean;
+  closeToTray: boolean;
+  workspaceFolder: string;
   selectedSort: string;
+
+
 }
 
 /**

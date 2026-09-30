@@ -4,6 +4,8 @@ import fs from 'fs';
 import { pathToFileURL } from 'url';
 import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare } from './ipc-handlers';
 import { initAutoUpdater } from './updater';
+import { applyDlsiteProxy } from './dlsite-net';
+import { hideInsteadOfClose, setTrayEnabled } from './tray';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -53,6 +55,7 @@ function createWindow(): void {
       window.webContents.reload();
     }
   });
+  window.on('close', (event) => hideInsteadOfClose(event, window));
   window.on('enter-full-screen', () => window.webContents.send('fullscreen-changed', true));
   window.on('leave-full-screen', () => window.webContents.send('fullscreen-changed', false));
 
@@ -83,7 +86,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 // Initialisation de l'application
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Pas de barre de menu "File, Edit, View, Window, Help" sous Windows/Linux :
   // l'app n'en a pas l'usage (copier/coller et F11 fonctionnent sans). Sur
   // macOS le menu reste : Cmd+C/V/Q en dépendent, et il n'apparaît pas dans
@@ -103,7 +106,15 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(filePath).toString());
   });
 
-  setupIpcHandlers(() => mainWindow);
+  const getWindow = () => mainWindow;
+  setupIpcHandlers(getWindow, settings => setTrayEnabled(Boolean(settings.closeToTray), getWindow));
+  // Proxy DLsite avant tout fetch (le premier scan part dès le chargement).
+  await getSettings()
+    .then(async settings => {
+      setTrayEnabled(Boolean(settings.closeToTray), getWindow);
+      await applyDlsiteProxy(settings.dlsiteProxy);
+    })
+    .catch(error => console.error('Application des paramètres au démarrage impossible:', error));
   createWindow();
 
   // Vérification des mises à jour (build packagée uniquement — en dev, il
@@ -121,7 +132,9 @@ app.whenReady().then(() => {
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    else mainWindow?.show(); // fenêtre cachée dans la zone de notification
   });
+
 });
 
 // Libération des raccourcis à la fermeture

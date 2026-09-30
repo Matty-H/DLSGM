@@ -1,5 +1,5 @@
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
-import { ImagePlus, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ImageDown, ImagePlus, Pencil, Star, Trash2 } from 'lucide-react';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 import { ACCEPTED_IMAGE_TYPES } from '../../lib/gameImages.js';
 
@@ -18,9 +18,22 @@ export interface ImageManagerProps {
   onReplaceSample: (index: number, file: File) => void;
   onRemoveSample: (index: number) => void;
   onAddSamples: (files: File[]) => void;
+  /** Déplace l'échantillon `from` à la position `to`. */
+  onMoveSample: (from: number, to: number) => void;
+  /** L'échantillon devient la couverture ; l'ancienne couverture prend sa place. */
+  onMakeCover: (index: number) => void;
+  /** La couverture redevient un échantillon (en tête de liste). */
+  onDemoteCover: () => void;
 }
 
 type PickTarget = { kind: 'cover' } | { kind: 'sample'; index: number } | { kind: 'add' };
+
+/** Emplacement d'une image de la galerie, transporté pendant un glisser interne. */
+type Slot = 'cover' | number;
+
+// Type de donnée propre au glisser interne, distinct des fichiers déposés
+// depuis l'explorateur ('Files').
+const SLOT_MIME = 'application/x-dlsgm-image-slot';
 
 /** Garde les images acceptées d'une liste de fichiers ; renvoie aussi les noms refusés. */
 function splitImages(fileList: FileList | null): { images: File[]; rejected: string[] } {
@@ -31,133 +44,244 @@ function splitImages(fileList: FileList | null): { images: File[]; rejected: str
   };
 }
 
+type DragKind = 'files' | 'slot' | null;
+
+function dragKind(e: DragEvent): DragKind {
+  const types = Array.from(e.dataTransfer.types);
+  if (types.includes(SLOT_MIME)) return 'slot';
+  if (types.includes('Files')) return 'files';
+  return null;
+}
+
 /**
- * Zone réagissant au glisser-déposer de fichiers : met en évidence la cible
- * survolée et transmet les images déposées.
+ * Zone réagissant au glisser-déposer : fichiers venant de l'explorateur, et
+ * (si `onSlot` est fourni) images de la galerie déplacées en interne. Met en
+ * évidence la cible survolée.
  */
 function DropTarget({
   onFiles,
+  onSlot,
   className,
   children
 }: {
   onFiles: (fileList: FileList) => void;
+  onSlot?: (from: Slot) => void;
   className: string;
-  children: (isOver: boolean) => ReactNode;
+  children: (over: DragKind) => ReactNode;
 }) {
-  const [isOver, setIsOver] = useState(false);
+  const [over, setOver] = useState<DragKind>(null);
   // Compteur : dragenter/dragleave se déclenchent aussi en passant sur les enfants.
   const depth = useRef(0);
 
-  const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer.types).includes('Files');
+  const accepts = (e: DragEvent): DragKind => {
+    const kind = dragKind(e);
+    return kind === 'files' || (kind === 'slot' && onSlot) ? kind : null;
+  };
 
   return (
     <div
       className={className}
       onDragEnter={e => {
-        if (!hasFiles(e)) return;
+        const kind = accepts(e);
+        if (!kind) return;
         e.preventDefault();
         depth.current += 1;
-        setIsOver(true);
+        setOver(kind);
       }}
       onDragOver={e => {
-        if (!hasFiles(e)) return;
+        const kind = accepts(e);
+        if (!kind) return;
         e.preventDefault();
         // Sinon le garde global (useFileDropGuard) repasse l'effet à "none".
         e.stopPropagation();
-        e.dataTransfer.dropEffect = 'copy';
+        e.dataTransfer.dropEffect = kind === 'slot' ? 'move' : 'copy';
       }}
       onDragLeave={() => {
         depth.current = Math.max(0, depth.current - 1);
-        if (depth.current === 0) setIsOver(false);
+        if (depth.current === 0) setOver(null);
       }}
       onDrop={e => {
-        if (!hasFiles(e)) return;
+        const kind = accepts(e);
+        if (!kind) return;
         e.preventDefault();
         e.stopPropagation();
         depth.current = 0;
-        setIsOver(false);
-        onFiles(e.dataTransfer.files);
+        setOver(null);
+        if (kind === 'files') {
+          onFiles(e.dataTransfer.files);
+        } else {
+          const raw = e.dataTransfer.getData(SLOT_MIME);
+          onSlot?.(raw === 'cover' ? 'cover' : Number(raw));
+        }
       }}
     >
-      {children(isOver)}
+      {children(over)}
     </div>
   );
 }
 
+const tileButton = 'btn btn-icon !h-8 !w-8';
+
 function ImageTile({
   image,
-  badge,
+  slot,
+  isCover,
+  canMoveLeft,
+  canMoveRight,
   onReplace,
   onRemove,
-  onDropFiles
+  onToggleCover,
+  onMoveLeft,
+  onMoveRight,
+  onDropFiles,
+  onDropSlot
 }: {
   image: DraftImage;
-  badge?: string;
+  slot: Slot;
+  isCover: boolean;
+  canMoveLeft: boolean;
+  canMoveRight: boolean;
   onReplace: () => void;
   onRemove: () => void;
+  onToggleCover: () => void;
+  onMoveLeft?: () => void;
+  onMoveRight?: () => void;
   onDropFiles: (fileList: FileList) => void;
+  onDropSlot: (from: Slot) => void;
 }) {
+  const [isDragging, setIsDragging] = useState(false);
+
   return (
-    <DropTarget onFiles={onDropFiles} className="group relative aspect-[4/3] overflow-hidden rounded-md bg-bg-deep">
-      {isOver => (
-        <>
+    <DropTarget
+      onFiles={onDropFiles}
+      onSlot={from => from !== slot && onDropSlot(from)}
+      className={`group relative aspect-[4/3] overflow-hidden rounded-md bg-bg-deep ${isDragging ? 'opacity-40' : ''}`}
+    >
+      {over => (
+        <div
+          draggable
+          onDragStart={e => {
+            e.dataTransfer.setData(SLOT_MIME, String(slot));
+            e.dataTransfer.effectAllowed = 'move';
+            setIsDragging(true);
+          }}
+          onDragEnd={() => setIsDragging(false)}
+          className="h-full w-full cursor-grab active:cursor-grabbing"
+          title="Glisser pour réorganiser"
+        >
           <img
             src={image.previewSrc}
             alt=""
+            // Sinon Chromium glisse l'image elle-même (comme un fichier), pas la vignette.
+            draggable={false}
             onError={e => {
               e.currentTarget.onerror = null;
               e.currentTarget.src = PLACEHOLDER_IMAGE;
             }}
             className="h-full w-full object-cover"
           />
-          <div className="absolute left-2 top-2 flex gap-1">
-            {badge && <span className="rounded-sm bg-accent px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">{badge}</span>}
+          <div className="pointer-events-none absolute left-2 top-2 flex gap-1">
+            {isCover && <span className="rounded-sm bg-accent px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Couverture</span>}
             {'file' in image.source && <span className="rounded-sm bg-black/70 px-2 py-0.5 text-[11px] font-bold">Nouvelle</span>}
           </div>
           <div
-            className={`absolute inset-0 flex items-center justify-center gap-2 bg-black/60 transition-opacity ${
-              isOver ? 'opacity-100' : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
+            className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 transition-opacity ${
+              over ? 'opacity-100' : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
             }`}
           >
-            {isOver ? (
+            {over === 'files' ? (
               <span className="text-[13px] font-bold">Déposer pour remplacer</span>
+            ) : over === 'slot' ? (
+              <span className="text-[13px] font-bold">{isCover ? 'Définir comme couverture' : 'Déplacer ici'}</span>
             ) : (
               <>
-                <button type="button" onClick={onReplace} className="btn btn-icon" title="Remplacer" aria-label="Remplacer l'image">
-                  <Pencil size={16} strokeWidth={2.25} />
-                </button>
-                <button type="button" onClick={onRemove} className="btn btn-icon" title="Supprimer" aria-label="Supprimer l'image">
-                  <Trash2 size={16} strokeWidth={2.25} />
-                </button>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={onToggleCover}
+                    className={tileButton}
+                    title={isCover ? 'Remettre parmi les images' : 'Définir comme couverture'}
+                    aria-label={isCover ? 'Remettre la couverture parmi les images' : "Définir l'image comme couverture"}
+                  >
+                    {isCover ? <ImageDown size={15} strokeWidth={2.25} /> : <Star size={15} strokeWidth={2.25} />}
+                  </button>
+                  <button type="button" onClick={onReplace} className={tileButton} title="Remplacer" aria-label="Remplacer l'image">
+                    <Pencil size={15} strokeWidth={2.25} />
+                  </button>
+                  <button type="button" onClick={onRemove} className={tileButton} title="Supprimer" aria-label="Supprimer l'image">
+                    <Trash2 size={15} strokeWidth={2.25} />
+                  </button>
+                </div>
+                {!isCover && (
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={onMoveLeft}
+                      disabled={!canMoveLeft}
+                      className={tileButton}
+                      title="Déplacer avant"
+                      aria-label="Déplacer l'image avant"
+                    >
+                      <ChevronLeft size={16} strokeWidth={2.5} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onMoveRight}
+                      disabled={!canMoveRight}
+                      className={tileButton}
+                      title="Déplacer après"
+                      aria-label="Déplacer l'image après"
+                    >
+                      <ChevronRight size={16} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
-          {isOver && <div className="pointer-events-none absolute inset-0 rounded-md ring-2 ring-inset ring-accent" />}
-        </>
+          {over && <div className="pointer-events-none absolute inset-0 rounded-md ring-2 ring-inset ring-accent" />}
+        </div>
       )}
     </DropTarget>
   );
 }
 
 /** Tuile vide façon placeholder : glisser-déposer ou bouton "parcourir". */
-function EmptyDropTile({ label, onBrowse, onDropFiles }: { label: string; onBrowse: () => void; onDropFiles: (fileList: FileList) => void }) {
+function EmptyDropTile({
+  label,
+  slotLabel,
+  onBrowse,
+  onDropFiles,
+  onDropSlot
+}: {
+  label: string;
+  /** Texte au survol pendant un glisser interne ; sans lui, la tuile ne l'accepte pas. */
+  slotLabel?: string;
+  onBrowse: () => void;
+  onDropFiles: (fileList: FileList) => void;
+  onDropSlot?: (from: Slot) => void;
+}) {
   return (
-    <DropTarget onFiles={onDropFiles} className="aspect-[4/3]">
-      {isOver => (
+    <DropTarget onFiles={onDropFiles} onSlot={onDropSlot} className="aspect-[4/3]">
+      {over => (
         <div
           className={`flex h-full flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed p-3 text-center transition-colors ${
-            isOver ? 'border-accent bg-accent-soft text-text' : 'border-surface-3 text-text-muted'
+            over ? 'border-accent bg-accent-soft text-text' : 'border-surface-3 text-text-muted'
           }`}
         >
           <ImagePlus size={26} strokeWidth={1.75} />
-          <span className="text-[13px] leading-snug">
-            {label}
-            <br />
-            ou{' '}
-            <button type="button" onClick={onBrowse} className="rounded-sm font-semibold text-accent hover:underline">
-              parcourir
-            </button>
-          </span>
+          {over === 'slot' && slotLabel ? (
+            <span className="text-[13px] font-bold">{slotLabel}</span>
+          ) : (
+            <span className="text-[13px] leading-snug">
+              {label}
+              <br />
+              ou{' '}
+              <button type="button" onClick={onBrowse} className="rounded-sm font-semibold text-accent hover:underline">
+                parcourir
+              </button>
+            </span>
+          )}
         </div>
       )}
     </DropTarget>
@@ -166,9 +290,12 @@ function EmptyDropTile({ label, onBrowse, onDropFiles }: { label: string; onBrow
 
 /**
  * Galerie d'édition des images d'une fiche : couverture et échantillons en
- * vignettes (remplacer / supprimer, ou déposer un fichier dessus pour le
- * remplacer), plus une zone de dépôt pour ajouter des échantillons. Les
- * changements restent un brouillon jusqu'à l'enregistrement du formulaire.
+ * vignettes. Chaque vignette se glisse pour réorganiser (sur la couverture :
+ * la remplace, l'ancienne prenant la place libérée) ; les mêmes actions
+ * existent en boutons (étoile, flèches) pour le clavier et la manette, qui
+ * ne peuvent pas glisser. Un fichier déposé sur une vignette la remplace ;
+ * la dernière zone ajoute des échantillons. Tout reste un brouillon jusqu'à
+ * l'enregistrement du formulaire.
  */
 export default function ImageManager({
   cover,
@@ -177,7 +304,10 @@ export default function ImageManager({
   onRemoveCover,
   onReplaceSample,
   onRemoveSample,
-  onAddSamples
+  onAddSamples,
+  onMoveSample,
+  onMakeCover,
+  onDemoteCover
 }: ImageManagerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const pickTarget = useRef<PickTarget>({ kind: 'add' });
@@ -206,22 +336,40 @@ export default function ImageManager({
     if (rest.length > 0) onAddSamples(rest);
   };
 
+  /** Glisser interne déposé sur la couverture : l'échantillon la remplace. */
+  const dropOnCover = (from: Slot) => {
+    if (from !== 'cover') onMakeCover(from);
+  };
+
+  /** Glisser interne déposé sur l'échantillon `index`. */
+  const dropOnSample = (index: number) => (from: Slot) => {
+    if (from === 'cover') onMakeCover(index);
+    else onMoveSample(from, index);
+  };
+
   return (
     <div>
       <div className="grid grid-cols-3 gap-3">
         {cover ? (
           <ImageTile
             image={cover}
-            badge="Couverture"
+            slot="cover"
+            isCover
+            canMoveLeft={false}
+            canMoveRight={false}
             onReplace={() => browse({ kind: 'cover' })}
             onRemove={onRemoveCover}
+            onToggleCover={onDemoteCover}
             onDropFiles={files => handleFiles({ kind: 'cover' }, files)}
+            onDropSlot={dropOnCover}
           />
         ) : (
           <EmptyDropTile
             label="Glissez la couverture ici"
+            slotLabel="Définir comme couverture"
             onBrowse={() => browse({ kind: 'cover' })}
             onDropFiles={files => handleFiles({ kind: 'cover' }, files)}
+            onDropSlot={dropOnCover}
           />
         )}
 
@@ -229,18 +377,39 @@ export default function ImageManager({
           <ImageTile
             key={image.id}
             image={image}
+            slot={index}
+            isCover={false}
+            canMoveLeft={index > 0}
+            canMoveRight={index < samples.length - 1}
             onReplace={() => browse({ kind: 'sample', index })}
             onRemove={() => onRemoveSample(index)}
+            onToggleCover={() => onMakeCover(index)}
+            onMoveLeft={() => onMoveSample(index, index - 1)}
+            onMoveRight={() => onMoveSample(index, index + 1)}
             onDropFiles={files => handleFiles({ kind: 'sample', index }, files)}
+            onDropSlot={dropOnSample(index)}
           />
         ))}
 
         <EmptyDropTile
           label="Glissez des images ici"
+          slotLabel={samples.length > 0 ? 'Déplacer à la fin' : undefined}
           onBrowse={() => browse({ kind: 'add' })}
           onDropFiles={files => handleFiles({ kind: 'add' }, files)}
+          onDropSlot={
+            samples.length > 0
+              ? from => {
+                  if (from === 'cover') onDemoteCover();
+                  else onMoveSample(from, samples.length - 1);
+                }
+              : from => from === 'cover' && onDemoteCover()
+          }
         />
       </div>
+
+      <p className="mt-2 text-[12px] text-text-muted">
+        Glisse les images pour les réorganiser, ou sur la couverture pour la remplacer (l'étoile fait de même).
+      </p>
 
       {rejected.length > 0 && (
         <p className="mt-2 text-[12px] text-danger">

@@ -1,5 +1,7 @@
-import { Search, SlidersHorizontal, RotateCcw, X } from 'lucide-react';
+import { Search, SlidersHorizontal, RotateCcw, X, PackagePlus } from 'lucide-react';
 import SortSelect from '../SortSelect/SortSelect';
+import Select from '../Select/Select';
+import { CREATOR_FIELD_LABELS, type CreatorFilter } from '../../lib/filterManager.js';
 
 export interface LibraryToolbarProps {
   searchTerm: string;
@@ -14,6 +16,15 @@ export interface LibraryToolbarProps {
   onResetFilters: () => void;
   /** Nombre d'œuvres affichées après filtrage. */
   resultCount: number;
+  collectionFilter: string;
+  collectionOptions: { value: string; label: string }[];
+  onCollectionFilterChange: (value: string) => void;
+  /** Filtre "même cercle / auteur..." posé depuis la page d'un jeu. */
+  creatorFilter: CreatorFilter | null;
+  onClearCreatorFilter: () => void;
+  onImport: () => void;
+  /** Texte du bouton pendant un import (ex: "Import 1/3…"), null sinon. */
+  importStatus: string | null;
 }
 
 /**
@@ -31,7 +42,14 @@ export default function LibraryToolbar({
   showAdvancedFilters,
   onToggleAdvancedFilters,
   onResetFilters,
-  resultCount
+  resultCount,
+  collectionFilter,
+  collectionOptions,
+  onCollectionFilterChange,
+  creatorFilter,
+  onClearCreatorFilter,
+  onImport,
+  importStatus
 }: LibraryToolbarProps) {
   const tabs = [{ code: 'all', name: 'Tout' }, ...categories];
 
@@ -72,6 +90,14 @@ export default function LibraryToolbar({
           )}
         </div>
 
+        <Select
+          value={collectionFilter}
+          options={collectionOptions}
+          onChange={onCollectionFilterChange}
+          aria-label="Collection"
+          className="w-[210px]"
+        />
+
         <SortSelect value={selectedSort} onChange={onSortChange} />
 
         <button
@@ -83,12 +109,39 @@ export default function LibraryToolbar({
           Filtres
         </button>
 
+        <button
+          type="button"
+          onClick={onImport}
+          disabled={importStatus !== null}
+          className="btn"
+          title="Extraire des archives de jeux (.zip, .rar, .7z, .part1.exe) dans le dossier de la bibliothèque"
+        >
+          <PackagePlus size={15} strokeWidth={2.25} />
+          {importStatus ?? 'Importer'}
+        </button>
+
         <button type="button" onClick={onResetFilters} className="btn btn-ghost" title="Réinitialiser les filtres et rescanner">
+
           <RotateCcw size={15} strokeWidth={2.25} />
           Réinitialiser
         </button>
 
+        {creatorFilter && (
+          <span className="tag tag-accent pr-1.5 text-[13px]">
+            {CREATOR_FIELD_LABELS[creatorFilter.field]} : {creatorFilter.value}
+            <button
+              type="button"
+              onClick={onClearCreatorFilter}
+              aria-label={`Retirer le filtre ${creatorFilter.value}`}
+              className="rounded-sm p-0.5 hover:bg-white/10"
+            >
+              <X size={12} strokeWidth={2.5} />
+            </button>
+          </span>
+        )}
+
         <span className="section-title ml-auto">
+
           {resultCount} œuvre{resultCount > 1 ? 's' : ''}
         </span>
       </div>

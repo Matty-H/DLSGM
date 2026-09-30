@@ -1,6 +1,6 @@
 import type { GameCache, GameCacheEntry } from './cacheManager.js';
 import { categoryMap } from './metadataManager.js';
-import { canonicalGenre, type GenreAliasGroups } from './genreAliases.js';
+import { IDENTITY_GENRE_NAMES, type GenreNames } from './genreNames.js';
 
 export interface BreakdownRow {
   label: string;
@@ -32,7 +32,7 @@ function countToBreakdown(counts: Record<string, number>, labelFor: (key: string
 }
 
 /** Calcule les statistiques de la bibliothèque à partir du cache complet (non filtré). */
-export function computeLibraryStats(cache: GameCache, genreAliasGroups: GenreAliasGroups = []): LibraryStats {
+export function computeLibraryStats(cache: GameCache, genreNames: GenreNames = IDENTITY_GENRE_NAMES): LibraryStats {
   const games = Object.values(cache);
 
   let totalPlayTimeSeconds = 0;
@@ -54,7 +54,7 @@ export function computeLibraryStats(cache: GameCache, genreAliasGroups: GenreAli
     if (Array.isArray(game.genre)) {
       // Un jeu ne compte qu'une fois par genre canonique, même si son propre
       // tableau `genre` contient plusieurs alias du même genre (JP + EN).
-      const canonicalGenresForGame = new Set(game.genre.map(g => canonicalGenre(g, genreAliasGroups)));
+      const canonicalGenresForGame = new Set(game.genre.map(genreNames.canonical));
       canonicalGenresForGame.forEach(genre => {
         genreCounts[genre] = (genreCounts[genre] || 0) + 1;
       });
@@ -73,8 +73,65 @@ export function computeLibraryStats(cache: GameCache, genreAliasGroups: GenreAli
     totalPlayTimeSeconds,
     topGame,
     lastAdded,
-    genreBreakdown: countToBreakdown(genreCounts, key => key, true),
+    genreBreakdown: countToBreakdown(genreCounts, genreNames.label, true),
+
     ageBreakdown: countToBreakdown(ageCounts, key => AGE_LABELS[key] || key, false),
     categoryBreakdown: countToBreakdown(categoryCounts, key => categoryMap[key] || key, true)
   };
+}
+
+export interface WeeklyPlayTime {
+  /** Lundi 00:00 (heure locale) de la semaine. */
+  weekStart: Date;
+  seconds: number;
+}
+
+function startOfWeek(date: Date): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // lundi
+  return d;
+}
+
+/**
+ * Temps de jeu par semaine sur les `weeks` dernières semaines (la courante
+ * incluse), d'après l'historique des sessions. Une session est comptée dans
+ * la semaine où elle a commencé. Le temps joué avant l'historique des
+ * sessions n'y figure pas.
+ */
+export function computeWeeklyPlayTime(cache: GameCache, weeks = 12, now = new Date()): WeeklyPlayTime[] {
+  const current = startOfWeek(now);
+  const buckets: WeeklyPlayTime[] = Array.from({ length: weeks }, (_, i) => {
+    const weekStart = new Date(current);
+    weekStart.setDate(current.getDate() - (weeks - 1 - i) * 7);
+    return { weekStart, seconds: 0 };
+  });
+  const first = buckets[0].weekStart.getTime();
+
+  for (const game of Object.values(cache)) {
+    for (const session of Array.isArray(game.playSessions) ? game.playSessions : []) {
+      const start = new Date(session.start);
+      if (Number.isNaN(start.getTime()) || start.getTime() < first) continue;
+      const bucket = buckets.find(b => b.weekStart.getTime() === startOfWeek(start).getTime());
+      if (bucket) bucket.seconds += session.duration || 0;
+    }
+  }
+  return buckets;
+}
+
+export interface RecentSession {
+  gameId: string;
+  name: string;
+  start: string;
+  duration: number;
+}
+
+/** Dernières sessions, tous jeux confondus, de la plus récente à la plus ancienne. */
+export function recentSessions(cache: GameCache, limit = 8): RecentSession[] {
+  const all: RecentSession[] = [];
+  for (const [gameId, game] of Object.entries(cache)) {
+    for (const session of Array.isArray(game.playSessions) ? game.playSessions : []) {
+      all.push({ gameId, name: game.work_name || gameId, start: session.start, duration: session.duration });
+    }
+  }
+  return all.sort((a, b) => b.start.localeCompare(a.start)).slice(0, limit);
 }

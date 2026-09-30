@@ -47,3 +47,14 @@ export function formatLastPlayed(lastPlayedDate: string | Date | null | undefine
     return 'À l\'instant';
   }
 }
+
+/**
+ * Durée d'une session, plus précise que formatPlayTime (ex: "1 h 05",
+ * "12 min", "< 1 min").
+ */
+export function formatSessionDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 1) return '< 1 min';
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+}

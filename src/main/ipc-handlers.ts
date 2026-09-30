@@ -1,16 +1,26 @@
 import { app, ipcMain, dialog, shell, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import https from 'https';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
+import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import { spawn } from 'child_process';
 import Store from './store';
-import { fetchGameMetadata } from './dlsite-fetcher';
-import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch } from './game-tools';
-import { boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand } from './sandboxie';
+import { fetchWork } from './dlsite-fetcher';
+import { GenreTranslations, KNOWN_GENRE_TRANSLATIONS, pairsFromAliasGroups } from './genre-translations';
+import { applyDlsiteProxy, dlsiteFetch } from './dlsite-net';
+import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
+import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand, sandboxedPathFor } from './sandboxie';
+import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup } from './save-backups';
+import { ARCHIVE_EXTENSIONS, importArchive, removeStaleImports } from './archive-import';
+import { Wishlist } from './wishlist';
+import { describeWorkspace, workspaceRoot } from './workspace';
+import { snapshotDatabase } from './db-backup';
 import { DEFAULT_LAN_PORT, LanShare } from './lan-share';
-import type { AppSettings, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, ArchiveImportResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
-const IMAGE_DOWNLOAD_TIMEOUT_MS = 15000;
+// Durée totale d'un téléchargement d'image (un proxy peut être lent).
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
 
 // Taille maximale d'une image ajoutée à la main (glisser-déposer / parcourir).
 const MAX_MANUAL_IMAGE_BYTES = 30 * 1024 * 1024;
@@ -24,6 +34,9 @@ const MANUAL_IMAGE = 'manual';
 // Sandboxie arrêté, exécutable refusé...) — heuristique : un vrai jeu qui
 // quitte en erreur dans ce délai compte aussi comme un échec de lancement.
 const SANDBOX_LAUNCH_FAILURE_WINDOW_S = 5;
+
+// Sessions gardées dans l'historique d'un jeu (les plus anciennes sortent).
+const MAX_PLAY_SESSIONS = 2000;
 
 // Format des IDs DLsite (ex: RJ123456, RJ01234567). Chaque jeu doit vivre
 // dans un dossier portant exactement cet ID, à la racine du dossier de jeux.
@@ -39,10 +52,21 @@ const settingsStore = new Store('settings.db', {
   genreAliasGroups: [],
   sandboxLaunch: false,
   startFullscreen: false,
-  lanSharePort: DEFAULT_LAN_PORT
+  lanSharePort: DEFAULT_LAN_PORT,
+  dlsiteProxy: '',
+  collections: [],
+  autoBackupSaves: true,
+  closeToTray: false,
+  workspaceFolder: ''
 }, 'settings.json');
 
 const cacheStore = new Store('cache.db', {}, 'cache.json');
+
+// Liste de souhaits : store séparé, jamais mêlé au cache des jeux.
+const wishlistStore = new Store('wishlist.db', {});
+
+// Dictionnaire des tags JP → EN.
+const genreTranslations = new GenreTranslations(new Store('translations.db', {}));
 
 /**
  * Rejette tout ID qui n'est pas un ID DLsite : les ID reçus du renderer
@@ -214,18 +238,23 @@ async function startGameProcess(gameId: string, gamePath: string, executablePath
  * Rassemble les infos "outils" d'un jeu. Le dossier d'installation est celui
  * de l'exécutable (le jeu peut être rangé dans un sous-dossier de RJxxxxxx).
  */
-async function getGameToolsInfo(gameId: string): Promise<GameToolsInfo & { gamePath: string; installRootAbs: string }> {
+async function getGameToolsInfo(gameId: string): Promise<Omit<GameToolsInfo, 'saveLocations'> & {
+  gamePath: string;
+  installRootAbs: string;
+  saveLocations: SaveSource[];
+}> {
   const gamePath = await getGameDir(gameId);
   if (!fs.existsSync(gamePath)) throw new Error('Dossier du jeu introuvable');
   const exePath = await resolveExecutable(gameId, gamePath);
   const installRootAbs = exePath ? path.dirname(exePath) : gamePath;
   const engine = detectEngine(installRootAbs, exePath);
+  const saveLocations = findSaveLocations(installRootAbs, exePath, engine);
   return {
     gamePath,
     installRootAbs,
     engine,
     installRoot: path.relative(gamePath, installRootAbs),
-    saveLocations: findSaveLocations(installRootAbs, exePath, engine),
+    saveLocations: [...saveLocations, ...await sandboxedSaveLocations(gameId, gamePath, saveLocations)],
     patches: readPatches(gamePath),
     sandbox: await getGameSandboxInfo(gameId)
   };
@@ -240,12 +269,43 @@ async function getGameSandboxInfo(gameId: string): Promise<GameToolsInfo['sandbo
   };
 }
 
+/**
+ * Jeu lancé dans Sandboxie : ce qu'il écrit hors de son dossier (AppData...)
+ * atterrit dans sa sandbox. Ses emplacements de sauvegarde y sont ajoutés
+ * (libellé suffixé "(sandbox)"), sinon la copie des sauvegardes ne verrait
+ * que les dossiers réels, vides ou périmés.
+ */
+async function sandboxedSaveLocations(gameId: string, gamePath: string, locations: SaveSource[]): Promise<SaveSource[]> {
+  const outside = locations.filter(l => !isInside(gamePath, l.path));
+  if (outside.length === 0 || process.platform !== 'win32') return [];
+  const settings = await getSettings();
+  const entry = await cacheStore.get(gameId) as GameMetadata | undefined;
+  if (!settings.sandboxLaunch || entry?.sandboxDisabled) return [];
+  const sandboxieDir = await findSandboxieDir();
+  const fileRoot = sandboxieDir ? await boxFileRoot(sandboxieDir, gameId) : null;
+  if (!fileRoot) return [];
+
+  const result: SaveSource[] = [];
+  for (const location of outside) {
+    const sandboxed = sandboxedPathFor(fileRoot, app.getPath('home'), location.path);
+    if (!sandboxed) continue;
+    let exists = false;
+    try {
+      exists = fs.statSync(sandboxed).isDirectory();
+    } catch {
+      // pas encore créé dans la sandbox
+    }
+    result.push({ ...location, label: `${location.label} (sandbox)`, path: sandboxed, exists });
+  }
+  return result;
+}
+
 // Jeux en cours d'exécution (lancements suivis) : on ne vide pas la sandbox
 // d'un jeu qui tourne encore.
 const runningGames = new Set<string>();
 
-function publicToolsInfo({ gamePath: _g, installRootAbs: _r, ...info }: Awaited<ReturnType<typeof getGameToolsInfo>>): GameToolsInfo {
-  return info;
+function publicToolsInfo({ gamePath: _g, installRootAbs: _r, saveLocations, ...info }: Awaited<ReturnType<typeof getGameToolsInfo>>): GameToolsInfo {
+  return { ...info, saveLocations: saveLocations.map(({ fileFilter: _f, ...location }) => location) };
 }
 
 // Une seule opération de patch à la fois par jeu (double clic, etc.).
@@ -266,10 +326,33 @@ async function withPatchLock<T>(gameId: string, work: () => Promise<T>): Promise
  * pendant la partie.
  */
 async function recordPlaySession(gameId: string, durationSeconds: number): Promise<void> {
-  await cacheStore.update(gameId, current => ({
-    totalPlayTime: ((current.totalPlayTime as number) || 0) + durationSeconds,
-    lastPlayed: new Date().toISOString()
-  }));
+  const end = new Date();
+  await cacheStore.update(gameId, current => {
+    const sessions = Array.isArray(current.playSessions) ? current.playSessions as PlaySession[] : [];
+    return {
+      totalPlayTime: ((current.totalPlayTime as number) || 0) + durationSeconds,
+      lastPlayed: end.toISOString(),
+      // Lancement non suivi (durée 0) : rien à historiser.
+      ...(durationSeconds > 0 && {
+        playSessions: [
+          ...sessions,
+          { start: new Date(end.getTime() - durationSeconds * 1000).toISOString(), duration: durationSeconds }
+        ].slice(-MAX_PLAY_SESSIONS)
+      })
+    };
+  });
+}
+
+// Une seule opération de copie/restauration de sauvegardes à la fois par jeu.
+const backingUpGames = new Set<string>();
+async function withBackupLock<T>(gameId: string, work: () => Promise<T>): Promise<T> {
+  if (backingUpGames.has(gameId)) throw new Error('Une copie ou restauration des sauvegardes est déjà en cours pour ce jeu.');
+  backingUpGames.add(gameId);
+  try {
+    return await work();
+  } finally {
+    backingUpGames.delete(gameId);
+  }
 }
 
 // Échange de jeux en réseau local. Créé par setupIpcHandlers (il a besoin
@@ -287,7 +370,7 @@ export async function shutdownLanShare(): Promise<void> {
  * peut être recréée (événement `activate`), d'où `getWindow` plutôt qu'une
  * référence figée — un second `ipcMain.handle` sur le même canal lève une erreur.
  */
-export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
+export function setupIpcHandlers(getWindow: () => BrowserWindow | null, onSettingsSaved?: (settings: AppSettings) => void): void {
   const showOpenDialog = (options: OpenDialogOptions) => {
     const window = getWindow();
     return window ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options);
@@ -321,6 +404,8 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle('save-settings', async (event: IpcMainInvokeEvent, newSettings: AppSettings) => {
     await settingsStore.setAll(newSettings as unknown as Record<string, unknown>);
+    await applyDlsiteProxy(newSettings.dlsiteProxy);
+    onSettingsSaved?.(newSettings);
     return true;
   });
 
@@ -420,6 +505,16 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
     const { code: _code, exitCode: _exitCode, ...launchResult } = result;
     if (launchResult.success) {
       await recordPlaySession(gameId, launchResult.duration || 0);
+      // Copie des sauvegardes à la fermeture du jeu. Pas pour un lancement
+      // non suivi : le jeu tourne encore, ses sauvegardes n'ont pas bougé.
+      // Un échec ne doit pas faire échouer le lancement (déjà terminé).
+      if (!launchResult.untracked && (await getSettings()).autoBackupSaves !== false) {
+        try {
+          await withBackupLock(gameId, async () => createSaveBackup(gameId, (await getGameToolsInfo(gameId)).saveLocations, 'auto'));
+        } catch (error) {
+          console.error(`Copie automatique des sauvegardes de ${gameId} impossible:`, error);
+        }
+      }
     }
     return launchResult;
   });
@@ -492,7 +587,89 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
     });
   });
 
+  // --- Import d'archives ---
+  let importing = false;
+  ipcMain.handle('import-game-archives', async (): Promise<ArchiveImportResult[]> => {
+    if (importing) throw new Error('Un import est déjà en cours.');
+    importing = true;
+    try {
+      const { destinationFolder } = await getSettings();
+      if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error('Dossier de jeux non configuré ou introuvable.');
+      const result = await showOpenDialog({
+        title: 'Importer des jeux depuis leur archive',
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: 'Archives (.zip, .rar, .7z, .part1.exe)', extensions: ARCHIVE_EXTENSIONS }]
+      });
+      if (result.canceled) return [];
+      await removeStaleImports(destinationFolder);
+
+      const results: ArchiveImportResult[] = [];
+      for (const [i, file] of result.filePaths.entries()) {
+        getWindow()?.webContents.send('archive-import-progress', { file: path.basename(file), index: i + 1, total: result.filePaths.length });
+        try {
+          const { gameId } = await importArchive(file, destinationFolder);
+          results.push({ file: path.basename(file), gameId });
+        } catch (error) {
+          results.push({ file: path.basename(file), error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+      return results;
+    } finally {
+      importing = false;
+    }
+  });
+
+  // --- Copie de la base (avant une mise à jour groupée) ---
+  ipcMain.handle('snapshot-cache', async () => {
+    // Écritures en attente appliquées avant la copie.
+    await cacheStore.getAll();
+    return snapshotDatabase(app.getPath('userData'), 'cache.db');
+  });
+
+  // --- Dossier de travaux (data mining...) ---
+
+  const gameWorkspaceDir = async (gameId: string) => {
+    assertGameId(gameId);
+    return path.join(workspaceRoot((await getSettings()).workspaceFolder, app.getPath('documents')), gameId);
+  };
+
+  ipcMain.handle('get-workspace-root', async () => workspaceRoot((await getSettings()).workspaceFolder, app.getPath('documents')));
+
+  ipcMain.handle('get-game-workspace', async (event: IpcMainInvokeEvent, gameId: string) => describeWorkspace(await gameWorkspaceDir(gameId)));
+
+  ipcMain.handle('open-game-workspace', async (event: IpcMainInvokeEvent, gameId: string) => {
+    const dir = await gameWorkspaceDir(gameId);
+    await fs.promises.mkdir(dir, { recursive: true });
+    const error = await shell.openPath(dir);
+    if (error) throw new Error(`Impossible d'ouvrir le dossier de travaux : ${error}`);
+    return describeWorkspace(dir);
+  });
+
+  // --- Copies des sauvegardes ---
+
+
+  ipcMain.handle('list-save-backups', async (event: IpcMainInvokeEvent, gameId: string) => {
+    assertGameId(gameId);
+    return listSaveBackups(gameId);
+  });
+
+  ipcMain.handle('create-save-backup', async (event: IpcMainInvokeEvent, gameId: string) => {
+    return withBackupLock(gameId, async () => createSaveBackup(gameId, (await getGameToolsInfo(gameId)).saveLocations, 'manual'));
+  });
+
+  ipcMain.handle('restore-save-backup', async (event: IpcMainInvokeEvent, gameId: string, backupId: string) => {
+    assertGameId(gameId);
+    if (runningGames.has(gameId)) throw new Error("Le jeu est en cours d'exécution : ferme-le avant de restaurer ses sauvegardes.");
+    return withBackupLock(gameId, async () => restoreSaveBackup(gameId, backupId, (await getGameToolsInfo(gameId)).saveLocations));
+  });
+
+  ipcMain.handle('delete-save-backup', async (event: IpcMainInvokeEvent, gameId: string, backupId: string) => {
+    assertGameId(gameId);
+    return withBackupLock(gameId, () => deleteSaveBackup(gameId, backupId));
+  });
+
   // --- Sandbox Sandboxie-Plus ---
+
   ipcMain.handle('get-sandboxie-status', async (): Promise<SandboxieStatus> => {
     const installDir = await findSandboxieDir();
     return { available: installDir !== null, installDir };
@@ -507,10 +684,26 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
     return publicToolsInfo(await getGameToolsInfo(gameId));
   });
 
-  // --- Récupération des métadonnées DLsite ---
-  ipcMain.handle('fetch-game-metadata', async (event: IpcMainInvokeEvent, gameId: string, locale: string) => {
+  // --- Récupération des métadonnées DLsite (japonais + traductions) ---
+  ipcMain.handle('fetch-game-metadata', async (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
-    return fetchGameMetadata(gameId, locale);
+    const { metadata, genreTranslations: learned } = await fetchWork(gameId);
+    await genreTranslations.learn(learned);
+    return metadata;
+  });
+
+  // --- Dictionnaire des tags ---
+  // Amorçage idempotent (n'écrase rien) : paires connues + anciens "genres liés".
+  getSettings()
+    .then(settings => genreTranslations.seed({ ...KNOWN_GENRE_TRANSLATIONS, ...pairsFromAliasGroups(settings.genreAliasGroups) }))
+    .catch(error => console.error('Amorçage du dictionnaire des tags impossible:', error));
+
+  ipcMain.handle('get-genre-translations', () => genreTranslations.all());
+  ipcMain.handle('set-genre-translation', async (event: IpcMainInvokeEvent, japanese: string, english: string | null) => {
+    if (typeof japanese !== 'string' || !japanese || japanese.length > 200) throw new Error('Genre invalide.');
+    if (english !== null && (typeof english !== 'string' || english.length > 200)) throw new Error('Traduction invalide.');
+    await genreTranslations.setManual(japanese, english);
+    return genreTranslations.all();
   });
 
   // --- Cache d'images ---
@@ -525,6 +718,8 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
     fs.mkdirSync(imgCacheDir, { recursive: true });
 
     for (const entry of fs.readdirSync(imgCacheDir, { withFileTypes: true })) {
+      // `_wishlist` (couvertures de la liste de souhaits) : pas un jeu.
+      if (entry.name.startsWith('_')) continue;
       const entryPath = path.join(imgCacheDir, entry.name);
       const metadata = entry.isDirectory() ? cache[entry.name] : undefined;
       const keep = new Set<string>();
@@ -554,41 +749,59 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
     assertGameId(gameId);
     if (!plan || typeof plan !== 'object' || !Array.isArray(plan.samples)) throw new Error('Plan d\'images invalide.');
 
-    const kept = new Set<number>();
-    for (const sample of plan.samples) {
-      if (!sample || typeof sample !== 'object') throw new Error('Plan d\'images invalide.');
-      if ('keep' in sample) {
-        if (!Number.isInteger(sample.keep) || sample.keep < 1 || kept.has(sample.keep)) throw new Error('Plan d\'images invalide.');
-        kept.add(sample.keep);
+    // Chaque image existante (0 = couverture, n = sample_n.jpg) sert au plus
+    // une fois : sinon deux renommages se disputeraient le même fichier.
+    const used = new Set<number>();
+    const checkSource = (source: unknown, allowCover: boolean) => {
+      if (!source || typeof source !== 'object') throw new Error('Plan d\'images invalide.');
+      if ('keep' in source) {
+        const keep = (source as { keep: unknown }).keep;
+        if (typeof keep !== 'number' || !Number.isInteger(keep) || keep < (allowCover ? 0 : 1) || used.has(keep)) {
+          throw new Error('Plan d\'images invalide.');
+        }
+        used.add(keep);
       } else {
-        assertImageBytes(sample.data);
+        assertImageBytes((source as { data: unknown }).data);
       }
-    }
-    if (plan.cover !== 'keep' && plan.cover !== 'remove') {
-      if (!plan.cover || typeof plan.cover !== 'object') throw new Error('Plan d\'images invalide.');
-      assertImageBytes(plan.cover.data);
-    }
+    };
+    if (plan.cover === 'keep') used.add(0);
+    else if (plan.cover !== 'remove') checkSource(plan.cover, false);
+    for (const sample of plan.samples) checkSource(sample, true);
 
     const gameImgDir = path.join(getImgCacheDir(), gameId);
     fs.mkdirSync(gameImgDir, { recursive: true });
     const isSample = (file: string) => /^sample_\d+\.jpg$/.test(file);
     const isStaged = (file: string) => /^sample_\d+\.jpg\.staged$/.test(file);
+    const coverPath = path.join(gameImgDir, 'work_image.jpg');
+    const coverStaged = `${coverPath}.staged`;
+    const existingPath = (keep: number) => path.join(gameImgDir, keep === 0 ? 'work_image.jpg' : `sample_${keep}.jpg`);
 
     // Restes d'une exécution interrompue.
     for (const file of fs.readdirSync(gameImgDir)) {
       if (isStaged(file)) fs.rmSync(path.join(gameImgDir, file), { force: true });
     }
+    fs.rmSync(coverStaged, { force: true });
 
+    // Tout passe d'abord par des fichiers `.staged` : les sources étant
+    // toutes distinctes, l'ordre des renommages n'a pas d'importance et
+    // aucune image n'en écrase une autre avant d'avoir été déplacée.
+    // Image existante jamais téléchargée : elle le sera plus tard, à sa
+    // nouvelle place (son URL la suit dans la fiche).
     plan.samples.forEach((sample, i) => {
       const staged = path.join(gameImgDir, `sample_${i + 1}.jpg.staged`);
       if ('keep' in sample) {
-        const current = path.join(gameImgDir, `sample_${sample.keep}.jpg`);
-        // Échantillon jamais téléchargé : il le sera plus tard, à sa nouvelle position.
-        if (fs.existsSync(current)) fs.renameSync(current, staged);
+        if (fs.existsSync(existingPath(sample.keep))) fs.renameSync(existingPath(sample.keep), staged);
       } else {
         fs.writeFileSync(staged, sample.data);
       }
     });
+    if (plan.cover !== 'keep' && plan.cover !== 'remove') {
+      if ('keep' in plan.cover) {
+        if (fs.existsSync(existingPath(plan.cover.keep))) fs.renameSync(existingPath(plan.cover.keep), coverStaged);
+      } else {
+        fs.writeFileSync(coverStaged, plan.cover.data);
+      }
+    }
 
     for (const file of fs.readdirSync(gameImgDir)) {
       if (isSample(file)) fs.rmSync(path.join(gameImgDir, file), { force: true });
@@ -597,12 +810,11 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
       if (isStaged(file)) fs.renameSync(path.join(gameImgDir, file), path.join(gameImgDir, file.slice(0, -'.staged'.length)));
     }
 
-    const coverPath = path.join(gameImgDir, 'work_image.jpg');
-    if (plan.cover === 'remove') {
-      fs.rmSync(coverPath, { force: true });
-    } else if (plan.cover !== 'keep') {
-      fs.writeFileSync(`${coverPath}.staged`, plan.cover.data);
-      fs.renameSync(`${coverPath}.staged`, coverPath);
+    if (plan.cover !== 'keep') {
+      // Couverture supprimée ou remplacée : l'ancienne ne doit pas rester
+      // sous ce nom (sauf si elle vient d'être déplacée parmi les échantillons).
+      if (fs.existsSync(coverStaged)) fs.renameSync(coverStaged, coverPath);
+      else fs.rmSync(coverPath, { force: true });
     }
     return true;
   });
@@ -618,53 +830,24 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('is-fullscreen', () => getWindow()?.isFullScreen() ?? false);
 
   // --- Téléchargement d'images ---
-  // Écrit dans un fichier `.part`, renommé seulement une fois complet : un
-  // crash ou une coupure en plein téléchargement ne laisse jamais une image
-  // tronquée sous le nom final, que `downloadIfMissing` prendrait ensuite
-  // pour valide et ne retenterait plus jamais.
-  const download = (url: string, outputPath: string): Promise<void> => {
+  // Par la pile réseau de Chromium (proxy DLsite / système, voir
+  // dlsite-net.ts). Écrit dans un fichier `.part`, renommé seulement une
+  // fois complet : un crash ou une coupure en plein téléchargement ne laisse
+  // jamais une image tronquée sous le nom final, que `downloadIfMissing`
+  // prendrait ensuite pour valide et ne retenterait plus jamais.
+  const download = async (url: string, outputPath: string): Promise<void> => {
     const partPath = `${outputPath}.part`;
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      const file = fs.createWriteStream(partPath);
-
-      const fail = (err: Error) => {
-        if (settled) return;
-        settled = true;
-        file.close(() => fs.unlink(partPath, () => reject(err)));
-      };
-
-      file.on('error', fail);
-
-      const request = https.get(url, { timeout: IMAGE_DOWNLOAD_TIMEOUT_MS }, (response) => {
-        if (response.statusCode !== 200) {
-          response.resume();
-          fail(new Error(`HTTP ${response.statusCode} pour ${url}`));
-          return;
-        }
-        response.on('error', fail);
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close(() => {
-            if (settled) return;
-            settled = true;
-            fs.rename(partPath, outputPath, (err) => {
-              if (err) {
-                fs.unlink(partPath, () => reject(err));
-              } else {
-                resolve();
-              }
-            });
-          });
-        });
-      });
-
-      request.on('timeout', () => {
-        request.destroy(new Error(`Timeout de téléchargement (${IMAGE_DOWNLOAD_TIMEOUT_MS}ms) pour ${url}`));
-      });
-
-      request.on('error', fail);
-    });
+    try {
+      const response = await dlsiteFetch(url, { signal: AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS) });
+      if (response.status !== 200 || !response.body) {
+        throw new Error(`HTTP ${response.status} pour ${url}`);
+      }
+      await pipeline(Readable.fromWeb(response.body as unknown as NodeReadableStream), fs.createWriteStream(partPath));
+      await fs.promises.rename(partPath, outputPath);
+    } catch (error) {
+      await fs.promises.rm(partPath, { force: true }).catch(() => undefined);
+      throw error;
+    }
   };
 
   // Ne télécharge que les fichiers absents : économise la bande passante et
@@ -683,8 +866,24 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
   // Retourne true seulement si toutes les images attendues sont présentes sur
   // le disque à la fin de l'appel (déjà là ou nouvellement téléchargées), ce
   // qui permet à l'appelant de savoir s'il doit retenter plus tard.
-  ipcMain.handle('download-game-images', async (event: IpcMainInvokeEvent, gameId: string, metadata: GameMetadata) => {
+  //
+  // `overwrite` (fetch DLsite forcé) : retélécharge même les images présentes.
+  // Chaque fichier n'est remplacé qu'une fois le nouveau complet (`.part`
+  // renommé par-dessus), donc un échec garde l'ancienne image ; les
+  // échantillons en trop ne sont supprimés que si tout a réussi.
+  ipcMain.handle('download-game-images', async (event: IpcMainInvokeEvent, gameId: string, metadata: GameMetadata, options?: { overwrite?: boolean }) => {
     assertGameId(gameId);
+    const overwrite = options?.overwrite === true;
+    const fetchImage = async (url: string, outputPath: string): Promise<boolean> => {
+      if (!overwrite) return downloadIfMissing(url, outputPath);
+      try {
+        await download(url, outputPath);
+        return true;
+      } catch (error) {
+        console.error(`Erreur téléchargement image (${outputPath}):`, (error as Error).message);
+        return false;
+      }
+    };
     const gameDir = path.join(getImgCacheDir(), gameId);
     if (!fs.existsSync(gameDir)) {
       fs.mkdirSync(gameDir, { recursive: true });
@@ -696,7 +895,7 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
     // à télécharger, et la retenter à chaque scan échouerait indéfiniment.
     if (metadata.work_image && metadata.work_image !== MANUAL_IMAGE) {
       const url = metadata.work_image.startsWith('http') ? metadata.work_image : `https:${metadata.work_image}`;
-      const ok = await downloadIfMissing(url, path.join(gameDir, 'work_image.jpg'));
+      const ok = await fetchImage(url, path.join(gameDir, 'work_image.jpg'));
       allSucceeded = allSucceeded && ok;
     }
 
@@ -705,11 +904,45 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null): void {
         // Échantillon ajouté à la main : rien à télécharger.
         if (metadata.sample_images[i] === MANUAL_IMAGE) continue;
         const url = metadata.sample_images[i].startsWith('http') ? metadata.sample_images[i] : `https:${metadata.sample_images[i]}`;
-        const ok = await downloadIfMissing(url, path.join(gameDir, `sample_${i + 1}.jpg`));
+        const ok = await fetchImage(url, path.join(gameDir, `sample_${i + 1}.jpg`));
         allSucceeded = allSucceeded && ok;
+      }
+    }
+
+    if (overwrite && allSucceeded) {
+      const count = metadata.sample_images?.length ?? 0;
+      for (const file of fs.readdirSync(gameDir)) {
+        const match = /^sample_(\d+)\.jpg$/.exec(file);
+        if (match && Number(match[1]) > count) fs.rmSync(path.join(gameDir, file), { force: true });
       }
     }
 
     return allSucceeded;
   });
+
+  // --- Liste de souhaits ---
+  const wishlist = new Wishlist({
+    store: wishlistStore,
+    getDestinationFolder: async () => (await getSettings()).destinationFolder,
+    fetchMetadata: async gameId => (await fetchWork(gameId, { translations: false })).metadata,
+
+    downloadImage: download,
+    coverDir: () => path.join(getImgCacheDir(), '_wishlist')
+  });
+
+  ipcMain.handle('get-wishlist', () => wishlist.list());
+  ipcMain.handle('add-to-wishlist', (event: IpcMainInvokeEvent, text: string) => {
+    if (typeof text !== 'string' || text.length > 20000) throw new Error('Saisie invalide.');
+    return wishlist.add(text);
+  });
+  ipcMain.handle('remove-from-wishlist', (event: IpcMainInvokeEvent, gameId: string) => {
+    assertGameId(gameId);
+    return wishlist.remove(gameId);
+  });
+  ipcMain.handle('refresh-wishlist-item', async (event: IpcMainInvokeEvent, gameId: string) => {
+    assertGameId(gameId);
+    if (!(await wishlistStore.get(gameId))) throw new Error(`${gameId} n'est pas dans la liste de souhaits.`);
+    return wishlist.refresh(gameId);
+  });
 }
+

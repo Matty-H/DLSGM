@@ -24,6 +24,114 @@ export interface AppSettings {
   startFullscreen: boolean;
   /** Port TCP écouté pour recevoir des jeux en réseau local (voir src/main/lan-share.ts). */
   lanSharePort: number;
+  /**
+   * Proxy pour les requêtes DLsite (ex: http://hôte:port, socks5://hôte:port) ;
+   * vide = proxy système. Voir src/main/dlsite-net.ts.
+   */
+  dlsiteProxy: string;
+  /** Collections créées par l'utilisateur, dans l'ordre d'affichage (appartenance : `GameMetadata.collections`). */
+  collections: GameCollection[];
+  /** Copie des sauvegardes du jeu à chaque fermeture (voir src/main/save-backups.ts). */
+  autoBackupSaves: boolean;
+  /** Fermer la fenêtre la cache dans la zone de notification au lieu de quitter. */
+  closeToTray: boolean;
+  /**
+   * Racine des dossiers de travaux (data mining...) : `<racine>/<ID>/`.
+   * Vide = Documents/DLSGM/Travaux. Voir src/main/workspace.ts.
+   */
+  workspaceFolder: string;
+}
+
+export interface GameWorkspaceEntry {
+  name: string;
+  isDirectory: boolean;
+  /** Octets (contenu total pour un dossier). */
+  size: number;
+  modified: string;
+}
+
+/** Dossier de travaux d'un jeu (créé seulement à la première ouverture). */
+export interface GameWorkspaceInfo {
+  path: string;
+  exists: boolean;
+  /** Entrées de premier niveau, les plus récemment modifiées d'abord (50 au plus). */
+  entries: GameWorkspaceEntry[];
+  totalFiles: number;
+  totalBytes: number;
+  /** Décompte arrêté en route (très gros dossier) : totaux minimaux. */
+  truncated: boolean;
+}
+
+export interface GameCollection {
+  id: string;
+  name: string;
+}
+
+/** Session de jeu suivie (lancement → fermeture du processus). */
+export interface PlaySession {
+  /** Début de la session (ISO). */
+  start: string;
+  /** Durée en secondes. */
+  duration: number;
+}
+
+/** Copie des sauvegardes d'un jeu, stockée dans userData/save_backups/<ID>/. */
+export interface SaveBackup {
+  id: string;
+  createdAt: string;
+  /** auto = à la fermeture du jeu ; pre-restore = état écrasé par une restauration. */
+  reason: 'auto' | 'manual' | 'pre-restore';
+  /** Libellés des emplacements copiés (voir SaveLocation.label). */
+  locations: string[];
+  fileCount: number;
+  totalBytes: number;
+}
+
+/** Dictionnaire des tags : genre japonais (clé, langue de référence) → traduction anglaise. */
+export type GenreTranslations = Record<string, { en: string; manual: boolean }>;
+
+/** Jeu de la liste de souhaits
+ (voir src/main/wishlist.ts). Champs null tant que la fiche n'a pas pu être récupérée. */
+export interface WishlistItem {
+  id: string;
+  addedAt: string;
+  work_name: string | null;
+  circle: string | null;
+  age_category: GameMetadata['age_category'] | null;
+  category: string | null;
+  release_date: string | null;
+  /** Couverture téléchargée : atom://img/_wishlist/<ID>.jpg. */
+  hasCover: boolean;
+  /** Dernier échec de récupération de la fiche (restriction régionale, ID inexistant...). */
+  error?: string;
+}
+
+export interface WishlistAddResult {
+  added: string[];
+  alreadyListed: string[];
+  /** Déjà dans la bibliothèque : pas ajoutés. */
+  inLibrary: string[];
+  /** Aucun ID DLsite dans le texte saisi. */
+  noIdFound?: boolean;
+}
+
+/** Résultat de l'import d'une archive choisie par l'utilisateur. */
+export interface ArchiveImportResult {
+  file: string;
+  gameId?: string;
+  error?: string;
+}
+
+/** Avancement d'un import : archive en cours d'extraction (1-indexée). */
+export interface ArchiveImportProgress {
+  file: string;
+  index: number;
+  total: number;
+}
+
+export interface SaveRestoreResult {
+  /** Emplacements de la copie introuvables aujourd'hui (moteur ou exécutable changé) : non restaurés. */
+  skipped: string[];
 }
 
 /** PC du réseau local dont la réception est ouverte (réponse à la découverte UDP). */
@@ -74,14 +182,19 @@ export interface LanSendResult {
 }
 
 /**
- * Image d'une liste d'échantillons après édition manuelle : un échantillon
- * existant (`sample_<keep>.jpg`, 1-indexé) déplacé à sa nouvelle position,
- * ou une nouvelle image fournie en octets (JPEG, PNG, GIF ou WebP).
+ * Image après édition manuelle : une image existante déplacée à sa nouvelle
+ * place (`keep` : 0 = couverture actuelle, n = `sample_<n>.jpg`, 1-indexé),
+ * ou une nouvelle image fournie en octets (JPEG, PNG, GIF ou WebP). Chaque
+ * image existante sert au plus une fois dans tout le plan.
  */
 export type GameImageSource = { keep: number } | { data: Uint8Array };
 
 export interface GameImagesPlan {
-  cover: 'keep' | 'remove' | { data: Uint8Array };
+  /**
+   * 'keep' = couverture inchangée ; `{ keep: n }` (n ≥ 1) = l'échantillon n
+   * devient la couverture.
+   */
+  cover: 'keep' | 'remove' | GameImageSource;
   /** Liste finale et ordonnée des échantillons ; ceux qui n'y figurent pas sont supprimés. */
   samples: GameImageSource[];
 }
@@ -121,7 +234,28 @@ export interface GameMetadata {
   voice_actor: string[] | null;
   music: string[] | null;
   event: string[] | null;
+  /**
+   * Codes `options` de DLsite (ex: JPN, ENG, AIG = généré par IA, TRI =
+   * version d'essai). Absent des fiches récupérées avant son ajout.
+   */
+  options?: string[] | null;
+  /**
+   * Identifiant DLsite du cercle ou de la marque (ex: RG01001209), le même
+   * dans toutes les langues alors que le nom change ("cat 3" / "猫3"). Absent
+   * des fiches récupérées avant son ajout.
+   */
+  maker_id?: string | null;
+  /** Titre et nom de cercle anglais de DLsite (traductions ; les champs principaux sont en japonais). */
+  work_name_en?: string | null;
+  circle_en?: string | null;
+  /**
+   * Fiche modifiée à la main (formulaire d'édition) : la mise à jour groupée
+   * depuis DLsite ne la touche pas. Remis à false par un fetch forcé du jeu.
+   */
+  manuallyEdited?: boolean;
   addedDate?: string;
+
+
   imagesComplete?: boolean;
   fetchFailed?: boolean;
   lastFetchAttempt?: string;
@@ -133,6 +267,12 @@ export interface GameMetadata {
   executablePath?: string;
   /** Jeu exclu de la sandbox (lancé normalement même si `sandboxLaunch` est actif). */
   sandboxDisabled?: boolean;
+  /** Marqué comme fini par l'utilisateur (macaron sur la jaquette). Donnée personnelle, jamais partagée en LAN. */
+  completed?: boolean;
+  /** IDs des collections (AppSettings.collections) du jeu. Donnée personnelle, jamais partagée en LAN. */
+  collections?: string[];
+  /** Historique des sessions, enregistré par main à la fermeture du jeu. Donnée personnelle. */
+  playSessions?: PlaySession[];
 }
 
 export type GameCache = Record<string, GameMetadata>;
@@ -248,7 +388,11 @@ export interface ElectronAPI {
   launchGame(gameId: string): Promise<LaunchGameResult>;
   /** Ouvre un sélecteur dans le dossier du jeu ; renvoie le chemin relatif mémorisé, ou null si annulé. */
   chooseGameExecutable(gameId: string): Promise<string | null>;
-  downloadGameImages(gameId: string, metadata: GameMetadata): Promise<boolean>;
+  /**
+   * Télécharge les images manquantes ; avec `overwrite`, retélécharge aussi
+   * celles présentes (fetch forcé) et supprime les échantillons en trop.
+   */
+  downloadGameImages(gameId: string, metadata: GameMetadata, options?: { overwrite?: boolean }): Promise<boolean>;
   resetImageCache(): Promise<void>;
   /** Applique les modifications d'images de l'édition manuelle (couverture + échantillons). */
   applyGameImages(gameId: string, plan: GameImagesPlan): Promise<boolean>;
@@ -267,13 +411,60 @@ export interface ElectronAPI {
   applyUserPatch(gameId: string, source: 'zip' | 'folder'): Promise<GameToolsInfo | null>;
   uninstallLastPatch(gameId: string): Promise<GameToolsInfo>;
 
+  // Liste de souhaits (voir src/main/wishlist.ts)
+  /** Liste, sans les jeux arrivés entre-temps dans la bibliothèque (retirés au passage). */
+  getWishlist(): Promise<WishlistItem[]>;
+  /** Ajoute les IDs trouvés dans un texte libre (IDs, liens DLsite...) et récupère leurs fiches. */
+  addToWishlist(text: string): Promise<WishlistAddResult>;
+  removeFromWishlist(gameId: string): Promise<boolean>;
+  /** Nouvelle tentative de récupération de la fiche. */
+  refreshWishlistItem(gameId: string): Promise<void>;
+
+  // Import d'archives (voir src/main/archive-import.ts)
+
+  /**
+   * Sélecteur d'archives (.zip, .rar, .7z, .part1.exe), puis extraction de
+   * chacune dans le dossier de jeux sous son ID. [] si annulé.
+   */
+  importGameArchives(): Promise<ArchiveImportResult[]>;
+  /** Avancement de l'import ; renvoie la fonction de désabonnement. */
+  onArchiveImportProgress(callback: (progress: ArchiveImportProgress) => void): () => void;
+
+  /** Copie cache.db dans userData/db_backups (5 dernières gardées) ; renvoie le chemin de la copie. */
+  snapshotCache(): Promise<string>;
+
+  // Dossier de travaux d'un jeu (voir src/main/workspace.ts)
+
+  getGameWorkspace(gameId: string): Promise<GameWorkspaceInfo>;
+  /** Crée le dossier s'il n'existe pas encore, puis l'ouvre dans l'explorateur. */
+  openGameWorkspace(gameId: string): Promise<GameWorkspaceInfo>;
+  /** Racine effective (paramètre, ou Documents/DLSGM/Travaux si vide). */
+  getWorkspaceRoot(): Promise<string>;
+
+  // Copies des sauvegardes (voir src/main/save-backups.ts)
+
+
+  listSaveBackups(gameId: string): Promise<SaveBackup[]>;
+  /** Copie maintenant ; null si aucun emplacement de sauvegarde ne contient de fichier. */
+  createSaveBackup(gameId: string): Promise<SaveBackup | null>;
+  /** Refusé pendant que le jeu tourne ; l'état écrasé est d'abord copié (reason 'pre-restore'). */
+  restoreSaveBackup(gameId: string, backupId: string): Promise<SaveRestoreResult>;
+  deleteSaveBackup(gameId: string, backupId: string): Promise<boolean>;
+
   // Sandbox Sandboxie-Plus
   getSandboxieStatus(): Promise<SandboxieStatus>;
   /** Supprime tout ce que le jeu a écrit hors de son dossier ; refusé pendant que le jeu tourne. */
   clearGameSandbox(gameId: string): Promise<GameToolsInfo>;
 
-  // Récupération des métadonnées DLsite (fetch Node pur, sans dépendance Python)
-  fetchGameMetadata(gameId: string, locale: string): Promise<GameMetadata>;
+  // Récupération des métadonnées DLsite : en japonais (langue de référence),
+  // plus les traductions anglaises ; les genres traduits enrichissent le
+  // dictionnaire des tags côté main.
+  fetchGameMetadata(gameId: string): Promise<GameMetadata>;
+
+  // Dictionnaire des tags JP → EN (voir src/main/genre-translations.ts)
+  getGenreTranslations(): Promise<GenreTranslations>;
+  /** Traduction choisie à la main (jamais remplacée par DLsite) ; `null` rend la main à DLsite. */
+  setGenreTranslation(japanese: string, english: string | null): Promise<GenreTranslations>;
 
   // Échange de jeux en réseau local (voir src/main/lan-share.ts)
   getLanReceiverStatus(): Promise<LanReceiverStatus>;

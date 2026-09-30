@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 import { Download, Monitor, RefreshCw, Search, Send, Upload, X } from 'lucide-react';
 import type { LanShareState } from '../../hooks/useLanShare';
 import { formatBytes, parseLanAddress, progressRatio, type LanTransferProgress } from '../../lib/lanShare.js';
@@ -6,9 +8,52 @@ import { formatBytes, parseLanAddress, progressRatio, type LanTransferProgress }
 export interface ShareScreenProps {
   share: LanShareState;
   /** Jeux présents dans le dossier de bibliothèque. */
-  games: { id: string; name: string }[];
+  games: { id: string; name: string; isAdult: boolean }[];
   port: number;
   onPortChange: (port: number) => void;
+  getWorkImageSrc: (gameId: string) => string;
+  /** Floute les miniatures R18 (le survol, geste volontaire, affiche l'aperçu net). */
+  blurAdultContent: boolean;
+}
+
+const PREVIEW_WIDTH = 320;
+
+/** Miniature de jaquette ; au survol, aperçu agrandi à côté (dans <body> : la liste défilante le rognerait). */
+function GameThumbnail({ src, alt, blurred }: { src: string; alt: string; blurred: boolean }) {
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const previewHeight = (PREVIEW_WIDTH * 3) / 4;
+  const left = anchor ? (anchor.right + 12 + PREVIEW_WIDTH < window.innerWidth ? anchor.right + 12 : anchor.left - 12 - PREVIEW_WIDTH) : 0;
+  const top = anchor ? Math.min(Math.max(8, anchor.top + anchor.height / 2 - previewHeight / 2), window.innerHeight - previewHeight - 8) : 0;
+  const onError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src = PLACEHOLDER_IMAGE;
+  };
+
+  return (
+    <>
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        onError={onError}
+        onMouseEnter={e => setAnchor(e.currentTarget.getBoundingClientRect())}
+        onMouseLeave={() => setAnchor(null)}
+        className={`h-9 w-12 flex-shrink-0 rounded-sm bg-surface-2 object-cover ${blurred ? 'blur-[3px]' : ''}`}
+      />
+      {anchor &&
+        createPortal(
+          <img
+            src={src}
+            alt=""
+            aria-hidden
+            onError={onError}
+            className="pointer-events-none fixed z-50 rounded-md bg-surface-2 object-cover shadow-2xl ring-1 ring-white/10"
+            style={{ left, top, width: PREVIEW_WIDTH, height: previewHeight }}
+          />,
+          document.body
+        )}
+    </>
+  );
 }
 
 const STATE_LABELS: Record<LanTransferProgress['state'], string> = {
@@ -54,7 +99,7 @@ function TransferRow({ transfer, gameName }: { transfer: LanTransferProgress; ga
  * (port + code à communiquer) ; à droite, envoyer des jeux de la
  * bibliothèque vers un autre PC dont la réception est ouverte.
  */
-export default function ShareScreen({ share, games, port, onPortChange }: ShareScreenProps) {
+export default function ShareScreen({ share, games, port, onPortChange, getWorkImageSrc, blurAdultContent }: ShareScreenProps) {
   const { receiver } = share;
   const receiving = receiver?.running ?? false;
 
@@ -273,6 +318,8 @@ export default function ShareScreen({ share, games, port, onPortChange }: ShareS
                 <li key={game.id}>
                   <label className="flex cursor-pointer items-center gap-3 rounded-sm px-3 py-2 text-[14px] hover:bg-white/5">
                     <input type="checkbox" className="accent-accent" checked={selected.has(game.id)} onChange={() => toggleGame(game.id)} disabled={share.isSending} />
+                    <GameThumbnail src={getWorkImageSrc(game.id)} alt={game.name} blurred={game.isAdult && blurAdultContent} />
+
                     <span className="min-w-0 flex-1 truncate">{game.name}</span>
                     <span className="flex-shrink-0 text-[12px] text-text-muted">{game.id}</span>
                   </label>

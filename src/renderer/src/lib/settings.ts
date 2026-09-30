@@ -1,5 +1,4 @@
 import type { AppSettings } from '../../../shared/ipc-types';
-import { KNOWN_GENRE_PAIRS } from './genreAliases.js';
 
 /**
  * Gère la persistance des paramètres de l'application (dossier des jeux,
@@ -19,11 +18,19 @@ const DEFAULT_SETTINGS: Settings = {
   refreshRate: 5,
   language: 'en_US',
   blurAdultContent: true,
-  genreAliasGroups: KNOWN_GENRE_PAIRS,
+  // Obsolète (remplacé par le dictionnaire des tags) : lu une fois par main pour l'amorcer.
+  genreAliasGroups: [],
   sandboxLaunch: false,
   startFullscreen: false,
   lanSharePort: 47821,
+  dlsiteProxy: '',
+  collections: [],
+  autoBackupSaves: true,
+  closeToTray: false,
+  workspaceFolder: '',
   selectedSort: 'name_asc'
+
+
 };
 
 /**
