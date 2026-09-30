@@ -46,6 +46,8 @@ export interface AppSettings {
   hideCompleted: boolean;
   /** Auto-clicker (Paramètres › Auto-clicker, et l'overlay en jeu). */
   autoClicker: AutoClickerSettings;
+  /** Détecteur de rythme (Paramètres › Auto-clicker ; zones réglées jeu par jeu, `GameMetadata.pixelTriggers`). */
+  pixelTrigger: PixelTriggerSettings;
   /** Overlay en jeu (Maj+Tab pendant qu'un jeu lancé depuis DLSGM tourne). */
   overlayEnabled: boolean;
   /** Copie des sauvegardes du jeu à chaque fermeture (voir src/main/save-backups.ts). */
@@ -149,6 +151,78 @@ export interface AutoClickerStatus {
   error: string | null;
 }
 
+/**
+ * Détecteur de rythme (voir src/main/pixel-trigger.ts, Windows) : clique à
+ * un point fixe (ou appuie sur une touche) quand les pixels d'une zone de
+ * l'écran bougent ou prennent une couleur — pour les jeux de rythme.
+ */
+export interface PixelTriggerSettings {
+  /** Interrupteur général. Même activé, n'agit que pendant un jeu lancé depuis DLSGM qui a des zones actives. */
+  enabled: boolean;
+  /** Raccourci marche / arrêt (accélérateur Electron, ex: F7). */
+  hotkey: string;
+}
+
+/** `motion` : les pixels changent d'une image à l'autre ; `color` : ils ont la couleur visée. */
+export type PixelTriggerMode = 'motion' | 'color';
+
+/** Une zone surveillée (une « piste » d'un jeu de rythme) et ce qu'elle déclenche. */
+export interface PixelTrigger {
+  /** Identifiant aléatoire (compteurs du statut). */
+  id: string;
+  name: string;
+  enabled: boolean;
+  mode: PixelTriggerMode;
+  /** Rectangle surveillé, coordonnées Electron (DIP) ; null = pas encore visé. */
+  zone: { x: number; y: number; width: number; height: number } | null;
+  /** Couleur visée (#rrggbb), mode `color`. */
+  color: string;
+  /**
+   * Écart toléré par canal (0-255) : mode `color`, écart à la couleur visée ;
+   * mode `motion`, écart au-delà duquel un pixel compte comme changé.
+   */
+  tolerance: number;
+  /** Part des pixels de la zone qui doivent correspondre (1-100 %). */
+  minPercent: number;
+  action: 'click' | 'key';
+  button: ClickerButton;
+  /** Point cliqué (DIP) ; null = centre de la zone. */
+  clickPoint: { x: number; y: number } | null;
+  /** Touche appuyée (action `key`), nom de lib/pixelTrigger.ts (ex: 'Space', 'D'). */
+  key: string;
+  /** Attente entre la détection et l'action, en ms (zone placée en amont de la ligne de frappe). */
+  delayMs: number;
+  /** Maintenir le bouton / la touche tant que la zone correspond (notes longues). */
+  hold: boolean;
+  /** Délai minimal entre deux déclenchements de cette zone, en ms. */
+  cooldownMs: number;
+}
+
+export interface PixelTriggerStatus {
+  /** Windows uniquement. */
+  available: boolean;
+  running: boolean;
+  /** En marche mais en pause : la fenêtre au premier plan n'est pas celle du jeu. */
+  paused: boolean;
+  /** Un jeu lancé depuis DLSGM avec au moins une zone active tourne : le raccourci est actif. */
+  inGame: boolean;
+  hotkeyActive: boolean;
+  /** Zones surveillées pendant la partie en cours. */
+  zoneCount: number;
+  /** Déclenchements depuis le dernier démarrage, par `PixelTrigger.id`. */
+  hits: Record<string, number>;
+  /** Durée moyenne d'un tour de surveillance (capture de toutes les zones), en ms. */
+  frameMs: number | null;
+  error: string | null;
+}
+
+/** Visée d'une zone : position du curseur (DIP) et couleur du pixel dessous. */
+export interface PixelTarget {
+  x: number;
+  y: number;
+  color: string;
+}
+
 /** Jeu lancé depuis DLSGM, affiché dans l'overlay (Maj+Tab). */
 export interface OverlayGame {
   id: string;
@@ -161,12 +235,24 @@ export interface OverlayGame {
   lastPlayed: string | null;
   /** Auto-clicker ajouté à ce jeu (case de l'overlay ; `autoClickerEnabled` dans la fiche, décoché par défaut). */
   autoClickerEnabled: boolean;
+  /** Détecteur de rythme ajouté à ce jeu (case de l'overlay ; `pixelTriggerEnabled` dans la fiche, décoché par défaut). */
+  pixelTriggerEnabled: boolean;
+}
+
+/** Zones dessinées par-dessus le jeu (src/main/trigger-zones.ts) : coordonnées DIP de l'écran, `origin` = coin de la fenêtre. */
+export interface TriggerZonesView {
+  origin: { x: number; y: number };
+  zones: { id: string; name: string; zone: { x: number; y: number; width: number; height: number }; delayMs: number }[];
 }
 
 export interface OverlayState {
   games: OverlayGame[];
   clicker: AutoClickerStatus;
   clickerSettings: AutoClickerSettings;
+  trigger: PixelTriggerStatus;
+  triggerSettings: PixelTriggerSettings;
+  /** Zones du détecteur de rythme de chaque jeu en cours, par ID. */
+  gameTriggers: Record<string, PixelTrigger[]>;
 }
 
 /** Taille des jaquettes d'une étagère de l'accueil. */
@@ -437,6 +523,10 @@ export interface GameMetadata {
   completed?: boolean;
   /** Auto-clicker ajouté à ce jeu (case de l'overlay, opt-in). Donnée personnelle, jamais partagée en LAN. */
   autoClickerEnabled?: boolean;
+  /** Détecteur de rythme ajouté à ce jeu (case de l'overlay, opt-in). Donnée personnelle, jamais partagée en LAN. */
+  pixelTriggerEnabled?: boolean;
+  /** Zones du détecteur de rythme pour ce jeu. Donnée personnelle, jamais partagée en LAN. */
+  pixelTriggers?: PixelTrigger[];
   /** IDs des collections (AppSettings.collections) du jeu. Donnée personnelle, jamais partagée en LAN. */
   collections?: string[];
   /** Historique des sessions, enregistré par main à la fermeture du jeu. Donnée personnelle. */
@@ -680,6 +770,24 @@ export interface ElectronAPI {
   /** Overlay : ajoute ou retire l'auto-clicker d'un jeu en cours (enregistré dans sa fiche). */
   setGameAutoClicker(gameId: string, enabled: boolean): Promise<void>;
   onClickerHudExpanded(callback: (expanded: boolean) => void): () => void;
+  // Détecteur de rythme (src/main/pixel-trigger.ts)
+  getPixelTriggerState(): Promise<{ status: PixelTriggerStatus; settings: PixelTriggerSettings }>;
+  /** Overlay : ajoute ou retire le détecteur de rythme d'un jeu en cours (enregistré dans sa fiche). */
+  setGamePixelTrigger(gameId: string, enabled: boolean): Promise<void>;
+  /** Témoin du détecteur : déplier (réglages rapides, seulement à l'arrêt) ou replier. */
+  setTriggerHudExpanded(expanded: boolean): Promise<void>;
+  /** Témoin du détecteur : raccourci, enregistré tout de suite. */
+  saveTriggerQuickSettings(patch: { hotkey?: string }): Promise<PixelTriggerStatus>;
+  /** Fenêtre des zones (#trigger-zones) : zones à dessiner (au montage, puis à chaque changement). */
+  getTriggerZones(): Promise<TriggerZonesView | null>;
+  onTriggerZones(callback: (view: TriggerZonesView) => void): () => void;
+  onPixelTriggerStatus(callback: (status: PixelTriggerStatus) => void): () => void;
+  /** Après `delayMs` (le temps de viser dans le jeu) : position du curseur et couleur du pixel dessous. */
+  capturePixelTarget(delayMs: number, hideOverlay?: boolean): Promise<PixelTarget>;
+  /** Overlay : remplace les zones d'un jeu (enregistrées dans sa fiche, appliquées tout de suite). */
+  setGamePixelTriggers(gameId: string, triggers: PixelTrigger[]): Promise<PixelTrigger[]>;
+  /** Une fiche a été modifiée hors de la fenêtre principale (overlay) : `patch` à fusionner dans sa copie. */
+  onCacheEntryChanged(callback: (gameId: string, patch: Record<string, unknown>) => void): () => void;
   /** Paramètres modifiés hors de la fenêtre principale (témoin) : à relire. */
   onSettingsChanged(callback: () => void): () => void;
 

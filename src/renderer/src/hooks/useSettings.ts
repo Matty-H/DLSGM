@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadSettings, saveSettings as persistSettings } from '../lib/settings.js';
-import type { AutoClickerSettings, GameCollection, HomeShelfPrefs } from '../../../shared/ipc-types';
+import type { AutoClickerSettings, GameCollection, HomeShelfPrefs, PixelTriggerSettings } from '../../../shared/ipc-types';
 
 export interface AppSettings {
   destinationFolder: string;
@@ -16,6 +16,7 @@ export interface AppSettings {
   homeShelves: Record<string, HomeShelfPrefs>;
   hideCompleted: boolean;
   autoClicker: AutoClickerSettings;
+  pixelTrigger: PixelTriggerSettings;
   overlayEnabled: boolean;
   autoBackupSaves: boolean;
   closeToTray: boolean;
@@ -40,11 +41,11 @@ export function useSettings() {
     loadSettings().then((loaded: AppSettings) => {
       if (!cancelled) setSettings(loaded);
     });
-    // Auto-clicker réglé depuis son témoin (autre fenêtre) : sinon un
-    // enregistrement ici remettrait les anciennes valeurs.
+    // Auto-clicker / détecteur réglés depuis leur témoin (autre fenêtre) : sinon
+    // un enregistrement ici remettrait les anciennes valeurs.
     const off = window.electronAPI.onSettingsChanged(() => {
       loadSettings().then((loaded: AppSettings) => {
-        if (!cancelled) setSettings(prev => (prev ? { ...prev, autoClicker: loaded.autoClicker } : loaded));
+        if (!cancelled) setSettings(prev => (prev ? { ...prev, autoClicker: loaded.autoClicker, pixelTrigger: loaded.pixelTrigger } : loaded));
       });
     });
     return () => {

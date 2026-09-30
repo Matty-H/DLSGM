@@ -8,7 +8,7 @@ export default function AutoClickerHelp({ hotkey }: AutoClickerHelpProps) {
   return (
     <ol className="m-0 flex list-decimal flex-col gap-1.5 pl-5 text-[13px] leading-relaxed text-text-secondary">
       <li>
-        Règle le clic dans <span className="font-semibold text-text">Paramètres › Auto-clicker</span> : intervalle, bouton,
+        Règle le clic dans <span className="font-semibold text-text">Paramètres › Outils en jeu</span> : intervalle, bouton,
         simple ou double clic, nombre de répétitions, et l'endroit (au curseur ou un point fixe) — puis Enregistrer.
       </li>
       <li>

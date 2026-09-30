@@ -9,8 +9,6 @@ import type { AutoClickerStatus } from '../../../../shared/ipc-types';
 export interface AutoClickerSettingsProps {
   value: ClickerSettings;
   onChange: (value: ClickerSettings) => void;
-  overlayEnabled: boolean;
-  onOverlayEnabledChange: (value: boolean) => void;
   /** Modifications pas encore enregistrées (le raccourci utilise les réglages enregistrés). */
   isDirty: boolean;
 }
@@ -50,10 +48,10 @@ function NumberField({ label, value, onChange, width = 'w-[70px]' }: { label: st
 }
 
 /**
- * Paramètres › Auto-clicker : réglages façon OP Auto Clicker (intervalle,
- * bouton, simple / double, répétitions, position) et overlay en jeu.
+ * Paramètres › Outils en jeu › Auto-clicker : réglages façon OP Auto Clicker
+ * (intervalle, bouton, simple / double, répétitions, position).
  */
-export default function AutoClickerSettings({ value, onChange, overlayEnabled, onOverlayEnabledChange, isDirty }: AutoClickerSettingsProps) {
+export default function AutoClickerSettings({ value, onChange, isDirty }: AutoClickerSettingsProps) {
   const [status, setStatus] = useState<AutoClickerStatus | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [captureError, setCaptureError] = useState<string | null>(null);
@@ -102,9 +100,8 @@ export default function AutoClickerSettings({ value, onChange, overlayEnabled, o
         label="Activer l'auto-clicker"
         description={
           <>
-            Interrupteur général. L'auto-clicker s'ajoute ensuite jeu par jeu, depuis l'overlay en jeu (Maj+Tab, case
-            « Ajouter l'auto-clicker à ce jeu ») : le raccourci et le témoin en bas à gauche n'existent que pendant ces
-            parties, et les clics ne partent que vers le jeu (en pause si une autre fenêtre est au premier plan).
+            Interrupteur général ; il s'ajoute ensuite jeu par jeu (overlay Maj+Tab, case « Ajouter l'auto-clicker à ce
+            jeu »). Les clics ne partent que vers le jeu (en pause si une autre fenêtre est au premier plan).
             {status?.running && (
               <span className={`mt-1 block font-semibold ${status.paused ? 'text-amber-300' : 'text-play'}`}>
                 {status.paused ? 'En pause (le jeu n’est pas au premier plan).' : 'En marche.'}
@@ -187,13 +184,6 @@ export default function AutoClickerSettings({ value, onChange, overlayEnabled, o
             {countdown !== null ? `Place la souris… ${countdown}` : value.position ? `(${value.position.x}, ${value.position.y})` : 'Prendre la position'}
           </button>
         </div>
-      </Row>
-
-      <Row
-        label="Overlay en jeu (Maj+Tab)"
-        description="Pendant qu'un jeu lancé depuis DLSGM tourne, Maj+Tab affiche par-dessus : temps de session, temps de jeu total, auto-clicker. Fonctionne avec les jeux en fenêtre ou en plein écran sans bordure, pas en plein écran exclusif. Le raccourci n'existe que pendant la partie (Maj+Tab n'arrive alors plus au jeu)."
-      >
-        <input type="checkbox" className="toggle" aria-label="Overlay en jeu" checked={overlayEnabled} onChange={e => onOverlayEnabledChange(e.target.checked)} />
       </Row>
 
       <div className="py-4">

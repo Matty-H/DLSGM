@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS: Settings = {
   homeShelves: {},
   hideCompleted: false,
   autoClicker: { enabled: false, hotkey: 'F6', intervalMs: 100, button: 'left', double: false, repeat: 0, position: null },
+  pixelTrigger: { enabled: false, hotkey: 'F7' },
   overlayEnabled: true,
   autoBackupSaves: true,
   closeToTray: false,

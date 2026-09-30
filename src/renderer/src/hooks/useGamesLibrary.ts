@@ -84,6 +84,16 @@ export function useGamesLibrary() {
   // n'envoient au main que l'entrée concernée — jamais le cache complet, dont
   // la copie React peut être périmée (ex: pendant un scan, avant reloadCache).
 
+  // Fiche modifiée depuis l'overlay (zones du détecteur) : sans cette fusion,
+  // la page du jeu réécrirait l'ancienne valeur à sa prochaine modification.
+  useEffect(
+    () =>
+      window.electronAPI.onCacheEntryChanged((gameId, patch) => {
+        setCache(prev => (prev[gameId] ? { ...prev, [gameId]: { ...prev[gameId], ...patch } } : prev));
+      }),
+    []
+  );
+
   /** Fusionne `patch` dans l'entrée `gameId` du cache et persiste le résultat. */
   const updateGame = useCallback((gameId: string, patch: Record<string, any>) => {
     setCache(prev => ({ ...prev, [gameId]: { ...prev[gameId], ...patch } }));

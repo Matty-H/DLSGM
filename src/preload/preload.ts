@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
+import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -141,6 +141,34 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on('clicker-hud-expanded', listener);
     return () => {
       ipcRenderer.removeListener('clicker-hud-expanded', listener);
+    };
+  },
+  getPixelTriggerState: () => ipcRenderer.invoke('get-pixel-trigger-state'),
+  setGamePixelTrigger: (gameId, enabled) => ipcRenderer.invoke('set-game-pixel-trigger', gameId, enabled),
+  getTriggerZones: () => ipcRenderer.invoke('get-trigger-zones'),
+  setTriggerHudExpanded: (expanded) => ipcRenderer.invoke('set-trigger-hud-expanded', expanded),
+  saveTriggerQuickSettings: (patch) => ipcRenderer.invoke('save-trigger-quick-settings', patch),
+  onTriggerZones: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, view: TriggerZonesView) => callback(view);
+    ipcRenderer.on('trigger-zones', listener);
+    return () => {
+      ipcRenderer.removeListener('trigger-zones', listener);
+    };
+  },
+  onPixelTriggerStatus: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: PixelTriggerStatus) => callback(status);
+    ipcRenderer.on('pixel-trigger-status', listener);
+    return () => {
+      ipcRenderer.removeListener('pixel-trigger-status', listener);
+    };
+  },
+  capturePixelTarget: (delayMs, hideOverlay) => ipcRenderer.invoke('capture-pixel-target', delayMs, Boolean(hideOverlay)),
+  setGamePixelTriggers: (gameId, triggers) => ipcRenderer.invoke('set-game-pixel-triggers', gameId, triggers),
+  onCacheEntryChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, gameId: string, patch: Record<string, unknown>) => callback(gameId, patch);
+    ipcRenderer.on('cache-entry-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('cache-entry-changed', listener);
     };
   },
   onSettingsChanged: (callback) => {

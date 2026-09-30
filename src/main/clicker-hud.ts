@@ -18,13 +18,27 @@ const MARGIN = 12;
 export interface ClickerHudOptions {
   preloadPath: string;
   loadPage: (window: BrowserWindow) => void;
+  /** Décalage vers la droite (témoin du détecteur de rythme, à côté de celui de l'auto-clicker). */
+  offsetX?: number;
+  /** Taille dépliée (réglages rapides), HUD_EXPANDED par défaut. */
+  expandedSize?: { width: number; height: number };
 }
 
 /** Coin bas gauche de la zone de travail (au-dessus de la barre des tâches). */
-export function hudBounds(workArea: { x: number; y: number; width: number; height: number }, expanded: boolean) {
-  const size = expanded ? HUD_EXPANDED : HUD_COLLAPSED;
-  return { x: workArea.x + MARGIN, y: workArea.y + workArea.height - size.height - MARGIN, ...size };
+export function hudBounds(
+  workArea: { x: number; y: number; width: number; height: number },
+  expanded: boolean,
+  offsetX = 0,
+  expandedSize = HUD_EXPANDED
+) {
+  const size = expanded ? expandedSize : HUD_COLLAPSED;
+  return { x: workArea.x + MARGIN + offsetX, y: workArea.y + workArea.height - size.height - MARGIN, ...size };
 }
+
+/** Témoin du détecteur de rythme : à droite de celui de l'auto-clicker, même déplié. */
+export const TRIGGER_HUD_OFFSET_X = HUD_EXPANDED.width + MARGIN;
+/** Témoin du détecteur déplié : ses zones et le raccourci (contenu défilant au-delà). */
+export const TRIGGER_HUD_EXPANDED = { width: 380, height: 560 };
 
 export class ClickerHud {
   private window: BrowserWindow | null = null;
@@ -34,7 +48,7 @@ export class ClickerHud {
 
   private create(): BrowserWindow {
     const window = new BrowserWindow({
-      ...hudBounds(screen.getPrimaryDisplay().workArea, false),
+      ...hudBounds(screen.getPrimaryDisplay().workArea, false, this.options.offsetX),
       show: false,
       frame: false,
       transparent: true,
@@ -71,7 +85,7 @@ export class ClickerHud {
       return;
     }
     const window = this.window && !this.window.isDestroyed() ? this.window : (this.window = this.create());
-    window.setBounds(hudBounds(screen.getPrimaryDisplay().workArea, this.expanded));
+    window.setBounds(hudBounds(screen.getPrimaryDisplay().workArea, this.expanded, this.options.offsetX, this.options.expandedSize));
     // showInactive : le jeu garde le focus.
     if (window.webContents.isLoading()) window.webContents.once('did-finish-load', () => window.showInactive());
     else if (!window.isVisible()) window.showInactive();
@@ -82,7 +96,7 @@ export class ClickerHud {
     const window = this.window;
     if (!window || window.isDestroyed() || this.expanded === expanded) return;
     this.expanded = expanded;
-    window.setBounds(hudBounds(screen.getPrimaryDisplay().workArea, expanded));
+    window.setBounds(hudBounds(screen.getPrimaryDisplay().workArea, expanded, this.options.offsetX, this.options.expandedSize));
     window.webContents.send('clicker-hud-expanded', expanded);
   }
 

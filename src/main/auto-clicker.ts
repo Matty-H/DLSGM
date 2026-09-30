@@ -80,47 +80,24 @@ export function startCommand(run: number, settings: AutoClickerSettings, point: 
   return ['start', run, settings.intervalMs, down, up, settings.double ? 2 : 1, settings.repeat, point ? 1 : 0, point?.x ?? 0, point?.y ?? 0].join(' ');
 }
 
-export const WORKER_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
-Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
-
-public static class DlsgmClicker {
-  [DllImport("user32.dll")] static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
-  [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+/**
+ * Classe C# commune aux workers (auto-clicker, détecteur de rythme) : la
+ * fenêtre au premier plan appartient-elle à un exécutable situé dans le
+ * dossier d'un jeu en cours ? (`dirs`, voir dirsCommand.)
+ */
+export const FOREGROUND_GUARD_CS = String.raw`
+public static class DlsgmForeground {
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
   [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
   [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref uint size);
   [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
-  [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint period);
-  [DllImport("winmm.dll")] static extern uint timeEndPeriod(uint period);
-  [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
-  [DllImport("kernel32.dll")] static extern bool SetProcessInformation(IntPtr process, int infoClass, ref PowerThrottlingState info, uint size);
 
-  [StructLayout(LayoutKind.Sequential)]
-  struct PowerThrottlingState { public uint Version; public uint ControlMask; public uint StateMask; }
-
-  // Windows 11 ralentit (EcoQoS) les processus d'arrière-plan sans fenêtre :
-  // le worker s'en exclut (vitesse d'exécution et résolution des minuteries).
-  public static void DisableThrottling() {
-    PowerThrottlingState state = new PowerThrottlingState();
-    state.Version = 1;
-    state.ControlMask = 0x1 | 0x4; // EXECUTION_SPEED | IGNORE_TIMER_RESOLUTION
-    state.StateMask = 0;
-    try { SetProcessInformation(GetCurrentProcess(), 4, ref state, (uint)Marshal.SizeOf(state)); } catch { }
-  }
-
-  static readonly ManualResetEvent stopSignal = new ManualResetEvent(false);
-  static Thread worker;
   static volatile string[] gameDirs = new string[0];
 
   public static void SetDirs(string[] dirs) { gameDirs = dirs; }
 
-  // Fenêtre au premier plan = un exécutable situé dans le dossier d'un jeu en cours.
-  public static bool ForegroundIsGame() {
+  public static bool IsGame() {
     string[] dirs = gameDirs;
     if (dirs.Length == 0) return false;
     IntPtr window = GetForegroundWindow();
@@ -142,6 +119,39 @@ public static class DlsgmClicker {
       CloseHandle(process);
     }
   }
+}
+`;
+
+export const WORKER_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+${FOREGROUND_GUARD_CS}
+public static class DlsgmClicker {
+  [DllImport("user32.dll")] static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
+  [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+  [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint period);
+  [DllImport("winmm.dll")] static extern uint timeEndPeriod(uint period);
+  [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+  [DllImport("kernel32.dll")] static extern bool SetProcessInformation(IntPtr process, int infoClass, ref PowerThrottlingState info, uint size);
+
+  [StructLayout(LayoutKind.Sequential)]
+  struct PowerThrottlingState { public uint Version; public uint ControlMask; public uint StateMask; }
+
+  // Windows 11 ralentit (EcoQoS) les processus d'arrière-plan sans fenêtre :
+  // le worker s'en exclut (vitesse d'exécution et résolution des minuteries).
+  public static void DisableThrottling() {
+    PowerThrottlingState state = new PowerThrottlingState();
+    state.Version = 1;
+    state.ControlMask = 0x1 | 0x4; // EXECUTION_SPEED | IGNORE_TIMER_RESOLUTION
+    state.StateMask = 0;
+    try { SetProcessInformation(GetCurrentProcess(), 4, ref state, (uint)Marshal.SizeOf(state)); } catch { }
+  }
+
+  static readonly ManualResetEvent stopSignal = new ManualResetEvent(false);
+  static Thread worker;
 
   static void Emit(string line) {
     Console.Out.WriteLine(line);
@@ -159,7 +169,7 @@ public static class DlsgmClicker {
       try {
         int n = 0;
         while (repeat <= 0 || n < repeat) {
-          bool inGame = ForegroundIsGame();
+          bool inGame = DlsgmForeground.IsGame();
           if (inGame == paused) {
             paused = !inGame;
             Emit((paused ? "paused " : "resumed ") + run);
@@ -211,9 +221,9 @@ while ($true) {
   } elseif ($p[0] -eq 'dirs') {
     $text = ''
     if ($p.Length -gt 1) { $text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[1])) }
-    [DlsgmClicker]::SetDirs([string[]]@($text.Split([char]10) | Where-Object { $_ -ne '' }))
+    [DlsgmForeground]::SetDirs([string[]]@($text.Split([char]10) | Where-Object { $_ -ne '' }))
   } elseif ($p[0] -eq 'probe') {
-    [Console]::Out.WriteLine('probe ' + [DlsgmClicker]::ForegroundIsGame())
+    [Console]::Out.WriteLine('probe ' + [DlsgmForeground]::IsGame())
     [Console]::Out.Flush()
   }
 }
