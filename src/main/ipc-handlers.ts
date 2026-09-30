@@ -758,9 +758,18 @@ export function setupIpcHandlers(
     return screen.getCursorScreenPoint();
   });
 
-  const showOpenDialog = (options: OpenDialogOptions) => {
+  // Depuis Electron 43, sans `defaultPath` les dialogues s'ouvrent toujours dans
+  // Téléchargements (l'OS ne mémorise plus le dernier dossier) : on le mémorise ici.
+  let lastDialogDir: string | undefined;
+  const showOpenDialog = async (options: OpenDialogOptions) => {
     const window = getWindow();
-    return window ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options);
+    const withDefault = { ...options, defaultPath: options.defaultPath ?? lastDialogDir };
+    const result = await (window ? dialog.showOpenDialog(window, withDefault) : dialog.showOpenDialog(withDefault));
+    if (!result.canceled && result.filePaths.length > 0) {
+      const first = result.filePaths[0];
+      lastDialogDir = options.properties?.includes('openDirectory') ? first : path.dirname(first);
+    }
+    return result;
   };
 
   // --- Infos App ---
