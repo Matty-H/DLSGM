@@ -1,4 +1,4 @@
-import { BrowserWindow, globalShortcut, screen } from 'electron';
+import { BrowserWindow, globalShortcut, screen, type Rectangle } from 'electron';
 import type { OverlayGame } from '../shared/ipc-types';
 
 /**
@@ -17,6 +17,9 @@ import type { OverlayGame } from '../shared/ipc-types';
  * Limite : une fenêtre ne peut pas se dessiner par-dessus un jeu en plein
  * écran exclusif (DirectX) ; fenêtré et plein écran sans bordure (RPG Maker
  * MV/MZ, la plupart des jeux Unity) fonctionnent.
+ *
+ * Il couvre la fenêtre du jeu (`gameBounds`, voir game-window.ts) et la suit
+ * si elle bouge ; à défaut (position inconnue, hors Windows), l'écran du curseur.
  */
 
 export const OVERLAY_HOTKEY = 'Shift+Tab';
@@ -28,6 +31,8 @@ export interface GameOverlayOptions {
   /** Charge la page de l'overlay (même renderer que la fenêtre principale, route #overlay). */
   loadPage: (window: BrowserWindow) => void;
   isEnabled: () => Promise<boolean>;
+  /** Zone client de la fenêtre du jeu en DIP, lue de façon synchrone (Maj+Tab : pas d'await). */
+  gameBounds?: () => Rectangle | null;
   /** L'état affiché a changé (jeux, auto-clicker) : prévenir la page. */
   onGamesChanged?: () => void;
 }
@@ -116,9 +121,7 @@ export class GameOverlay {
   show(): void {
     if (this.games.size === 0) return;
     const window = this.window && !this.window.isDestroyed() ? this.window : (this.window = this.create());
-    // Sur l'écran du jeu (celui du curseur), en entier.
-    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-    window.setBounds(display.bounds);
+    window.setBounds(this.bounds());
     // showInactive : le jeu garde le focus (et reste au premier plan).
     const reveal = () => {
       window.showInactive();
@@ -127,6 +130,16 @@ export class GameOverlay {
     };
     if (window.webContents.isLoading()) window.webContents.once('did-finish-load', reveal);
     else reveal();
+  }
+
+  /** Sur la fenêtre du jeu si sa position est connue, sinon l'écran du curseur en entier. */
+  private bounds(): Rectangle {
+    return this.options.gameBounds?.() ?? screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds;
+  }
+
+  /** La fenêtre du jeu a bougé : l'overlay affiché la suit. */
+  followGame(): void {
+    if (this.window && !this.window.isDestroyed() && this.window.isVisible()) this.window.setBounds(this.bounds());
   }
 
   hide(): void {

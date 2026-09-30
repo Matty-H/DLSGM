@@ -79,8 +79,8 @@ export default function OverlayApp() {
   const clickerAvailable = state?.clicker.available ?? false;
 
   return (
-    <div className="flex h-screen w-screen items-center justify-end bg-black/55 p-8 font-body text-text">
-      <div className="flex max-h-full w-[440px] flex-col gap-4 overflow-y-auto">
+    <div className="flex h-screen w-screen items-center justify-end bg-black/55 p-3 font-body text-text sm:p-8">
+      <div className="flex max-h-full w-[440px] max-w-full flex-col gap-4 overflow-y-auto">
         <div className="flex items-center gap-3">
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-extrabold text-white">DL</span>
           <span className="flex-1 text-[15px] font-extrabold tracking-wide">DLSGM</span>

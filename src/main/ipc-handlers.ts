@@ -13,7 +13,7 @@ import { applyDlsiteProxy, dlsiteFetch, protectProxySettings, testDlsiteConnecti
 import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
 import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand, sandboxedPathFor } from './sandboxie';
 import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup } from './save-backups';
-import { ARCHIVE_EXTENSIONS, importArchive, removeStaleImports } from './archive-import';
+import { ARCHIVE_EXTENSIONS, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
 import { Wishlist } from './wishlist';
 import { describeWorkspace, workspaceRoot } from './workspace';
 import { snapshotDatabase } from './db-backup';
@@ -22,10 +22,11 @@ import { Pia } from './pia';
 import { DEFAULT_LAN_PORT, LanShare } from './lan-share';
 import { AutoClicker, DEFAULT_AUTO_CLICKER, sanitizeClickerSettings } from './auto-clicker';
 import { GameOverlay, OVERLAY_HOTKEY } from './overlay';
+import { GameWindowTracker } from './game-window';
 import { ClickerHud, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSET_X } from './clicker-hud';
 import { TriggerZonesWindow } from './trigger-zones';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -396,6 +397,8 @@ export async function shutdownLanShare(): Promise<void> {
 // Créés par setupIpcHandlers (il leur faut la fenêtre et le chargeur de page).
 let autoClicker: AutoClicker | null = null;
 let overlay: GameOverlay | null = null;
+// Position de la fenêtre du jeu en cours : l'overlay se pose dessus.
+let gameWindow: GameWindowTracker | null = null;
 // Témoin en bas à gauche de l'écran pendant la partie (auto-clicker activé).
 let clickerHud: ClickerHud | null = null;
 // Mode panique (Alt+Espace, bascule) : le témoin se cache avec l'application.
@@ -602,6 +605,7 @@ export function shutdownInGameTools(): void {
   autoClicker?.dispose();
   pixelTrigger?.dispose();
   overlay?.destroy();
+  gameWindow?.dispose();
   clickerHud?.destroy();
   triggerHud?.destroy();
   triggerZones?.destroy();
@@ -636,9 +640,19 @@ export function setupIpcHandlers(
     }
   });
   autoClicker = clicker;
+  const tracker = new GameWindowTracker({
+    scriptDir: app.getPath('userData'),
+    onChange: () => overlay?.followGame()
+  });
+  gameWindow = tracker;
   const gameOverlay = new GameOverlay({
     preloadPath: pages.preloadPath,
     loadPage: window => pages.loadPage(window, 'overlay'),
+    gameBounds: () => {
+      const rect = tracker.current();
+      // Pixels physiques → DIP (mise à l'échelle de l'écran où se trouve le jeu).
+      return rect ? screen.screenToDipRect(null, rect) : null;
+    },
     isEnabled: async () => (await getSettings()).overlayEnabled !== false,
     onGamesChanged: () => overlay?.send('overlay-state-changed')
   });
@@ -916,6 +930,8 @@ export function setupIpcHandlers(
       pixelTriggerEnabled: entry.pixelTriggerEnabled === true
     });
     runningGameDirs.set(gameId, gamePath);
+    // Suivi de la fenêtre du jeu (un worker PowerShell) seulement si l'overlay peut servir.
+    if ((await getSettings()).overlayEnabled !== false) gameWindow?.setGameDirs([...runningGameDirs.values()]);
     if (entry.autoClickerEnabled === true) clickerEnabledGames.add(gameId);
     else clickerEnabledGames.delete(gameId);
     runningGameTriggers.set(gameId, sanitizePixelTriggers(entry.pixelTriggers));
@@ -930,6 +946,7 @@ export function setupIpcHandlers(
       await overlay?.gameEnded(gameId);
       // Plus de jeu : plus d'auto-clicker (ni raccourci, ni témoin).
       runningGameDirs.delete(gameId);
+      gameWindow?.setGameDirs([...runningGameDirs.values()]);
       runningGameTriggers.delete(gameId);
       refreshAutoClicker();
       refreshPixelTrigger();
@@ -1022,6 +1039,10 @@ export function setupIpcHandlers(
 
   // --- Import d'archives ---
   let importing = false;
+  // Archives importées avec succès, par importId : seuls ces fichiers (toutes
+  // leurs parties) peuvent être mis à la corbeille par le renderer, qui ne
+  // fournit jamais de chemin lui-même.
+  const importedArchives = new Map<string, string[]>();
   ipcMain.handle('import-game-archives', async (): Promise<ArchiveImportResult[]> => {
     if (importing) throw new Error('Un import est déjà en cours.');
     importing = true;
@@ -1041,7 +1062,9 @@ export function setupIpcHandlers(
         getWindow()?.webContents.send('archive-import-progress', { file: path.basename(file), index: i + 1, total: result.filePaths.length });
         try {
           const { gameId } = await importArchive(file, destinationFolder);
-          results.push({ file: path.basename(file), gameId });
+          const importId = crypto.randomUUID();
+          importedArchives.set(importId, archiveVolumes(file));
+          results.push({ file: path.basename(file), gameId, importId });
         } catch (error) {
           results.push({ file: path.basename(file), error: error instanceof Error ? error.message : String(error) });
         }
@@ -1050,6 +1073,26 @@ export function setupIpcHandlers(
     } finally {
       importing = false;
     }
+  });
+
+  // Corbeille plutôt que suppression définitive : récupérable en cas d'erreur.
+  ipcMain.handle('trash-imported-archives', async (event: IpcMainInvokeEvent, importIds: string[]): Promise<TrashArchivesResult> => {
+    const result: TrashArchivesResult = { trashed: 0, errors: [] };
+    for (const importId of Array.isArray(importIds) ? importIds : []) {
+      const files = importedArchives.get(importId);
+      if (!files) continue;
+      importedArchives.delete(importId);
+      for (const file of files) {
+        if (!fs.existsSync(file)) continue;
+        try {
+          await shell.trashItem(file);
+          result.trashed++;
+        } catch (error) {
+          result.errors.push(`${path.basename(file)} : ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    }
+    return result;
   });
 
   ipcMain.handle('test-dlsite-connection', () => testDlsiteConnection());
