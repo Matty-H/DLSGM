@@ -464,6 +464,8 @@ export interface ElectronAPI {
 
   // VPN Private Internet Access (voir src/main/pia.ts)
   getPiaStatus(): Promise<PiaStatus>;
+  /** Exécutable de DLSGM (à déclarer dans le split tunneling de PIA pour lui réserver le VPN). */
+  getAppExecutablePath(): Promise<string>;
   /**
    * Connecte PIA à la région des paramètres (ou rejoint la session en cours).
    * Chaque appel réussi doit être suivi de `endVpnSession`, qui restaure
