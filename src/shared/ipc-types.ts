@@ -29,6 +29,11 @@ export interface AppSettings {
    * vide = proxy système. Voir src/main/dlsite-net.ts.
    */
   dlsiteProxy: string;
+  /**
+   * Mot de passe du proxy, chiffré (safeStorage) — dans `dlsiteProxy`, il est
+   * remplacé par "********". Géré par main seul (voir dlsite-net.ts).
+   */
+  dlsiteProxySecret?: string;
   /** Collections créées par l'utilisateur, dans l'ordre d'affichage (appartenance : `GameMetadata.collections`). */
   collections: GameCollection[];
   /** Copie des sauvegardes du jeu à chaque fermeture (voir src/main/save-backups.ts). */
@@ -453,6 +458,9 @@ export interface ElectronAPI {
 
   /** Copie cache.db dans userData/db_backups (5 dernières gardées) ; renvoie le chemin de la copie. */
   snapshotCache(): Promise<string>;
+
+  /** Accès à DLsite avec le proxy enregistré : statut HTTP et durée ; lève l'erreur réseau sinon. */
+  testDlsiteConnection(): Promise<{ status: number; ms: number }>;
 
   // VPN Private Internet Access (voir src/main/pia.ts)
   getPiaStatus(): Promise<PiaStatus>;

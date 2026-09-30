@@ -44,6 +44,9 @@ export function useSettings() {
   const save = useCallback(async (next: AppSettings) => {
     setSettings(next);
     await persistSettings(next);
+    // Relecture : main réécrit certaines valeurs à l'enregistrement (mot de
+    // passe du proxy remplacé par un masque, chiffré à part).
+    setSettings(await loadSettings());
   }, []);
 
   return { settings, save };

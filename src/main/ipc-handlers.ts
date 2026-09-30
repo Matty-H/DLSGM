@@ -9,7 +9,7 @@ import { spawn } from 'child_process';
 import Store from './store';
 import { fetchWork } from './dlsite-fetcher';
 import { GenreTranslations, KNOWN_GENRE_TRANSLATIONS, pairsFromAliasGroups } from './genre-translations';
-import { applyDlsiteProxy, dlsiteFetch } from './dlsite-net';
+import { applyDlsiteProxy, dlsiteFetch, protectProxySettings, testDlsiteConnection } from './dlsite-net';
 import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
 import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand, sandboxedPathFor } from './sandboxie';
 import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup } from './save-backups';
@@ -419,8 +419,11 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null, onSettin
   });
 
   ipcMain.handle('save-settings', async (event: IpcMainInvokeEvent, newSettings: AppSettings) => {
-    await settingsStore.setAll(newSettings as unknown as Record<string, unknown>);
-    await applyDlsiteProxy(newSettings.dlsiteProxy);
+    // Mot de passe du proxy : chiffré à part, jamais en clair dans settings.db
+    // (le renderer ne renvoie que le masque, ou un nouveau mot de passe).
+    const proxy = protectProxySettings(newSettings.dlsiteProxy, (await getSettings()).dlsiteProxySecret);
+    await settingsStore.setAll({ ...newSettings, ...proxy } as unknown as Record<string, unknown>);
+    await applyDlsiteProxy(proxy.dlsiteProxy, proxy.dlsiteProxySecret);
     onSettingsSaved?.(newSettings);
     return true;
   });
@@ -634,6 +637,8 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null, onSettin
       importing = false;
     }
   });
+
+  ipcMain.handle('test-dlsite-connection', () => testDlsiteConnection());
 
   // --- VPN Private Internet Access ---
   ipcMain.handle('get-pia-status', () => pia.status());
