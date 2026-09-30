@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Select from '../Select/Select';
+import SaveBackups from '../SaveBackups/SaveBackups';
 import {
   TRANSLATION_LANGUAGES,
   applyUserPatch,
@@ -21,6 +22,8 @@ export interface GameToolsSectionProps {
   /** Jeu exclu de la sandbox Sandboxie (entrée de cache `sandboxDisabled`). */
   sandboxDisabled: boolean;
   onSandboxDisabledChange: (disabled: boolean) => void;
+  /** Dernière session : rafraîchit la liste des copies des sauvegardes après une partie. */
+  lastPlayed?: string;
 }
 
 const LABEL_CLASS = 'text-[12px] text-text-muted';
@@ -31,7 +34,7 @@ const LABEL_CLASS = 'text-[12px] text-text-muted';
  * dossier fournis par l'utilisateur — décensure, traduction...), et sandbox
  * Sandboxie quand le lancement en sandbox est activé dans les paramètres.
  */
-export default function GameToolsSection({ gameId, executablePath, sandboxDisabled, onSandboxDisabledChange }: GameToolsSectionProps) {
+export default function GameToolsSection({ gameId, executablePath, sandboxDisabled, onSandboxDisabledChange, lastPlayed }: GameToolsSectionProps) {
   const [info, setInfo] = useState<GameToolsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
     return () => {
       cancelled = true;
     };
-  }, [gameId, executablePath]);
+  }, [gameId, executablePath, lastPlayed]);
 
   const run = async (label: string, action: () => Promise<GameToolsInfo | null>) => {
     setBusy(label);
@@ -106,7 +109,10 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
         </div>
       )}
 
+      {info && info.saveLocations.length > 0 && <SaveBackups gameId={gameId} lastPlayed={lastPlayed} />}
+
       {info?.sandbox.globallyEnabled && (
+
         <div>
           <div className={`${LABEL_CLASS} mb-1`}>Sandbox</div>
           <label className="flex cursor-pointer items-center justify-between gap-3">

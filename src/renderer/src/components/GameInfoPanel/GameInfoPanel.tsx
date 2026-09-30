@@ -3,8 +3,10 @@ import { ChevronLeft } from 'lucide-react';
 import FetchFailedView from '../FetchFailedView/FetchFailedView';
 import ManualEditForm from '../ManualEditForm/ManualEditForm';
 import GameInfoDetails from './GameInfoDetails';
-import { fetchGameMetadata } from '../../lib/dataFetcher.js';
-import type { GenreAliasGroups } from '../../lib/genreAliases.js';
+import { fetchGameMetadata, refetchGameMetadata } from '../../lib/dataFetcher.js';
+import type { GenreNames } from '../../lib/genreNames.js';
+import type { CreatorFilter } from '../../lib/filterManager.js';
+import type { GameCollection } from '../../lib/collections.js';
 
 export interface GameInfoPanelProps {
   gameId: string | null;
@@ -23,10 +25,13 @@ export interface GameInfoPanelProps {
   onChooseExecutable: (gameId: string) => void;
   onOpenFolder: (gameId: string) => void;
   onGenreClick: (genre: string) => void;
+  onCreatorClick: (filter: CreatorFilter) => void;
   onAfterRetryFetch: () => void;
-  genreAliasGroups: GenreAliasGroups;
+  genreNames: GenreNames;
   /** Genres existants dans la bibliothèque (sélection dans l'édition manuelle). */
   allGenres: string[];
+  collections: GameCollection[];
+  onCreateCollection: (name: string) => string | null;
 }
 
 /**
@@ -53,9 +58,12 @@ export default function GameInfoPanel({
   onChooseExecutable,
   onOpenFolder,
   onGenreClick,
+  onCreatorClick,
   onAfterRetryFetch,
-  genreAliasGroups,
-  allGenres
+  genreNames,
+  allGenres,
+  collections,
+  onCreateCollection
 }: GameInfoPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -95,8 +103,12 @@ export default function GameInfoPanel({
           onOpenFolder={onOpenFolder}
           onChooseExecutable={onChooseExecutable}
           onGenreClick={onGenreClick}
+          onCreatorClick={onCreatorClick}
           onEdit={() => setIsEditing(true)}
-          genreAliasGroups={genreAliasGroups}
+          genreNames={genreNames}
+          collections={collections}
+          onCreateCollection={onCreateCollection}
+
         />
       ) : (
         <div className="mx-auto max-w-[760px] px-8 pb-10 pt-20">
@@ -126,6 +138,11 @@ export default function GameInfoPanel({
               onSave={data => {
                 onReplaceGame(gameId, data);
                 setIsEditing(false);
+              }}
+              onRefetch={async () => {
+                await refetchGameMetadata(gameId);
+                setIsEditing(false);
+                onAfterRetryFetch();
               }}
             />
           )}

@@ -9,6 +9,7 @@ export interface AdvancedFilterPanelProps {
   selectedGenres: string[];
   onToggleGenre: (genre: string) => void;
   onResetGenres: () => void;
+  genreLabel: (genre: string) => string;
 }
 
 export default function AdvancedFilterPanel({
@@ -18,7 +19,8 @@ export default function AdvancedFilterPanel({
   genres,
   selectedGenres,
   onToggleGenre,
-  onResetGenres
+  onResetGenres,
+  genreLabel
 }: AdvancedFilterPanelProps) {
   if (!show) return null;
 
@@ -33,7 +35,7 @@ export default function AdvancedFilterPanel({
 
       <div className="flex flex-col gap-2">
         <span className="section-title">Genres</span>
-        <GenreMultiSelect genres={genres} selectedGenres={selectedGenres} onToggleGenre={onToggleGenre} onReset={onResetGenres} />
+        <GenreMultiSelect genres={genres} selectedGenres={selectedGenres} onToggleGenre={onToggleGenre} onReset={onResetGenres} labelFor={genreLabel} />
       </div>
     </div>
   );

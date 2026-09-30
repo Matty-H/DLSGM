@@ -1,0 +1,11 @@
+#!/bin/sh
+# Avant chaque commit : type-check (main, renderer, tests) + tests unitaires.
+# Activé par `npm install` (script "prepare" : git config core.hooksPath .githooks).
+# Contournement ponctuel, à éviter : git commit --no-verify
+echo "pre-commit : npm run check (type-check + tests)..."
+npm run check --silent
+status=$?
+if [ $status -ne 0 ]; then
+  echo "pre-commit : échec, commit annulé. Corrige les erreurs ci-dessus."
+fi
+exit $status

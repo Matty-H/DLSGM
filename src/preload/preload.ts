@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ElectronAPI, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
+import type { ArchiveImportProgress, ElectronAPI, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -30,7 +30,7 @@ const electronAPI: ElectronAPI = {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   launchGame: (gameId) => ipcRenderer.invoke('launch-game', gameId),
   chooseGameExecutable: (gameId) => ipcRenderer.invoke('choose-game-executable', gameId),
-  downloadGameImages: (gameId, metadata) => ipcRenderer.invoke('download-game-images', gameId, metadata),
+  downloadGameImages: (gameId, metadata, options) => ipcRenderer.invoke('download-game-images', gameId, metadata, options),
   resetImageCache: () => ipcRenderer.invoke('reset-image-cache'),
   applyGameImages: (gameId, plan) => ipcRenderer.invoke('apply-game-images', gameId, plan),
 
@@ -45,12 +45,49 @@ const electronAPI: ElectronAPI = {
   applyUserPatch: (gameId, source) => ipcRenderer.invoke('apply-user-patch', gameId, source),
   uninstallLastPatch: (gameId) => ipcRenderer.invoke('uninstall-last-patch', gameId),
 
+  // Liste de souhaits
+  getWishlist: () => ipcRenderer.invoke('get-wishlist'),
+  addToWishlist: (text) => ipcRenderer.invoke('add-to-wishlist', text),
+  removeFromWishlist: (gameId) => ipcRenderer.invoke('remove-from-wishlist', gameId),
+  refreshWishlistItem: (gameId) => ipcRenderer.invoke('refresh-wishlist-item', gameId),
+
+  // Import d'archives
+
+  importGameArchives: () => ipcRenderer.invoke('import-game-archives'),
+  onArchiveImportProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: ArchiveImportProgress) => callback(progress);
+    ipcRenderer.on('archive-import-progress', listener);
+    return () => {
+      ipcRenderer.removeListener('archive-import-progress', listener);
+    };
+  },
+
+  snapshotCache: () => ipcRenderer.invoke('snapshot-cache'),
+
+  // Dossier de travaux d'un jeu
+
+  getGameWorkspace: (gameId) => ipcRenderer.invoke('get-game-workspace', gameId),
+  openGameWorkspace: (gameId) => ipcRenderer.invoke('open-game-workspace', gameId),
+  getWorkspaceRoot: () => ipcRenderer.invoke('get-workspace-root'),
+
+  // Copies des sauvegardes
+
+
+  listSaveBackups: (gameId) => ipcRenderer.invoke('list-save-backups', gameId),
+  createSaveBackup: (gameId) => ipcRenderer.invoke('create-save-backup', gameId),
+  restoreSaveBackup: (gameId, backupId) => ipcRenderer.invoke('restore-save-backup', gameId, backupId),
+  deleteSaveBackup: (gameId, backupId) => ipcRenderer.invoke('delete-save-backup', gameId, backupId),
+
+
   // Sandbox Sandboxie-Plus
   getSandboxieStatus: () => ipcRenderer.invoke('get-sandboxie-status'),
   clearGameSandbox: (gameId) => ipcRenderer.invoke('clear-game-sandbox', gameId),
 
   // Récupération des métadonnées DLsite
-  fetchGameMetadata: (gameId, locale) => ipcRenderer.invoke('fetch-game-metadata', gameId, locale),
+  fetchGameMetadata: (gameId) => ipcRenderer.invoke('fetch-game-metadata', gameId),
+  getGenreTranslations: () => ipcRenderer.invoke('get-genre-translations'),
+  setGenreTranslation: (japanese, english) => ipcRenderer.invoke('set-genre-translation', japanese, english),
+
 
   // Échange de jeux en réseau local
   getLanReceiverStatus: () => ipcRenderer.invoke('get-lan-receiver-status'),

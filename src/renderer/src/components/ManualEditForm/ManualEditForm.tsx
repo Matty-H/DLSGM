@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 import ImageManager, { type DraftImage } from '../ImageManager/ImageManager';
 import Select from '../Select/Select';
 import { categoryMap } from '../../lib/metadataManager.js';
 import { applyImageEdit, type ImageEditSource } from '../../lib/gameImages.js';
+import { ipcErrorMessage } from '../../lib/gameTools.js';
 
 /** Convertit une date ISO en format DDMMYYYY pour l'affichage dans le formulaire. */
 function isoToDDMMYYYY(isoString?: string): string {
@@ -34,12 +35,14 @@ export interface ManualEditFormProps {
   allGenres: string[];
   onCancel: () => void;
   onSave: (data: any) => void;
+  /** Fetch DLsite forcé (remplace métadonnées et images) ; rejette si le fetch échoue. */
+  onRefetch: () => Promise<void>;
 }
 
 let draftIdCounter = 0;
 const nextDraftId = () => `draft-${++draftIdCounter}`;
 
-export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getSampleImageSrc, allGenres, onCancel, onSave }: ManualEditFormProps) {
+export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getSampleImageSrc, allGenres, onCancel, onSave, onRefetch }: ManualEditFormProps) {
   const [name, setName] = useState(gameData.work_name || '');
   const [creator, setCreator] = useState(gameData.circle || gameData.author || '');
   const [releaseDate, setReleaseDate] = useState(isoToDDMMYYYY(gameData.release_date));
@@ -87,6 +90,7 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
   const [imagesDirty, setImagesDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isRefetching, setIsRefetching] = useState(false);
 
   // URLs d'aperçu des fichiers ajoutés, libérées au démontage.
   const objectUrls = useRef<string[]>([]);
@@ -121,8 +125,11 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
       genre: genres,
       description,
       fetchFailed: false,
-      error: null
+      error: null,
+      // La mise à jour groupée depuis DLsite ne doit pas écraser cette édition.
+      manuallyEdited: true
     };
+
 
     if (imagesDirty) {
       setIsSaving(true);
@@ -142,6 +149,25 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
     }
 
     onSave(updatedData);
+  };
+
+  const handleRefetch = async () => {
+    if (isRefetching || isSaving) return;
+    const confirmed = window.confirm(
+      'Récupérer à nouveau la fiche depuis DLsite ?\n\n' +
+        'Les informations et les images seront remplacées par celles de DLsite, y compris tes modifications ' +
+        'manuelles (celles de ce formulaire non enregistrées sont perdues). Ta note, tes tags, ton temps de jeu ' +
+        "et l'exécutable choisi sont conservés. Si DLsite ne répond pas, rien n'est modifié."
+    );
+    if (!confirmed) return;
+    setIsRefetching(true);
+    setSaveError(null);
+    try {
+      await onRefetch();
+    } catch (error) {
+      setSaveError(`Récupération depuis DLsite impossible, fiche inchangée : ${ipcErrorMessage(error)}`);
+      setIsRefetching(false);
+    }
   };
 
   const inputClass = 'input';
@@ -240,11 +266,46 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
             }
             onRemoveSample={index => editImages(() => setSamples(prev => prev.filter((_, i) => i !== index)))}
             onAddSamples={files => editImages(() => setSamples(prev => [...prev, ...files.map(draftFromFile)]))}
+            onMoveSample={(from, to) =>
+              editImages(() =>
+                setSamples(prev => {
+                  const next = [...prev];
+                  const [moved] = next.splice(from, 1);
+                  next.splice(to, 0, moved);
+                  return next;
+                })
+              )
+            }
+            onMakeCover={index =>
+              editImages(() => {
+                const promoted = samples[index];
+                // Échange : l'ancienne couverture prend la place de l'image promue.
+                setSamples(prev => (cover ? prev.map((image, i) => (i === index ? cover : image)) : prev.filter((_, i) => i !== index)));
+                setCover(promoted);
+              })
+            }
+            onDemoteCover={() =>
+              editImages(() => {
+                if (!cover) return;
+                setSamples(prev => [cover, ...prev]);
+                setCover(null);
+              })
+            }
           />
         </div>
         {saveError && <p className="col-span-2 m-0 text-[13px] text-danger">{saveError}</p>}
         <div className="col-span-2 mt-2 flex justify-end gap-2">
-          <button type="button" onClick={handleSave} disabled={isSaving} className="btn btn-primary min-w-[140px]">
+          <button
+            type="button"
+            onClick={handleRefetch}
+            disabled={isSaving || isRefetching}
+            className="btn btn-ghost mr-auto"
+            title="Remplace les informations et les images par celles de DLsite"
+          >
+            <RefreshCw size={15} strokeWidth={2.25} className={isRefetching ? 'animate-spin' : ''} />
+            {isRefetching ? 'Récupération…' : 'Récupérer depuis DLsite'}
+          </button>
+          <button type="button" onClick={handleSave} disabled={isSaving || isRefetching} className="btn btn-primary min-w-[140px]">
             {isSaving ? 'Enregistrement…' : 'Enregistrer'}
           </button>
           <button type="button" onClick={onCancel} className="btn">

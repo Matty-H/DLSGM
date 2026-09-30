@@ -18,7 +18,11 @@ export const MANUAL_IMAGE = 'manual';
 /** Formats acceptés (mêmes signatures que celles vérifiées côté main). */
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
-/** Image existante (`keep` : 0 = couverture, n = sample_n.jpg) ou nouvelle image en octets. */
+/**
+ * Image existante (`keep` : 0 = couverture actuelle, n = sample_n.jpg) ou
+ * nouvelle image en octets. Une image existante peut changer de rôle : un
+ * échantillon devenir la couverture, et inversement.
+ */
 export type ImageEditSource = { keep: number } | { data: Uint8Array };
 
 export interface ImageEdit {
@@ -39,16 +43,27 @@ export async function applyImageEdit(
   edit: ImageEdit
 ): Promise<Pick<GameCacheEntry, 'work_image' | 'sample_images'> & { imagesVersion: number }> {
   const originalSamples: string[] = Array.isArray(entry.sample_images) ? entry.sample_images : [];
+  // Une image déplacée garde son URL d'origine (retéléchargeable si son
+  // fichier manque) ; une nouvelle image n'en a pas.
+  const urlOf = (source: ImageEditSource): string | null =>
+    'keep' in source ? (source.keep === 0 ? entry.work_image ?? null : originalSamples[source.keep - 1] ?? null) : MANUAL_IMAGE;
 
   const plan: GameImagesPlan = {
-    cover: edit.cover === null ? 'remove' : 'keep' in edit.cover ? 'keep' : { data: edit.cover.data },
+    cover:
+      edit.cover === null
+        ? 'remove'
+        : 'keep' in edit.cover
+          ? edit.cover.keep === 0 ? 'keep' : { keep: edit.cover.keep }
+          : { data: edit.cover.data },
     samples: edit.samples.map(source => ('keep' in source ? { keep: source.keep } : { data: source.data }))
   };
   await window.electronAPI.applyGameImages(gameId, plan);
 
   return {
-    work_image: edit.cover === null ? null : 'keep' in edit.cover ? entry.work_image ?? null : MANUAL_IMAGE,
-    sample_images: edit.samples.map(source => ('keep' in source ? originalSamples[source.keep - 1] : MANUAL_IMAGE)),
+    work_image: edit.cover === null ? null : urlOf(edit.cover),
+    // Un échantillon sans URL (ancienne couverture absente) devient 'manual' :
+    // rien à télécharger pour lui.
+    sample_images: edit.samples.map(source => urlOf(source) ?? MANUAL_IMAGE),
     imagesVersion: Date.now()
   };
 }

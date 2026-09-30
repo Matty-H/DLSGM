@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { LayoutGrid, BarChart3, Maximize, Minimize, Settings, ArrowLeftRight } from 'lucide-react';
+import { LayoutGrid, BarChart3, Maximize, Minimize, Settings, ArrowLeftRight, House, Heart } from 'lucide-react';
 
-export type AppTab = 'library' | 'stats' | 'share' | 'settings';
+export type AppTab = 'home' | 'library' | 'wishlist' | 'stats' | 'share' | 'settings';
 
 export interface TopNavProps {
   activeTab: AppTab;
@@ -13,7 +13,11 @@ export interface TopNavProps {
 }
 
 export const TABS: { id: AppTab; label: string; Icon: typeof LayoutGrid }[] = [
+  { id: 'home', label: 'Accueil', Icon: House },
+
   { id: 'library', label: 'Bibliothèque', Icon: LayoutGrid },
+  { id: 'wishlist', label: 'Souhaits', Icon: Heart },
+
   { id: 'stats', label: 'Statistiques', Icon: BarChart3 },
   { id: 'share', label: 'Partage', Icon: ArrowLeftRight },
   { id: 'settings', label: 'Paramètres', Icon: Settings }

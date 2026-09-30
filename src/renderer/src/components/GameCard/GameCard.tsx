@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Clock, EyeOff, Play, TriangleAlert } from 'lucide-react';
+import { Check, Clock, EyeOff, Play, TriangleAlert } from 'lucide-react';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 import { formatPlayTime } from '../../lib/timeFormatter.js';
 import { categoryMap } from '../../lib/metadataManager.js';
@@ -101,6 +101,17 @@ export default function GameCard({
           </span>
         )}
       </div>
+
+      {gameData.completed && (
+        // Macaron "fini" : au-dessus du flou R18 (il ne dévoile rien de l'image).
+        <span
+          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-play text-white shadow-md ring-2 ring-black/30"
+          title="Fini"
+          aria-label="Fini"
+        >
+          <Check size={16} strokeWidth={3} />
+        </span>
+      )}
 
       <div className="capsule-caption pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/75 to-transparent px-3 pb-2.5 pt-10">
         <div className="line-clamp-2 text-[13px] font-bold leading-tight">{gameName}</div>

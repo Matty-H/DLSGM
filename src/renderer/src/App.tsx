@@ -7,6 +7,10 @@ import GameInfoPanel from './components/GameInfoPanel/GameInfoPanel';
 import StatsScreen from './components/StatsScreen/StatsScreen';
 import SettingsScreen from './components/SettingsScreen/SettingsScreen';
 import ShareScreen from './components/ShareScreen/ShareScreen';
+import HomeScreen from './components/HomeScreen/HomeScreen';
+import WishlistScreen from './components/WishlistScreen/WishlistScreen';
+import ImportResults from './components/ImportResults/ImportResults';
+import { useArchiveImport } from './hooks/useArchiveImport';
 import PanicOverlay from './components/PanicOverlay/PanicOverlay';
 import FooterHints, { type FooterHint } from './components/FooterHints/FooterHints';
 import { useSettings } from './hooks/useSettings';
@@ -19,8 +23,10 @@ import { useFullscreen } from './hooks/useFullscreen';
 import { useFileDropGuard } from './hooks/useFileDropGuard';
 import { useLanShare } from './hooks/useLanShare';
 import { collectAllCategories, collectAllGenres } from './lib/metadataManager.js';
-import { matchesFilters, compareGames } from './lib/filterManager.js';
-import { collectCanonicalGenres } from './lib/genreAliases.js';
+import { matchesFilters, compareGames, type CreatorFilter } from './lib/filterManager.js';
+import { addCollection, buildShelves, collectionFilterOptions, normalizeCollectionFilter, type Shelf } from './lib/collections.js';
+import { collectCanonicalGenres, makeGenreNames } from './lib/genreNames.js';
+import { useGenreTranslations } from './hooks/useGenreTranslations';
 import { openGameFolder } from './lib/osHandler.js';
 import { PAD_LABELS } from './lib/gamepadLayout.js';
 
@@ -33,8 +39,18 @@ export default function App() {
   useFileDropGuard();
   // Un jeu reçu d'un autre PC apparaît dans le dossier : rescan pour l'afficher.
   const lanShare = useLanShare({ onGameReceived: () => library.rescan() });
+  // Même principe pour un jeu extrait de son archive.
+  const archiveImport = useArchiveImport(library.rescan);
+  const importStatus = archiveImport.running
+    ? archiveImport.progress
+      ? `Import ${archiveImport.progress.index}/${archiveImport.progress.total}…`
+      : 'Import…'
+    : null;
 
   const [activeTab, setActiveTab] = useState<AppTab>('library');
+  // Onglet d'où la page de jeu a été ouverte (accueil, statistiques) : on
+  // y revient en la fermant, au lieu de tomber sur la grille.
+  const [returnTab, setReturnTab] = useState<AppTab | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [focusedGameId, setFocusedGameId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -79,6 +95,10 @@ export default function App() {
     setCarouselIndex(0);
   }, [selectedGameId]);
 
+  useEffect(() => {
+    if (activeTab !== 'library') setReturnTab(null);
+  }, [activeTab]);
+
   // Les fiches des jeux absents du dossier sont conservées dans le cache (pas
   // de purge), mais seuls les jeux présents alimentent les filtres
   // et les statistiques.
@@ -89,8 +109,25 @@ export default function App() {
 
   const categories = useMemo(() => collectAllCategories(presentGamesCache), [presentGamesCache]);
   const rawGenres = useMemo(() => collectAllGenres(presentGamesCache), [presentGamesCache]);
-  const genreAliasGroups = settings?.genreAliasGroups ?? [];
-  const genres = useMemo(() => collectCanonicalGenres(rawGenres, genreAliasGroups), [rawGenres, genreAliasGroups]);
+  // Tags : clé japonaise (référence), affichés selon la langue choisie.
+  const genreTranslations = useGenreTranslations(library.cache);
+  const displayLanguage = settings?.language ?? 'ja_JP';
+  const genreNames = useMemo(
+    () => makeGenreNames(genreTranslations.translations, displayLanguage),
+    [genreTranslations.translations, displayLanguage]
+  );
+  const genres = useMemo(() => collectCanonicalGenres(rawGenres, genreNames), [rawGenres, genreNames]);
+
+  const collections = useMemo(() => settings?.collections ?? [], [settings?.collections]);
+  // Une collection supprimée depuis les paramètres ne doit pas laisser un filtre fantôme.
+  const collectionFilter = normalizeCollectionFilter(filters.collectionFilter, collections);
+  const collectionOptions = useMemo(() => collectionFilterOptions(collections), [collections]);
+
+  const presentGames = useMemo(
+    () => library.gameFolders.filter(id => library.cache[id]).map(id => ({ id, data: library.cache[id] })),
+    [library.gameFolders, library.cache]
+  );
+  const shelves = useMemo(() => buildShelves(presentGames, collections), [presentGames, collections]);
 
   const displayedGames = useMemo(() => {
     const filterState = {
@@ -98,29 +135,35 @@ export default function App() {
       searchTerm: filters.searchTerm.toLowerCase(),
       selectedGenres: filters.selectedGenres,
       selectedRating: filters.selectedRating,
-      genreAliasGroups
+      genreNames,
+      creatorFilter: filters.creatorFilter,
+      collectionFilter
     };
 
-    return library.gameFolders
-      .filter(gameId => library.cache[gameId])
-      .map(gameId => ({ id: gameId, data: library.cache[gameId] }))
+    return presentGames
       .filter(game => matchesFilters(game.data, filterState))
       .sort((a, b) => compareGames(a, b, filters.selectedSort));
   }, [
-    library.gameFolders,
-    library.cache,
+    presentGames,
     filters.selectedCategoryCode,
     filters.searchTerm,
     filters.selectedGenres,
     filters.selectedRating,
     filters.selectedSort,
-    genreAliasGroups
+    filters.creatorFilter,
+    collectionFilter,
+    genreNames
   ]);
 
   const displayedGameIds = useMemo(() => displayedGames.map(g => g.id), [displayedGames]);
 
   const shareableGames = useMemo(
-    () => library.gameFolders.map(id => ({ id, name: (library.cache[id]?.work_name as string | undefined) || id })),
+    () =>
+      library.gameFolders.map(id => ({
+        id,
+        name: (library.cache[id]?.work_name as string | undefined) || id,
+        isAdult: library.cache[id]?.age_category === 'R18'
+      })),
     [library.gameFolders, library.cache]
   );
 
@@ -140,11 +183,22 @@ export default function App() {
     setSelectedGameId(gameId);
   };
 
+  /** Ouvre la page d'un jeu depuis un autre onglet, qui redeviendra l'onglet actif à sa fermeture. */
+  const handleOpenGameFrom = (tab: AppTab, gameId: string) => {
+    setActiveTab('library');
+    handleOpenGame(gameId);
+    setReturnTab(tab);
+  };
+
   // Au retour à la grille, le focus revient sur la jaquette du jeu quitté
   // (sinon il retombe sur <body> et la navigation repart du début).
   const handleCloseGame = () => {
     const gameId = selectedGameId;
     setSelectedGameId(null);
+    if (returnTab) {
+      setActiveTab(returnTab);
+      return;
+    }
     if (gameId) {
       requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)?.focus({ preventScroll: true }));
     }
@@ -154,11 +208,44 @@ export default function App() {
     setRevealedGames(prev => new Set(prev).add(gameId));
   };
 
+  /** Quitte la page de jeu vers la grille filtrée (genre, cercle...), quel que soit l'onglet d'origine. */
+  const showFilteredLibrary = () => {
+    setReturnTab(null);
+    setSelectedGameId(null);
+  };
+
+  // "Œuvres de ce cercle" : dans toute la bibliothèque, pas dans la
+  // collection ou la recherche en cours.
+  const handleCreatorClick = (creator: CreatorFilter) => {
+    const sort = filters.selectedSort;
+    filters.resetFilters();
+    filters.setSelectedSort(sort);
+    filters.setCreatorFilter(creator);
+    showFilteredLibrary();
+  };
+
+  const handleShowShelf = (showAll: Shelf['showAll']) => {
+    filters.resetFilters();
+    if (showAll.collectionFilter) filters.setCollectionFilter(showAll.collectionFilter);
+    if (showAll.sort) filters.setSelectedSort(showAll.sort);
+    setActiveTab('library');
+  };
+
+  /** Crée une collection (paramètres) ; renvoie son ID, ou null si le nom est vide ou déjà pris. */
+  const handleCreateCollection = (name: string): string | null => {
+    if (!settings) return null;
+    const result = addCollection(collections, name);
+    if (!result) return null;
+    saveSettings({ ...settings, collections: result.collections });
+    return result.created.id;
+  };
+
   useKeyboardNavigation({
     displayedGameIds,
     selectedGameId,
     focusedGameId,
     isLibraryTab: activeTab === 'library',
+    isHomeTab: activeTab === 'home',
     onFocusGame: setFocusedGameId,
     onOpenGame: handleOpenGame,
     onClosePanel: handleCloseGame,
@@ -273,7 +360,19 @@ export default function App() {
             onToggleAdvancedFilters={() => setShowAdvancedFilters(prev => !prev)}
             onResetFilters={handleResetFilters}
             resultCount={displayedGames.length}
+            collectionFilter={collectionFilter}
+            collectionOptions={collectionOptions}
+            onCollectionFilterChange={filters.setCollectionFilter}
+            creatorFilter={filters.creatorFilter}
+            onClearCreatorFilter={() => filters.setCreatorFilter(null)}
+            onImport={archiveImport.start}
+            importStatus={importStatus}
           />
+
+          {archiveImport.results && (
+            <ImportResults results={archiveImport.results} onDismiss={archiveImport.dismiss} onOpenGame={handleOpenGame} />
+          )}
+
 
           <AdvancedFilterPanel
             show={showAdvancedFilters}
@@ -283,6 +382,7 @@ export default function App() {
             selectedGenres={filters.selectedGenres}
             onToggleGenre={filters.toggleGenre}
             onResetGenres={() => filters.setSelectedGenres([])}
+            genreLabel={genreNames.label}
           />
 
           <div data-scroll-root className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-2">
@@ -326,24 +426,44 @@ export default function App() {
             onOpenFolder={openGameFolder}
             onGenreClick={genre => {
               filters.setSelectedGenres([genre]);
-              setSelectedGameId(null);
+              showFilteredLibrary();
             }}
+            onCreatorClick={handleCreatorClick}
             onAfterRetryFetch={library.reloadCache}
-            genreAliasGroups={genreAliasGroups}
+            genreNames={genreNames}
             allGenres={rawGenres}
+            collections={collections}
+            onCreateCollection={handleCreateCollection}
           />
         </div>
       )}
 
+      {activeTab === 'home' && (
+        <HomeScreen
+          shelves={shelves}
+          isLibraryEmpty={library.status !== 'loading' && presentGames.length === 0}
+          runningGames={library.runningGames}
+          blurAdultContent={settings?.blurAdultContent ?? true}
+          revealedGames={revealedGames}
+          getWorkImageSrc={library.getWorkImageSrc}
+          onOpenGame={gameId => handleOpenGameFrom('home', gameId)}
+          onReveal={handleReveal}
+          onShowAll={handleShowShelf}
+        />
+      )}
+
+      {activeTab === 'wishlist' && (
+        <WishlistScreen gameFolders={library.gameFolders} blurAdultContent={settings?.blurAdultContent ?? true} />
+      )}
+
       {activeTab === 'stats' && (
+
         <StatsScreen
           cache={presentGamesCache}
           getWorkImageSrc={library.getWorkImageSrc}
-          genreAliasGroups={genreAliasGroups}
-          onOpenGame={gameId => {
-            setActiveTab('library');
-            handleOpenGame(gameId);
-          }}
+          genreNames={genreNames}
+          onOpenGame={gameId => handleOpenGameFrom('stats', gameId)}
+
         />
       )}
 
@@ -353,11 +473,18 @@ export default function App() {
           games={shareableGames}
           port={settings.lanSharePort}
           onPortChange={lanSharePort => saveSettings({ ...settings, lanSharePort })}
+          getWorkImageSrc={library.getWorkImageSrc}
+          blurAdultContent={settings.blurAdultContent}
+
         />
       )}
 
       {activeTab === 'settings' && settings && (
-        <SettingsScreen settings={settings} onSave={handleSaveSettings} allGenres={rawGenres} />
+        <SettingsScreen settings={settings} onSave={handleSaveSettings} allGenres={rawGenres} onMetadataUpdated={library.reloadCache}
+          genreTranslations={genreTranslations.translations}
+          onSetGenreTranslation={genreTranslations.setTranslation}
+        />
+
       )}
 
       <FooterHints hints={footerHints} />

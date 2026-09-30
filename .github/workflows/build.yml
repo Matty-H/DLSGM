@@ -14,7 +14,26 @@ permissions:
   contents: write
 
 jobs:
+  # Type-check + tests unitaires (même commande que le hook pre-commit).
+  # Sous Windows : certains tests portent sur des chemins Windows (Sandboxie).
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check and unit tests
+        run: npm run check
+
   build-windows:
+    needs: test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +64,9 @@ jobs:
             release/*.exe
 
   build-macos:
+    needs: test
     runs-on: macos-latest
+
     steps:
       - uses: actions/checkout@v4
 

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { moveFocus } from './useGamepadNavigation';
 
 interface KeyboardNavigationOptions {
   displayedGameIds: string[];
@@ -7,6 +8,8 @@ interface KeyboardNavigationOptions {
   /** Jaquette ciblée dans la grille (page de détail fermée). */
   focusedGameId: string | null;
   isLibraryTab: boolean;
+  /** Accueil : flèches = navigation spatiale entre les étagères, Entrée = ouvrir la jaquette. */
+  isHomeTab: boolean;
   onFocusGame: (gameId: string) => void;
   onOpenGame: (gameId: string) => void;
   onClosePanel: () => void;
@@ -30,6 +33,8 @@ function gridColumnCount(): number {
  *   d'une rangée), Entrée pour ouvrir la page du jeu ciblé ;
  * - page d'un jeu : Entrée pour lancer, gauche/droite pour le carrousel
  *   (haut/bas restent au défilement natif), Échap pour revenir à la grille ;
+ * - accueil : flèches pour passer d'une jaquette à l'autre (entre les
+ *   étagères aussi), Entrée pour ouvrir ;
  * - autre onglet : Échap pour revenir à la bibliothèque.
  */
 export function useKeyboardNavigation({
@@ -37,6 +42,7 @@ export function useKeyboardNavigation({
   selectedGameId,
   focusedGameId,
   isLibraryTab,
+  isHomeTab,
   onFocusGame,
   onOpenGame,
   onClosePanel,
@@ -60,6 +66,23 @@ export function useKeyboardNavigation({
           onLeaveTab();
         } else if (isPanelOpen) {
           onClosePanel();
+        }
+        return;
+      }
+
+      if (isHomeTab) {
+        const directions: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+          ArrowUp: 'up',
+          ArrowDown: 'down',
+          ArrowLeft: 'left',
+          ArrowRight: 'right'
+        };
+        if (e.key in directions) {
+          e.preventDefault();
+          moveFocus(directions[e.key]);
+        } else if (e.key === 'Enter' && target.dataset.gameId) {
+          e.preventDefault();
+          target.click();
         }
         return;
       }
@@ -114,7 +137,9 @@ export function useKeyboardNavigation({
     selectedGameId,
     focusedGameId,
     isLibraryTab,
+    isHomeTab,
     onFocusGame,
+
     onOpenGame,
     onClosePanel,
     onLeaveTab,

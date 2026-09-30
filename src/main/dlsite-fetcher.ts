@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import type { Element } from 'domhandler';
 import type { GameMetadata } from '../shared/ipc-types';
+import { dlsiteFetch } from './dlsite-net';
 
 /**
  * Récupère les métadonnées d'une œuvre DLsite en deux requêtes HTTP non
@@ -15,12 +16,61 @@ import type { GameMetadata } from '../shared/ipc-types';
  */
 
 const USER_AGENT = 'Mozilla/5.0 (compatible; DLSGM/1.0)';
+// Par requête : un proxy lent ne doit pas bloquer un fetch indéfiniment.
+const REQUEST_TIMEOUT_MS = 30000;
 
 const AGE_CATEGORY_NAMES: Record<number, GameMetadata['age_category']> = {
   1: 'ALL_AGES',
   2: 'R15',
   3: 'R18'
 };
+
+/**
+ * Codes de l'option `options` du endpoint ajax ("JPN#ENG#TRI"...), repris de
+ * `WorkOption` (dlsite-async 0.11.0). Les langues remplissent `language`.
+ */
+const LANGUAGE_OPTIONS: Record<string, string> = {
+  JPN: 'Japonais',
+  ENG: 'Anglais',
+  CHI_HANS: 'Chinois (simplifié)',
+  CHI_HANT: 'Chinois (traditionnel)',
+  KO_KR: 'Coréen',
+  FRE: 'Français',
+  GER: 'Allemand',
+  SPA: 'Espagnol',
+  ITA: 'Italien',
+  POR: 'Portugais',
+  RUS: 'Russe',
+  UKR: 'Ukrainien',
+  POL: 'Polonais',
+  DUT: 'Néerlandais',
+  SWE: 'Suédois',
+  DAN: 'Danois',
+  FIN: 'Finnois',
+  ICE: 'Islandais',
+  CZE: 'Tchèque',
+  SLO: 'Slovaque',
+  SLV: 'Slovène',
+  HUN: 'Hongrois',
+  RUM: 'Roumain',
+  BUL: 'Bulgare',
+  GRE: 'Grec',
+  EST: 'Estonien',
+  LAV: 'Letton',
+  THA: 'Thaï',
+  VIE: 'Vietnamien',
+  IND: 'Indonésien'
+};
+const OTHER_OPTIONS = new Set([
+  'AIG', 'AIP', 'WAP', 'DLP', 'EVT', 'GRO', 'MEN', 'MS2', 'WPD', 'VET', 'REV', 'SBK', 'TRI', 'MV2', 'SND'
+]);
+
+/** Options connues (les codes inconnus sont ignorés, comme dans dlsite-async). */
+export function parseOptions(raw: unknown): string[] | null {
+  if (typeof raw !== 'string' || raw === '') return null;
+  const options = raw.split('#').filter(code => code in LANGUAGE_OPTIONS || OTHER_OPTIONS.has(code));
+  return options.length > 0 ? options : null;
+}
 
 interface AjaxProductInfo {
   site_id: string;
@@ -31,6 +81,7 @@ interface AjaxProductInfo {
   age_category: number;
   work_type: string | null;
   regist_date: string | null;
+  options: string[] | null;
 }
 
 interface HtmlDetails {
@@ -53,6 +104,9 @@ interface HtmlDetails {
   announce_date?: string;
   modified_date?: string;
   sample_images?: string[];
+  maker_id?: string;
+  /** Identifiants DLsite des genres (lien /genre/<id>/), dans l'ordre de `genre` : les mêmes dans toutes les langues. */
+  genre_ids?: string[];
   description?: string;
 }
 
@@ -65,7 +119,7 @@ function pad2(n: number | string): string {
 }
 
 /** Parse le format "%Y-%m-%d %H:%M:%S" renvoyé par l'endpoint ajax (regist_date). */
-function parseAjaxTimestamp(value: string): string | null {
+export function parseAjaxTimestamp(value: string): string | null {
   const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(value);
   if (!m) return null;
   const [, y, mo, d, h, mi, s] = m;
@@ -81,7 +135,7 @@ const MONTH_FULL = ['january', 'february', 'march', 'april', 'may', 'june', 'jul
  * `_DateRowParser` de dlsite-async (y compris le split sur le premier token,
  * la date étant parfois suivie d'autre texte dans la cellule).
  */
-function parseTableDate(rawText: string): string | null {
+export function parseTableDate(rawText: string): string | null {
   const token = unescapeText(rawText).split(/\s+/)[0];
   if (!token) return null;
 
@@ -106,8 +160,9 @@ function parseTableDate(rawText: string): string | null {
 
 async function fetchProductInfoJson(gameId: string, locale: string): Promise<AjaxProductInfo> {
   const url = `https://www.dlsite.com/maniax/product/info/ajax?product_id=${encodeURIComponent(gameId)}&locale=${encodeURIComponent(locale)}`;
-  const response = await fetch(url, {
-    headers: { Cookie: 'adultchecked=1', 'User-Agent': USER_AGENT }
+  const response = await dlsiteFetch(url, {
+    headers: { Cookie: 'adultchecked=1', 'User-Agent': USER_AGENT },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
   if (!response.ok) {
     throw new Error(`Échec de la requête product-info (HTTP ${response.status}) pour ${gameId}`);
@@ -126,7 +181,8 @@ async function fetchProductInfoJson(gameId: string, locale: string): Promise<Aja
     title_name_masked: (info.title_name_masked as string | null) ?? null,
     age_category: Number(info.age_category),
     work_type: (info.work_type as string | null) ?? null,
-    regist_date: typeof info.regist_date === 'string' ? parseAjaxTimestamp(info.regist_date) : null
+    regist_date: typeof info.regist_date === 'string' ? parseAjaxTimestamp(info.regist_date) : null,
+    options: parseOptions(info.options)
   };
 }
 
@@ -137,7 +193,10 @@ async function fetchWorkHtml(siteId: string, gameId: string, locale: string): Pr
   );
 
   for (const url of urls) {
-    const response = await fetch(url, { headers: { Cookie: 'adultchecked=1', 'User-Agent': USER_AGENT } });
+    const response = await dlsiteFetch(url, {
+      headers: { Cookie: 'adultchecked=1', 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    });
     if (response.status === 200) {
       return await response.text();
     }
@@ -203,11 +262,20 @@ function parseWorkOutlineRow($: cheerio.CheerioAPI, tr: Element, details: HtmlDe
     case 'maker': {
       const span = td.find('span.maker_name').first();
       if (span.length > 0) (details as Record<string, unknown>)[parser.field] = unescapeText(span.text());
+      // Identifiant du cercle / de la marque (RG..., BG...) : le même quelle
+      // que soit la langue, contrairement au nom ("cat 3" / "猫3").
+      if (parser.field === 'circle' || parser.field === 'brand') {
+        const makerId = /maker_id\/([A-Z]{2}\d+)/.exec(span.find('a').attr('href') ?? '')?.[1];
+        if (makerId && !details.maker_id) details.maker_id = makerId;
+      }
       break;
     }
     case 'list': {
-      const values = td.find('a').map((_i, a) => unescapeText($(a).text())).get();
-      (details as Record<string, unknown>)[parser.field] = values;
+      const links = td.find('a').toArray();
+      (details as Record<string, unknown>)[parser.field] = links.map(a => unescapeText($(a).text()));
+      if (parser.field === 'genre') {
+        details.genre_ids = links.map(a => /\/genre\/(\d+)\//.exec($(a).attr('href') ?? '')?.[1] ?? '');
+      }
       break;
     }
     case 'text': {
@@ -217,7 +285,7 @@ function parseWorkOutlineRow($: cheerio.CheerioAPI, tr: Element, details: HtmlDe
   }
 }
 
-function parseWorkHtml(html: string): HtmlDetails {
+export function parseWorkHtml(html: string): HtmlDetails {
   const $ = cheerio.load(html);
   const details: HtmlDetails = {};
 
@@ -244,16 +312,63 @@ function parseWorkHtml(html: string): HtmlDetails {
 }
 
 /**
- * Orchestrateur principal, équivalent de `fetch_game_data()` dans
- * fetch_dlsite.py : reproduit exactement les mêmes champs de sortie pour que
- * dataFetcher.js et store.js n'aient aucun changement structurel à subir.
+ * Traductions JP → EN des genres d'une œuvre, appariés par identifiant
+ * DLsite (jamais par position : les deux pages pourraient ne pas lister les
+ * mêmes genres dans le même ordre).
  */
-export async function fetchGameMetadata(gameId: string, locale: string): Promise<GameMetadata> {
-  const ajax = await fetchProductInfoJson(gameId, locale);
-  const html = ajax.site_id ? await fetchWorkHtml(ajax.site_id, gameId, locale) : null;
+export function pairGenreTranslations(ja: HtmlDetails, en: HtmlDetails | null): Record<string, string> {
+  const pairs: Record<string, string> = {};
+  if (!en?.genre || !en.genre_ids || !ja.genre || !ja.genre_ids) return pairs;
+  const enById = new Map(en.genre_ids.map((id, i) => [id, en.genre![i]]));
+  ja.genre_ids.forEach((id, i) => {
+    const english = id ? enById.get(id) : undefined;
+    if (english && ja.genre![i]) pairs[ja.genre![i]] = english;
+  });
+  return pairs;
+}
+
+export interface FetchedWork {
+  /** Fiche en japonais (langue de référence), avec `work_name_en` / `circle_en` si la page anglaise a répondu. */
+  metadata: GameMetadata;
+  /** Genres JP → EN appris sur cette œuvre. */
+  genreTranslations: Record<string, string>;
+}
+
+/**
+ * Récupère une œuvre : la version japonaise fait foi (DLsite est un site
+ * japonais, la plupart des cercles écrivent en japonais) ; la version
+ * anglaise, facultative (`translations`), n'apporte que des traductions —
+ * titre, nom du cercle et genres. Son échec n'empêche pas le fetch.
+ */
+export async function fetchWork(gameId: string, { translations = true }: { translations?: boolean } = {}): Promise<FetchedWork> {
+  const ajax = await fetchProductInfoJson(gameId, 'ja_JP');
+  const html = ajax.site_id ? await fetchWorkHtml(ajax.site_id, gameId, 'ja_JP') : null;
   const details = html ? parseWorkHtml(html) : {};
 
+  let english: { ajax: AjaxProductInfo; details: HtmlDetails } | null = null;
+  if (translations && ajax.site_id) {
+    try {
+      const ajaxEn = await fetchProductInfoJson(gameId, 'en_US');
+      const htmlEn = await fetchWorkHtml(ajax.site_id, gameId, 'en_US');
+      english = { ajax: ajaxEn, details: htmlEn ? parseWorkHtml(htmlEn) : {} };
+    } catch (error) {
+      console.warn(`Traductions anglaises indisponibles pour ${gameId}:`, (error as Error).message);
+    }
+  }
+
+  return {
+    metadata: {
+      ...buildMetadata(ajax, details),
+      work_name_en: english?.ajax.work_name ?? null,
+      circle_en: english?.details.circle ?? null
+    },
+    genreTranslations: pairGenreTranslations(details, english?.details ?? null)
+  };
+}
+
+function buildMetadata(ajax: AjaxProductInfo, details: HtmlDetails): GameMetadata {
   const titleNameMasked = details.title_name_masked ?? ajax.title_name_masked ?? null;
+  const languages = (ajax.options ?? []).filter(code => code in LANGUAGE_OPTIONS).map(code => LANGUAGE_OPTIONS[code]);
 
   return {
     work_name: ajax.work_name,
@@ -274,7 +389,8 @@ export async function fetchGameMetadata(gameId: string, locale: string): Promise
     modified_date: details.modified_date ?? null,
     file_format: details.file_format ?? null,
     file_size: details.file_size ?? null,
-    language: null,
+    language: languages.length > 0 ? languages : null,
+    options: ajax.options,
     platform: ajax.site_id,
     series: titleNameMasked ?? ajax.title_name ?? null,
     page_count: details.page_count ?? null,
@@ -284,6 +400,8 @@ export async function fetchGameMetadata(gameId: string, locale: string): Promise
     illustration: details.illustration ?? null,
     voice_actor: details.voice_actor ?? null,
     music: details.music ?? null,
-    event: details.event ?? null
+    event: details.event ?? null,
+    maker_id: details.maker_id ?? null
   };
+
 }

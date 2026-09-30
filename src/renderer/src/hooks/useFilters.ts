@@ -1,4 +1,6 @@
 import { useCallback, useState } from 'react';
+import type { CreatorFilter } from '../lib/filterManager.js';
+import { ALL_COLLECTIONS } from '../lib/collections.js';
 
 export interface FiltersState {
   searchTerm: string;
@@ -6,6 +8,8 @@ export interface FiltersState {
   selectedGenres: string[];
   selectedRating: number;
   selectedSort: string;
+  creatorFilter: CreatorFilter | null;
+  collectionFilter: string;
 }
 
 /**
@@ -19,6 +23,8 @@ export function useFilters(initialSort: string) {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedRating, setSelectedRating] = useState(0);
   const [selectedSort, setSelectedSort] = useState(initialSort);
+  const [creatorFilter, setCreatorFilter] = useState<CreatorFilter | null>(null);
+  const [collectionFilter, setCollectionFilter] = useState(ALL_COLLECTIONS);
 
   const toggleGenre = useCallback((genre: string) => {
     setSelectedGenres(prev => (prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]));
@@ -30,6 +36,8 @@ export function useFilters(initialSort: string) {
     setSelectedGenres([]);
     setSelectedRating(0);
     setSelectedSort('name_asc');
+    setCreatorFilter(null);
+    setCollectionFilter(ALL_COLLECTIONS);
   }, []);
 
   return {
@@ -44,6 +52,11 @@ export function useFilters(initialSort: string) {
     setSelectedRating,
     selectedSort,
     setSelectedSort,
+    creatorFilter,
+    setCreatorFilter,
+    collectionFilter,
+    setCollectionFilter,
     resetFilters
+
   };
 }

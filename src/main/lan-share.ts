@@ -77,7 +77,7 @@ function isInside(parent: string, child: string): boolean {
  * Refuse tout ce qui pourrait sortir du dossier de réception ou y désigner
  * autre chose qu'un fichier ordinaire.
  */
-function safeSegments(value: unknown): string[] | null {
+export function safeSegments(value: unknown): string[] | null {
   if (typeof value !== 'string' || value.length === 0 || value.length > 1024) return null;
   const segments = value.split('/');
   for (const segment of segments) {
@@ -124,10 +124,10 @@ function isDlsiteImageUrl(value: string): boolean {
 
 const STRING_FIELDS = [
   'title_name_masked', 'circle', 'brand', 'publisher', 'label', 'description', 'category', 'announce_date',
-  'release_date', 'regist_date', 'modified_date', 'file_size', 'series'
+  'release_date', 'regist_date', 'modified_date', 'file_size', 'series', 'maker_id', 'work_name_en', 'circle_en'
 ] as const;
 const STRING_ARRAY_FIELDS = [
-  'genre', 'file_format', 'language', 'author', 'writer', 'scenario', 'illustration', 'voice_actor', 'music', 'event'
+  'genre', 'file_format', 'language', 'author', 'writer', 'scenario', 'illustration', 'voice_actor', 'music', 'event', 'options'
 ] as const;
 
 /**
@@ -137,7 +137,7 @@ const STRING_ARRAY_FIELDS = [
  * neutralise toute URL d'image hors DLsite, que `download-game-images` irait
  * sinon chercher.
  */
-function sanitizeMetadata(raw: unknown): GameMetadata | null {
+export function sanitizeMetadata(raw: unknown): GameMetadata | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   if (typeof r.work_name !== 'string' || r.fetchFailed) return null;
@@ -163,7 +163,7 @@ function sanitizeMetadata(raw: unknown): GameMetadata | null {
 }
 
 /** Fiche à transmettre : les métadonnées seules, sans les données personnelles. */
-function shareableMetadata(entry: GameMetadata | undefined): Record<string, unknown> | null {
+export function shareableMetadata(entry: GameMetadata | undefined): Record<string, unknown> | null {
   if (!entry || entry.fetchFailed) return null;
   const e = entry as unknown as Record<string, unknown>;
   const out: Record<string, unknown> = {};
@@ -563,12 +563,17 @@ export class LanShare {
       // Fiche créée avant que le dossier n'apparaisse : un scan qui le
       // verrait ne relancerait pas de fetch DLsite par-dessus. Une fiche déjà
       // présente sur ce PC (jeu supprimé puis renvoyé) est gardée telle
-      // quelle, avec ses propres images.
+      // quelle ; elle ne récupère que les images qui lui manquent (voir
+      // fillMissingImages).
+      const stagedImages = path.join(t.stagingDir, 'images');
+      const imgDir = path.join(this.deps.getImgCacheDir(), t.gameId);
       if (t.metadata && await this.deps.insertCacheEntry(t.gameId, t.metadata)) {
-        const stagedImages = path.join(t.stagingDir, 'images');
         if (fs.existsSync(stagedImages)) {
-          await fs.promises.cp(stagedImages, path.join(this.deps.getImgCacheDir(), t.gameId), { recursive: true, force: true });
+          await fs.promises.cp(stagedImages, imgDir, { recursive: true, force: true });
         }
+      } else if (t.metadata && fs.existsSync(stagedImages)) {
+        const local = await this.deps.getCacheEntry(t.gameId);
+        if (local) await fillMissingImages(stagedImages, imgDir, t.metadata, local);
       }
 
       await renameWithRetry(stagedGame, finalDir);
@@ -785,6 +790,39 @@ export class LanShare {
       if (transferId) await client.abandon(`/dlsgm/transfer/${transferId}`);
       throw error;
     }
+  }
+}
+
+/**
+ * Complète les images d'une fiche déjà présente sur le receveur avec celles
+ * reçues, sans jamais en écraser une : utile pour une œuvre retirée de
+ * DLsite, dont les images ne sont plus téléchargeables.
+ *
+ * Une image n'est reprise que si les deux fiches donnent la même URL DLsite
+ * à la même position : l'envoyeur a pu réordonner ou remplacer ses
+ * échantillons, et `sample_3.jpg` n'est alors plus la même image des deux
+ * côtés. Une image ajoutée à la main ('manual') n'est donc jamais reprise.
+ */
+async function fillMissingImages(stagedImages: string, imgDir: string, received: GameMetadata, local: GameMetadata): Promise<void> {
+  const sameSource = (a: string | null | undefined, b: string | null | undefined) => !!a && a !== MANUAL_IMAGE && a === b;
+  const wanted: string[] = [];
+  if (sameSource(local.work_image, received.work_image)) wanted.push('work_image.jpg');
+  (local.sample_images ?? []).forEach((src, i) => {
+    if (sameSource(src, received.sample_images?.[i])) wanted.push(`sample_${i + 1}.jpg`);
+  });
+
+  for (const name of wanted) {
+    const from = path.join(stagedImages, name);
+    const to = path.join(imgDir, name);
+    if (!fs.existsSync(from) || fs.existsSync(to)) continue;
+    await fs.promises.mkdir(imgDir, { recursive: true });
+    // Copie sous un nom temporaire puis renommage : une copie interrompue ne
+    // laisse jamais une image tronquée sous le nom final, que
+    // download-game-images prendrait ensuite pour valide.
+    const partPath = `${to}.part`;
+    await fs.promises.copyFile(from, partPath);
+    if (fs.existsSync(to)) await fs.promises.rm(partPath, { force: true });
+    else await fs.promises.rename(partPath, to);
   }
 }
 

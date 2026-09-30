@@ -1,4 +1,4 @@
-import type { GameToolsInfo, InstalledPatch, SandboxieStatus } from '../../../shared/ipc-types';
+import type { GameToolsInfo, InstalledPatch, SandboxieStatus, SaveBackup } from '../../../shared/ipc-types';
 
 /**
  * Outils par jeu (moteur, sauvegardes, patchs) : fines surcouches IPC, sans
@@ -6,7 +6,20 @@ import type { GameToolsInfo, InstalledPatch, SandboxieStatus } from '../../../sh
  * les afficher.
  */
 
-export type { GameToolsInfo, InstalledPatch, SandboxieStatus };
+export type { GameToolsInfo, InstalledPatch, SandboxieStatus, SaveBackup };
+
+export const BACKUP_REASON_LABELS: Record<SaveBackup['reason'], string> = {
+  auto: 'Auto',
+  manual: 'Manuelle',
+  'pre-restore': 'Avant restauration'
+};
+
+/** Taille lisible (ex: "340 Ko", "1,2 Mo"). */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
+  return `${(bytes / 1024 / 1024).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Mo`;
+}
 
 /** Langues cibles proposées pour la traduction automatique (codes XUnity). */
 export const TRANSLATION_LANGUAGES: { code: string; label: string }[] = [
@@ -49,5 +62,10 @@ export const openSaveLocation = (gameId: string, index: number) => window.electr
 export const installAutoTranslator = (gameId: string, language: string) => window.electronAPI.installAutoTranslator(gameId, language);
 export const applyUserPatch = (gameId: string, source: 'zip' | 'folder') => window.electronAPI.applyUserPatch(gameId, source);
 export const uninstallLastPatch = (gameId: string) => window.electronAPI.uninstallLastPatch(gameId);
+export const listSaveBackups = (gameId: string) => window.electronAPI.listSaveBackups(gameId);
+export const createSaveBackup = (gameId: string) => window.electronAPI.createSaveBackup(gameId);
+export const restoreSaveBackup = (gameId: string, backupId: string) => window.electronAPI.restoreSaveBackup(gameId, backupId);
+export const deleteSaveBackup = (gameId: string, backupId: string) => window.electronAPI.deleteSaveBackup(gameId, backupId);
 export const getSandboxieStatus = () => window.electronAPI.getSandboxieStatus();
+
 export const clearGameSandbox = (gameId: string) => window.electronAPI.clearGameSandbox(gameId);
