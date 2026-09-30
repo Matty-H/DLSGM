@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
+import { app, ipcMain, dialog, net, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
 
 import path from 'path';
 import fs from 'fs';
@@ -17,6 +17,7 @@ import { ARCHIVE_EXTENSIONS, importArchive, removeStaleImports } from './archive
 import { Wishlist } from './wishlist';
 import { describeWorkspace, workspaceRoot } from './workspace';
 import { snapshotDatabase } from './db-backup';
+import { checkIp } from './ip-check';
 import { Pia } from './pia';
 import { DEFAULT_LAN_PORT, LanShare } from './lan-share';
 import type { AppSettings, ArchiveImportResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
@@ -639,12 +640,11 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null, onSettin
   });
 
   ipcMain.handle('test-dlsite-connection', () => testDlsiteConnection());
+  // Même pile réseau que DLsite (net.fetch) : l'IP publique affichée est celle que DLsite verra.
+  ipcMain.handle('check-ip', () => checkIp((url, init) => net.fetch(url, init)));
 
   // --- VPN Private Internet Access ---
   ipcMain.handle('get-pia-status', () => pia.status());
-  // Le service réseau de Chromium tourne dans un sous-processus du même
-  // exécutable : c'est lui que le split tunneling de PIA doit viser.
-  ipcMain.handle('get-app-executable-path', () => process.execPath);
 
   ipcMain.handle('begin-vpn-session', async () => {
     const { piaRegion } = await getSettings();
