@@ -51,6 +51,20 @@ export function firstVolume(archivePath: string): string {
   return path.join(dir, first);
 }
 
+/**
+ * Tous les fichiers d'une archive : ses parties (`x.part1.exe`, `x.part2.rar`...)
+ * pour une archive multi-volumes, sinon le fichier seul. Sert à proposer la
+ * suppression d'une archive importée sans laisser de parties orphelines.
+ */
+export function archiveVolumes(archivePath: string): string[] {
+  const match = RAR_PART.exec(path.basename(archivePath));
+  if (!match) return [archivePath];
+  const dir = path.dirname(archivePath);
+  return fs.readdirSync(dir)
+    .filter(name => RAR_PART.exec(name)?.[1] === match[1])
+    .map(name => path.join(dir, name));
+}
+
 export function gameIdFromName(name: string): string | null {
   const match = GAME_ID_IN_TEXT.exec(name);
   return match ? match[1].toUpperCase() : null;

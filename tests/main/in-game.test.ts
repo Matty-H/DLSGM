@@ -10,8 +10,24 @@ vi.mock('electron', () => ({
     unregister: (key: string) => registered.delete(key),
     isRegistered: (key: string) => registered.has(key)
   },
-  screen: {},
-  BrowserWindow: class {}
+  screen: {
+    getCursorScreenPoint: () => ({ x: 0, y: 0 }),
+    getDisplayNearestPoint: () => ({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } })
+  },
+  // Juste ce que GameOverlay utilise ; la dernière position posée est relevée.
+  BrowserWindow: class {
+    static lastBounds: unknown = null;
+    private visible = false;
+    webContents = { on: () => undefined, once: () => undefined, isLoading: () => false, send: () => undefined };
+    setAlwaysOnTop() {}
+    on() {}
+    setBounds(bounds: unknown) { (this.constructor as unknown as { lastBounds: unknown }).lastBounds = bounds; }
+    showInactive() { this.visible = true; }
+    hide() { this.visible = false; }
+    isVisible() { return this.visible; }
+    isDestroyed() { return false; }
+    destroy() {}
+  }
 }));
 
 import path from 'path';
@@ -19,6 +35,7 @@ import { DEFAULT_AUTO_CLICKER, MIN_INTERVAL_MS, dirsCommand, sanitizeClickerSett
 import { GameOverlay, OVERLAY_HOTKEY } from '../../src/main/overlay';
 import { HUD_COLLAPSED, HUD_EXPANDED, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSET_X, hudBounds } from '../../src/main/clicker-hud';
 import { zonesView } from '../../src/main/trigger-zones';
+import { MIN_GAME_WINDOW, parseRectLine } from '../../src/main/game-window';
 import { newPixelTrigger } from '../../src/renderer/src/lib/pixelTrigger';
 import type { OverlayGame } from '../../src/shared/ipc-types';
 
@@ -121,5 +138,44 @@ describe('détecteur de rythme : témoin et zones', () => {
     const aimed = { ...newPixelTrigger(0), id: 'a', delayMs: 40, zone: { x: 2000, y: 10, width: 8, height: 8 } };
     const view = zonesView([aimed, newPixelTrigger(1)], { bounds: { x: 1920, y: 0 } });
     expect(view).toEqual({ origin: { x: 1920, y: 0 }, zones: [{ id: 'a', name: aimed.name, zone: aimed.zone, delayMs: 40 }] });
+  });
+});
+
+describe("fenêtre du jeu (position de l'overlay)", () => {
+  it('lit la zone client envoyée par le worker, ignore le reste', () => {
+    expect(parseRectLine('rect -1920 0 1280 720\r')).toEqual({ x: -1920, y: 0, width: 1280, height: 720 });
+    expect(parseRectLine('ready')).toBeNull();
+    expect(parseRectLine('rect 0 0 abc 720')).toBeNull();
+  });
+
+  it("ignore une fenêtre trop petite pour être celle du jeu (l'overlay prend alors l'écran)", () => {
+    expect(parseRectLine(`rect 0 0 ${MIN_GAME_WINDOW.width - 1} 600`)).toBeNull();
+    expect(parseRectLine('rect 100 100 160 120')).toBeNull();
+  });
+});
+
+describe("overlay sur la fenêtre du jeu", () => {
+  const game: OverlayGame = {
+    id: 'RJ01234567', name: 'RJ01234567', startedAt: new Date().toISOString(), previousPlayTime: 0,
+    sessionCount: 0, lastPlayed: null, autoClickerEnabled: false, pixelTriggerEnabled: false
+  };
+  const lastBounds = async () => ((await import('electron')).BrowserWindow as unknown as { lastBounds: unknown }).lastBounds;
+
+  it("Maj+Tab le pose sur la fenêtre du jeu, sinon sur l'écran, et il suit le jeu", async () => {
+    let gameRect: { x: number; y: number; width: number; height: number } | null = { x: 100, y: 50, width: 1280, height: 720 };
+    const overlay = new GameOverlay({ preloadPath: '', loadPage: () => undefined, isEnabled: async () => true, gameBounds: () => gameRect });
+    await overlay.gameStarted(game);
+    registered.get(OVERLAY_HOTKEY)!();
+    expect(await lastBounds()).toEqual({ x: 100, y: 50, width: 1280, height: 720 });
+
+    gameRect = { x: 200, y: 50, width: 1280, height: 720 };
+    overlay.followGame();
+    expect(await lastBounds()).toEqual(gameRect);
+
+    overlay.hide();
+    gameRect = null;
+    overlay.show();
+    expect(await lastBounds()).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+    overlay.destroy();
   });
 });

@@ -85,6 +85,12 @@ h4 { font-size: 16px; }
   to { opacity: 1; transform: none; }
 }
 
+/* Compte à rebours d'un toaster (ArchiveCleanupToast). */
+@keyframes toast-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    Primitives de composants. Dans la couche `components` de Tailwind pour
    qu'un utilitaire combiné sur le même élément (`input pr-8`, `btn text-xs`)

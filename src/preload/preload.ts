@@ -54,6 +54,7 @@ const electronAPI: ElectronAPI = {
   // Import d'archives
 
   importGameArchives: () => ipcRenderer.invoke('import-game-archives'),
+  trashImportedArchives: (importIds) => ipcRenderer.invoke('trash-imported-archives', importIds),
   onArchiveImportProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: ArchiveImportProgress) => callback(progress);
     ipcRenderer.on('archive-import-progress', listener);

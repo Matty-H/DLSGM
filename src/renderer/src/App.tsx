@@ -11,6 +11,7 @@ import ShareScreen from './components/ShareScreen/ShareScreen';
 import HomeScreen from './components/HomeScreen/HomeScreen';
 import WishlistScreen from './components/WishlistScreen/WishlistScreen';
 import ImportResults from './components/ImportResults/ImportResults';
+import ArchiveCleanupToast from './components/ArchiveCleanupToast/ArchiveCleanupToast';
 import { useArchiveImport } from './hooks/useArchiveImport';
 import PanicOverlay from './components/PanicOverlay/PanicOverlay';
 import FooterHints, { type FooterHint } from './components/FooterHints/FooterHints';
@@ -225,6 +226,18 @@ export default function App() {
     }
   };
 
+  // L'onglet Bibliothèque de la barre du haut mène toujours à la grille, même
+  // depuis la page d'un jeu (ouverte ici ou laissée derrière un autre onglet).
+  const handleTabChange = (tab: AppTab) => {
+    if (tab === 'library' && selectedGameId) {
+      const gameId = selectedGameId;
+      setReturnTab(null);
+      setSelectedGameId(null);
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)?.focus({ preventScroll: true }));
+    }
+    setActiveTab(tab);
+  };
+
   const handleReveal = (gameId: string) => {
     setRevealedGames(prev => new Set(prev).add(gameId));
   };
@@ -358,7 +371,7 @@ export default function App() {
     <div className="flex h-screen flex-col overflow-clip font-body">
       <TopNav
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         isFullscreen={fullscreen.isFullscreen}
         onToggleFullscreen={fullscreen.toggle}
         isReceiving={lanShare.receiver?.running ?? false}
@@ -542,6 +555,14 @@ export default function App() {
           )
         }
       />
+
+      {archiveImport.cleanup && !panicActive && (
+        <ArchiveCleanupToast
+          cleanup={archiveImport.cleanup}
+          onTrash={archiveImport.trashArchives}
+          onDismiss={archiveImport.dismissCleanup}
+        />
+      )}
 
       <PanicOverlay active={panicActive} />
     </div>

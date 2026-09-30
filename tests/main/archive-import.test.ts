@@ -7,7 +7,7 @@ import { listTree, makeTempDir, makeZip, removeTempDir } from '../helpers';
 // chemin .zip (extracteur interne) est testé ici.
 vi.mock('electron', () => ({ utilityProcess: { fork: () => { throw new Error('non disponible en test'); } } }));
 
-import { decodeZipName, firstVolume, gameIdFromName, importArchive } from '../../src/main/archive-import';
+import { archiveVolumes, decodeZipName, firstVolume, gameIdFromName, importArchive } from '../../src/main/archive-import';
 
 let root: string;
 let library: string;
@@ -60,6 +60,23 @@ describe('firstVolume', () => {
   it('échoue clairement si la partie 1 manque', () => {
     fs.writeFileSync(path.join(root, 'RJ01234567.part2.rar'), '');
     expect(() => firstVolume(path.join(root, 'RJ01234567.part2.rar'))).toThrow(/Première partie/);
+  });
+});
+
+describe('archiveVolumes', () => {
+  it("rend toutes les parties d'un RAR multi-volumes, et seulement elles", () => {
+    for (const name of ['RJ01234567.part1.exe', 'RJ01234567.part2.rar', 'RJ01234567.part03.rar', 'RJ07654321.part1.rar', 'RJ01234567.zip']) {
+      fs.writeFileSync(path.join(root, name), '');
+    }
+    expect(archiveVolumes(path.join(root, 'RJ01234567.part2.rar')).sort()).toEqual(
+      ['RJ01234567.part03.rar', 'RJ01234567.part1.exe', 'RJ01234567.part2.rar'].map(n => path.join(root, n))
+    );
+  });
+
+  it('rend le fichier seul pour une archive en un morceau', () => {
+    fs.writeFileSync(path.join(root, 'RJ01234567.zip'), '');
+    fs.writeFileSync(path.join(root, 'RJ01234567.part1.rar'), '');
+    expect(archiveVolumes(path.join(root, 'RJ01234567.zip'))).toEqual([path.join(root, 'RJ01234567.zip')]);
   });
 });
 

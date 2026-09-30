@@ -369,6 +369,14 @@ export interface ArchiveImportResult {
   file: string;
   gameId?: string;
   error?: string;
+  /** Import réussi : identifiant permettant de mettre son archive à la corbeille. */
+  importId?: string;
+}
+
+/** Mise à la corbeille des archives importées (toutes leurs parties). */
+export interface TrashArchivesResult {
+  trashed: number;
+  errors: string[];
 }
 
 /** Avancement d'un import : archive en cours d'extraction (1-indexée). */
@@ -687,6 +695,8 @@ export interface ElectronAPI {
   importGameArchives(): Promise<ArchiveImportResult[]>;
   /** Avancement de l'import ; renvoie la fonction de désabonnement. */
   onArchiveImportProgress(callback: (progress: ArchiveImportProgress) => void): () => void;
+  /** Met à la corbeille les archives (et leurs parties) des imports réussis donnés. */
+  trashImportedArchives(importIds: string[]): Promise<TrashArchivesResult>;
 
   /** Copie cache.db dans userData/db_backups (5 dernières gardées) ; renvoie le chemin de la copie. */
   snapshotCache(): Promise<string>;
