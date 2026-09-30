@@ -1,8 +1,8 @@
-import { app, BrowserWindow, globalShortcut, Menu, net, protocol } from 'electron';
+import { app, BrowserWindow, globalShortcut, Menu, net, protocol, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
-import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive } from './ipc-handlers';
+import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic } from './ipc-handlers';
 import { initAutoUpdater } from './updater';
 import { applyDlsiteProxy } from './dlsite-net';
 import { hideInsteadOfClose, setTrayEnabled } from './tray';
@@ -12,10 +12,35 @@ let mainWindow: BrowserWindow | null = null;
 /**
  * Crée la fenêtre principale de l'application.
  */
+const PRELOAD_PATH = path.join(__dirname, '..', 'preload', 'preload.js');
+
+/**
+ * Chargement de l'interface : serveur de dev Vite si présent (npm run dev),
+ * sinon le build de production (npm start / app packagée). Le renderer
+ * buildé vit sous src/renderer/dist quel que soit le dossier de sortie de
+ * la compilation de main (dist/main/main), donc on remonte jusqu'à la
+ * racine du repo avant de redescendre vers src/renderer/dist. `hash` :
+ * route du renderer (#overlay pour l'overlay en jeu).
+ */
+function loadRenderer(window: BrowserWindow, hash?: string): void {
+  if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
+    window.loadURL(hash ? `${process.env.VITE_DEV_SERVER_URL}#${hash}` : process.env.VITE_DEV_SERVER_URL);
+  } else {
+    window.loadFile(path.join(__dirname, '..', '..', '..', 'src', 'renderer', 'dist', 'index.html'), hash ? { hash } : undefined);
+  }
+}
+
+// Largeur à partir de laquelle la barre du haut affiche tous ses onglets en
+// entier (point de rupture min-[1180px] de TopNav.tsx), avec de la marge.
+const FULL_NAV_WIDTH = 1280;
+const DEFAULT_HEIGHT = 800;
+
 function createWindow(): void {
+  // Fenêtre assez large pour la barre complète, sans dépasser l'écran.
+  const workArea = screen.getPrimaryDisplay().workAreaSize;
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 800,
+    width: Math.min(FULL_NAV_WIDTH, workArea.width),
+    height: Math.min(DEFAULT_HEIGHT, workArea.height),
     minWidth: 800,
     minHeight: 600,
     titleBarStyle: 'hiddenInset', // Pour un look plus moderne sur Mac
@@ -23,7 +48,7 @@ function createWindow(): void {
       nodeIntegration: false,    // Sécurité : désactivé
       contextIsolation: true,    // Sécurité : activé
       sandbox: true,             // Sécurité : activé
-      preload: path.join(__dirname, '..', 'preload', 'preload.js')
+      preload: PRELOAD_PATH
     },
     backgroundColor: '#0e141b'   // Évite le flash blanc au chargement
   });
@@ -56,6 +81,9 @@ function createWindow(): void {
     }
   });
   window.on('close', (event) => hideInsteadOfClose(event, window));
+  // L'overlay en jeu (fenêtre cachée) empêcherait sinon « toutes les fenêtres
+  // fermées » de quitter l'application.
+  window.on('closed', () => shutdownInGameTools());
   window.on('enter-full-screen', () => window.webContents.send('fullscreen-changed', true));
   window.on('leave-full-screen', () => window.webContents.send('fullscreen-changed', false));
 
@@ -65,16 +93,7 @@ function createWindow(): void {
     })
     .catch(error => console.error('Lecture des paramètres de plein écran impossible:', error));
 
-  // Chargement de l'interface : serveur de dev Vite si présent (npm run dev),
-  // sinon le build de production (npm start / app packagée). Le renderer
-  // buildé vit sous src/renderer/dist quel que soit le dossier de sortie de
-  // la compilation de main (dist/main/main), donc on remonte jusqu'à la
-  // racine du repo avant de redescendre vers src/renderer/dist.
-  if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '..', '..', '..', 'src', 'renderer', 'dist', 'index.html'));
-  }
+  loadRenderer(window);
 
   // Ouvrir les outils de développement en mode dev (optionnel)
   // mainWindow.webContents.openDevTools();
@@ -107,7 +126,10 @@ app.whenReady().then(async () => {
   });
 
   const getWindow = () => mainWindow;
-  setupIpcHandlers(getWindow, settings => setTrayEnabled(Boolean(settings.closeToTray), getWindow));
+  setupIpcHandlers(getWindow, settings => setTrayEnabled(Boolean(settings.closeToTray), getWindow), {
+    preloadPath: PRELOAD_PATH,
+    loadPage: loadRenderer
+  });
   // Proxy DLsite avant tout fetch (le premier scan part dès le chargement).
   await getSettings()
     .then(async settings => {
@@ -125,6 +147,7 @@ app.whenReady().then(async () => {
 
   // Enregistrement du raccourci Panic Button (Alt+Space)
   globalShortcut.register('Alt+Space', () => {
+    togglePanic();
     if (mainWindow) {
       mainWindow.webContents.send('panic-button-triggered');
     }
@@ -155,6 +178,7 @@ app.on('before-quit', (event) => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  shutdownInGameTools();
   // Ferme le port de réception réseau local et annule les transferts en cours.
   shutdownLanShare().catch(error => console.error('Fermeture du partage réseau local:', error));
 });

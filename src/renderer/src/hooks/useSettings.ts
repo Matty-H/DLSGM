@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadSettings, saveSettings as persistSettings } from '../lib/settings.js';
-import type { GameCollection } from '../../../shared/ipc-types';
+import type { AutoClickerSettings, GameCollection, HomeShelfPrefs } from '../../../shared/ipc-types';
 
 export interface AppSettings {
   destinationFolder: string;
@@ -13,6 +13,10 @@ export interface AppSettings {
   lanSharePort: number;
   dlsiteProxy: string;
   collections: GameCollection[];
+  homeShelves: Record<string, HomeShelfPrefs>;
+  hideCompleted: boolean;
+  autoClicker: AutoClickerSettings;
+  overlayEnabled: boolean;
   autoBackupSaves: boolean;
   closeToTray: boolean;
   workspaceFolder: string;
@@ -36,8 +40,16 @@ export function useSettings() {
     loadSettings().then((loaded: AppSettings) => {
       if (!cancelled) setSettings(loaded);
     });
+    // Auto-clicker réglé depuis son témoin (autre fenêtre) : sinon un
+    // enregistrement ici remettrait les anciennes valeurs.
+    const off = window.electronAPI.onSettingsChanged(() => {
+      loadSettings().then((loaded: AppSettings) => {
+        if (!cancelled) setSettings(prev => (prev ? { ...prev, autoClicker: loaded.autoClicker } : loaded));
+      });
+    });
     return () => {
       cancelled = true;
+      off();
     };
   }, []);
 

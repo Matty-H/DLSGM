@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ArchiveImportProgress, ElectronAPI, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
+import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -107,6 +107,50 @@ const electronAPI: ElectronAPI = {
   cancelLanSend: () => ipcRenderer.invoke('cancel-lan-send'),
 
   // Événements (du Main vers le Renderer)
+  getOverlayState: () => ipcRenderer.invoke('get-overlay-state'),
+  hideOverlay: () => ipcRenderer.invoke('hide-overlay'),
+  getAutoClickerStatus: () => ipcRenderer.invoke('auto-clicker-status'),
+  captureCursorPosition: (delayMs) => ipcRenderer.invoke('capture-cursor-position', delayMs),
+  onAutoClickerStatus: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: AutoClickerStatus) => callback(status);
+    ipcRenderer.on('auto-clicker-status', listener);
+    return () => {
+      ipcRenderer.removeListener('auto-clicker-status', listener);
+    };
+  },
+  onOverlayStateChanged: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on('overlay-state-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('overlay-state-changed', listener);
+    };
+  },
+  onOverlayShown: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on('overlay-shown', listener);
+    return () => {
+      ipcRenderer.removeListener('overlay-shown', listener);
+    };
+  },
+
+  setClickerHudExpanded: (expanded) => ipcRenderer.invoke('set-clicker-hud-expanded', expanded),
+  saveClickerQuickSettings: (patch) => ipcRenderer.invoke('save-clicker-quick-settings', patch),
+  setGameAutoClicker: (gameId, enabled) => ipcRenderer.invoke('set-game-auto-clicker', gameId, enabled),
+  onClickerHudExpanded: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, expanded: boolean) => callback(expanded);
+    ipcRenderer.on('clicker-hud-expanded', listener);
+    return () => {
+      ipcRenderer.removeListener('clicker-hud-expanded', listener);
+    };
+  },
+  onSettingsChanged: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on('settings-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('settings-changed', listener);
+    };
+  },
+
   onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', () => callback()),
   onLanTransferProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: LanTransferProgress) => callback(progress);

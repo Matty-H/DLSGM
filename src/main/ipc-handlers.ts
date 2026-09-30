@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog, net, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
+import { app, ipcMain, dialog, globalShortcut, net, screen, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
 
 import path from 'path';
 import fs from 'fs';
@@ -20,7 +20,10 @@ import { snapshotDatabase } from './db-backup';
 import { checkIp } from './ip-check';
 import { Pia } from './pia';
 import { DEFAULT_LAN_PORT, LanShare } from './lan-share';
-import type { AppSettings, ArchiveImportResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import { AutoClicker, DEFAULT_AUTO_CLICKER, sanitizeClickerSettings } from './auto-clicker';
+import { GameOverlay, OVERLAY_HOTKEY } from './overlay';
+import { ClickerHud } from './clicker-hud';
+import type { AppSettings, AutoClickerSettings, AutoClickerStatus, ArchiveImportResult, OverlayState, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -58,6 +61,10 @@ const settingsStore = new Store('settings.db', {
   lanSharePort: DEFAULT_LAN_PORT,
   dlsiteProxy: '',
   collections: [],
+  homeShelves: {},
+  hideCompleted: false,
+  autoClicker: { enabled: false, hotkey: 'F6', intervalMs: 100, button: 'left', double: false, repeat: 0, position: null },
+  overlayEnabled: true,
   autoBackupSaves: true,
   closeToTray: false,
   workspaceFolder: '',
@@ -382,12 +389,192 @@ export async function shutdownLanShare(): Promise<void> {
   await lanShare?.stopReceiver();
 }
 
+// --- Overlay en jeu et auto-clicker ------------------------------------------
+// Créés par setupIpcHandlers (il leur faut la fenêtre et le chargeur de page).
+let autoClicker: AutoClicker | null = null;
+let overlay: GameOverlay | null = null;
+// Témoin en bas à gauche de l'écran pendant la partie (auto-clicker activé).
+let clickerHud: ClickerHud | null = null;
+// Mode panique (Alt+Espace, bascule) : le témoin se cache avec l'application.
+let panicActive = false;
+// Prévient la fenêtre principale d'un changement de paramètres fait ailleurs (témoin).
+let notifySettingsChanged: (() => void) | null = null;
+// Raccourci marche / arrêt de l'auto-clicker actuellement enregistré.
+let clickerHotkey: string | null = null;
+// Raccourcis déjà pris par DLSGM : refusés pour l'auto-clicker.
+const RESERVED_HOTKEYS = ['Alt+Space', OVERLAY_HOTKEY];
+// Réglages de l'auto-clicker gardés en mémoire : le raccourci agit sans
+// relire la base (une lecture attend les écritures en cours).
+let clickerConfig: AutoClickerSettings = DEFAULT_AUTO_CLICKER;
+// Dossiers des jeux lancés depuis DLSGM en cours : l'auto-clicker n'est
+// actif que pendant la partie, et ne clique que dans ces jeux…
+const runningGameDirs = new Map<string, string>();
+// … où il a été ajouté (case de l'overlay, `autoClickerEnabled` dans la fiche : opt-in par jeu).
+const clickerEnabledGames = new Set<string>();
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function clickerSettings() {
+  return sanitizeClickerSettings((await getSettings()).autoClicker);
+}
+
+/** Relit les paramètres de l'auto-clicker puis l'active ou le désactive. */
+export async function applyAutoClickerSettings(): Promise<void> {
+  clickerConfig = await clickerSettings();
+  refreshAutoClicker();
+}
+
+/**
+ * Actif = activé (Paramètres), sous Windows, et au moins un jeu lancé depuis
+ * DLSGM en cours où il a été ajouté (case de l'overlay). Actif : raccourci enregistré, worker préchauffé (le
+ * premier appui réagit tout de suite), dossiers des jeux transmis et témoin
+ * affiché (hors mode panique). Inactif : ni raccourci, ni worker, ni témoin.
+ */
+function refreshAutoClicker(): void {
+  if (!autoClicker) return;
+  const config = clickerConfig;
+  const gameDirs = [...runningGameDirs].filter(([id]) => clickerEnabledGames.has(id)).map(([, dir]) => dir);
+  const available = autoClicker.getStatus().available;
+  const active = config.enabled && available && gameDirs.length > 0;
+  autoClicker.setInGame(active);
+
+  if (clickerHotkey && (!active || clickerHotkey !== config.hotkey)) {
+    globalShortcut.unregister(clickerHotkey);
+    clickerHotkey = null;
+  }
+  if (!active) {
+    autoClicker.dispose();
+    autoClicker.setHotkeyActive(false);
+  } else {
+    if (!clickerHotkey && !RESERVED_HOTKEYS.some(key => key.toLowerCase() === config.hotkey.toLowerCase())) {
+      try {
+        const onHotkey = () => {
+          const pressedAt = Date.now();
+          toggleAutoClicker(pressedAt).catch(error => console.error('Auto-clicker :', error));
+        };
+        if (globalShortcut.register(config.hotkey, onHotkey)) {
+          clickerHotkey = config.hotkey;
+        }
+      } catch {
+        // accélérateur invalide : raccourci indiqué comme indisponible
+      }
+    }
+    autoClicker.setHotkeyActive(clickerHotkey !== null);
+    autoClicker.warmUp().catch(error => console.error("Préparation de l'auto-clicker impossible:", error));
+    autoClicker.setGameDirs(gameDirs);
+  }
+
+  clickerHud?.setVisible(active && !panicActive);
+  clickerHud?.send('overlay-state-changed');
+}
+
+/**
+ * Marche / arrêt (raccourci). Aucun await ne doit précéder `toggle` (voir
+ * AutoClicker.start) : tout jusqu'à l'envoi de la commande reste synchrone.
+ */
+async function toggleAutoClicker(requestedAt = Date.now()): Promise<AutoClickerStatus> {
+  if (!autoClicker) throw new Error('Auto-clicker indisponible.');
+  if (!autoClicker.getStatus().running) {
+    if (!clickerConfig.enabled) throw new Error("L'auto-clicker est désactivé (Paramètres › Auto-clicker).");
+    if (!autoClicker.getStatus().inGame) {
+      throw new Error("L'auto-clicker ne fonctionne que pendant un jeu lancé depuis DLSGM, où il a été ajouté (case de l'overlay Maj+Tab).");
+    }
+  }
+  await autoClicker.toggle(clickerConfig, requestedAt);
+  return autoClicker.getStatus();
+}
+
+/** Alt+Espace : arrête les clics et bascule le mode panique (le témoin suit). */
+export function togglePanic(): void {
+  autoClicker?.stop();
+  panicActive = !panicActive;
+  refreshAutoClicker();
+}
+
+/** Fermeture de la fenêtre principale ou de l'application. */
+export function shutdownInGameTools(): void {
+  autoClicker?.dispose();
+  overlay?.destroy();
+  clickerHud?.destroy();
+}
+
+export interface PageLoader {
+  preloadPath: string;
+  /** Charge le renderer dans une fenêtre, à une route (#overlay). */
+  loadPage: (window: BrowserWindow, hash?: string) => void;
+}
+
 /**
  * Enregistre les handlers IPC. À n'appeler qu'une fois : sur macOS la fenêtre
  * peut être recréée (événement `activate`), d'où `getWindow` plutôt qu'une
  * référence figée — un second `ipcMain.handle` sur le même canal lève une erreur.
  */
-export function setupIpcHandlers(getWindow: () => BrowserWindow | null, onSettingsSaved?: (settings: AppSettings) => void): void {
+export function setupIpcHandlers(
+  getWindow: () => BrowserWindow | null,
+  onSettingsSaved: ((settings: AppSettings) => void) | undefined,
+  pages: PageLoader
+): void {
+  const clicker = new AutoClicker({
+    scriptDir: app.getPath('userData'),
+    logPath: path.join(app.getPath('userData'), 'auto-clicker.log'),
+    // Les coordonnées Electron (DIP) deviennent des pixels physiques pour SetCursorPos.
+    toScreenPoint: point => (process.platform === 'win32' ? screen.dipToScreenPoint(point) : point),
+    onStatus: status => {
+      getWindow()?.webContents.send('auto-clicker-status', status);
+      clickerHud?.send('auto-clicker-status', status);
+      // Démarré par le raccourci pendant que le témoin est déplié : on le replie.
+      if (status.running) clickerHud?.setExpanded(false);
+    }
+  });
+  autoClicker = clicker;
+  const gameOverlay = new GameOverlay({
+    preloadPath: pages.preloadPath,
+    loadPage: window => pages.loadPage(window, 'overlay'),
+    isEnabled: async () => (await getSettings()).overlayEnabled !== false,
+    onGamesChanged: () => overlay?.send('overlay-state-changed')
+  });
+  overlay = gameOverlay;
+  const hud = new ClickerHud({ preloadPath: pages.preloadPath, loadPage: window => pages.loadPage(window, 'clicker-hud') });
+  clickerHud = hud;
+  notifySettingsChanged = () => getWindow()?.webContents.send('settings-changed');
+  applyAutoClickerSettings().catch(error => console.error('Auto-clicker au démarrage :', error));
+
+  ipcMain.handle('get-overlay-state', async (): Promise<OverlayState> => ({
+    games: gameOverlay.listGames(),
+    clicker: clicker.getStatus(),
+    clickerSettings: clickerConfig
+  }));
+  ipcMain.handle('hide-overlay', () => gameOverlay.hide());
+  // Témoin : réglages rapides (déplié seulement à l'arrêt, sinon les clics tomberaient dessus).
+  ipcMain.handle('set-clicker-hud-expanded', (event: IpcMainInvokeEvent, expanded: boolean) => {
+    hud.setExpanded(Boolean(expanded) && !clicker.getStatus().running);
+  });
+  ipcMain.handle('set-game-auto-clicker', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
+    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error('ID de jeu invalide.');
+    await cacheStore.update(gameId, () => ({ autoClickerEnabled: Boolean(enabled) }));
+    if (enabled) clickerEnabledGames.add(gameId);
+    else clickerEnabledGames.delete(gameId);
+    gameOverlay.updateGame(gameId, { autoClickerEnabled: Boolean(enabled) });
+    refreshAutoClicker();
+  });
+  ipcMain.handle('save-clicker-quick-settings', async (event: IpcMainInvokeEvent, patch: { intervalMs?: number; hotkey?: string }) => {
+    const next = sanitizeClickerSettings({
+      ...clickerConfig,
+      ...(typeof patch?.intervalMs === 'number' && { intervalMs: patch.intervalMs }),
+      ...(typeof patch?.hotkey === 'string' && { hotkey: patch.hotkey })
+    });
+    await settingsStore.set('autoClicker', next);
+    await applyAutoClickerSettings();
+    notifySettingsChanged?.();
+    return clicker.getStatus();
+  });
+  ipcMain.handle('auto-clicker-status', () => clicker.getStatus());
+  // « Prendre la position » : le temps de placer la souris, puis sa position (DIP).
+  ipcMain.handle('capture-cursor-position', async (event: IpcMainInvokeEvent, delayMs: number) => {
+    await delay(Math.min(10_000, Math.max(0, Number(delayMs) || 0)));
+    return screen.getCursorScreenPoint();
+  });
+
   const showOpenDialog = (options: OpenDialogOptions) => {
     const window = getWindow();
     return window ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options);
@@ -425,6 +612,8 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null, onSettin
     const proxy = protectProxySettings(newSettings.dlsiteProxy, (await getSettings()).dlsiteProxySecret);
     await settingsStore.setAll({ ...newSettings, ...proxy } as unknown as Record<string, unknown>);
     await applyDlsiteProxy(proxy.dlsiteProxy, proxy.dlsiteProxySecret);
+    await applyAutoClickerSettings();
+    await overlay?.refreshHotkey();
     onSettingsSaved?.(newSettings);
     return true;
   });
@@ -516,10 +705,29 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null, onSettin
 
     let result: TrackedLaunchResult;
     runningGames.add(gameId);
+    // Champs personnels (temps de jeu...) : hors de GameMetadata.
+    const entry = ((await cacheStore.get(gameId)) ?? {}) as Record<string, unknown>;
+    await overlay?.gameStarted({
+      id: gameId,
+      name: typeof entry.work_name === 'string' && entry.work_name ? entry.work_name : gameId,
+      startedAt: new Date().toISOString(),
+      previousPlayTime: Number(entry.totalPlayTime) || 0,
+      sessionCount: Array.isArray(entry.playSessions) ? entry.playSessions.length : 0,
+      lastPlayed: typeof entry.lastPlayed === 'string' ? entry.lastPlayed : null,
+      autoClickerEnabled: entry.autoClickerEnabled === true
+    });
+    runningGameDirs.set(gameId, gamePath);
+    if (entry.autoClickerEnabled === true) clickerEnabledGames.add(gameId);
+    else clickerEnabledGames.delete(gameId);
+    refreshAutoClicker();
     try {
       result = await startGameProcess(gameId, gamePath, executablePath);
     } finally {
       runningGames.delete(gameId);
+      await overlay?.gameEnded(gameId);
+      // Plus de jeu : plus d'auto-clicker (ni raccourci, ni témoin).
+      runningGameDirs.delete(gameId);
+      refreshAutoClicker();
     }
 
     const { code: _code, exitCode: _exitCode, ...launchResult } = result;

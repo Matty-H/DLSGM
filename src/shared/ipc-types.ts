@@ -36,6 +36,18 @@ export interface AppSettings {
   dlsiteProxySecret?: string;
   /** Collections créées par l'utilisateur, dans l'ordre d'affichage (appartenance : `GameMetadata.collections`). */
   collections: GameCollection[];
+  /**
+   * Affichage des étagères de l'accueil, par clé d'étagère ('recent',
+   * 'to-finish', 'added', 'unplayed', 'user:<id>') — voir lib/collections.ts.
+   * Absent = réglages par défaut de l'étagère.
+   */
+  homeShelves: Record<string, HomeShelfPrefs>;
+  /** Bibliothèque : masquer les jeux marqués finis (case « Masquer les finis »). */
+  hideCompleted: boolean;
+  /** Auto-clicker (Paramètres › Auto-clicker, et l'overlay en jeu). */
+  autoClicker: AutoClickerSettings;
+  /** Overlay en jeu (Maj+Tab pendant qu'un jeu lancé depuis DLSGM tourne). */
+  overlayEnabled: boolean;
   /** Copie des sauvegardes du jeu à chaque fermeture (voir src/main/save-backups.ts). */
   autoBackupSaves: boolean;
   /** Fermer la fenêtre la cache dans la zone de notification au lieu de quitter. */
@@ -99,9 +111,123 @@ export interface GameWorkspaceInfo {
   truncated: boolean;
 }
 
+export type ClickerButton = 'left' | 'right' | 'middle';
+
+/** Auto-clicker façon OP Auto Clicker (voir src/main/auto-clicker.ts, Windows). */
+export interface AutoClickerSettings {
+  /**
+   * Auto-clicker activé. Même activé, le raccourci n'existe que pendant
+   * qu'un jeu lancé depuis DLSGM tourne, et les clics ne partent que vers ce jeu.
+   */
+  enabled: boolean;
+  /** Raccourci marche / arrêt (accélérateur Electron, ex: F6). */
+  hotkey: string;
+  /** Délai entre deux clics (ou doubles clics), en millisecondes. */
+  intervalMs: number;
+  button: ClickerButton;
+  double: boolean;
+  /** Nombre de clics avant arrêt automatique ; 0 = jusqu'à l'arrêt. */
+  repeat: number;
+  /** null : là où est le curseur ; sinon un point fixe de l'écran (coordonnées Electron, DIP). */
+  position: { x: number; y: number } | null;
+}
+
+export interface AutoClickerStatus {
+  /** Windows uniquement. */
+  available: boolean;
+  running: boolean;
+  /** En marche mais en pause : la fenêtre au premier plan n'est pas celle du jeu. */
+  paused: boolean;
+  /** Un jeu lancé depuis DLSGM, avec l'auto-clicker permis, tourne : le raccourci est actif. */
+  inGame: boolean;
+  /** Dernier démarrage : de l'appui sur le raccourci (ou le bouton) au premier clic, en ms. */
+  lastStartLatencyMs: number | null;
+  /** Dernier arrêt : de l'appui à l'arrêt effectif, en ms. */
+  lastStopLatencyMs: number | null;
+  /** Le raccourci est bien enregistré (faux s'il est pris par une autre application). */
+  hotkeyActive: boolean;
+  error: string | null;
+}
+
+/** Jeu lancé depuis DLSGM, affiché dans l'overlay (Maj+Tab). */
+export interface OverlayGame {
+  id: string;
+  name: string;
+  /** Début de la session en cours (ISO). */
+  startedAt: string;
+  /** Temps de jeu enregistré avant cette session, en secondes. */
+  previousPlayTime: number;
+  sessionCount: number;
+  lastPlayed: string | null;
+  /** Auto-clicker ajouté à ce jeu (case de l'overlay ; `autoClickerEnabled` dans la fiche, décoché par défaut). */
+  autoClickerEnabled: boolean;
+}
+
+export interface OverlayState {
+  games: OverlayGame[];
+  clicker: AutoClickerStatus;
+  clickerSettings: AutoClickerSettings;
+}
+
+/** Taille des jaquettes d'une étagère de l'accueil. */
+export type ShelfSize = 'small' | 'medium' | 'large';
+
+export interface HomeShelfPrefs {
+  /** Étagère masquée sur l'accueil (la collection reste un filtre de la bibliothèque). */
+  hidden?: boolean;
+  size?: ShelfSize;
+}
+
 export interface GameCollection {
   id: string;
   name: string;
+  /**
+   * Règles d'ajout automatique (voir renderer lib/collections.ts) : un jeu est
+   * dans la collection s'il y a été ajouté à la main OU s'il correspond aux règles.
+   */
+  rules?: CollectionRules;
+}
+
+/**
+ * Champ testé par une condition : tag DLsite (clé japonaise), tag perso, type
+ * d'œuvre, fini (sans valeur), temps de jeu (`value` = seuil en minutes :
+ * au moins ce temps, moins avec `negate`), ou un champ créateur.
+ */
+export type CollectionRuleField =
+  | 'genre'
+  | 'customTag'
+  | 'category'
+  | 'completed'
+  | 'playTime'
+  | 'circle'
+  | 'brand'
+  | 'publisher'
+  | 'label'
+  | 'series'
+  | 'author'
+  | 'writer'
+  | 'scenario'
+  | 'illustration'
+  | 'voice_actor'
+  | 'music';
+
+export interface CollectionCondition {
+  field: CollectionRuleField;
+  value: string;
+  /** Cercle / marque : identifiant DLsite (RG…/BG…), indépendant de la langue. */
+  makerId?: string | null;
+  /** Vrai : le jeu ne doit PAS avoir cette valeur. */
+  negate?: boolean;
+}
+
+/**
+ * (groupe 1 OU groupe 2 OU …) ET AUCUNE des exclusions. Un groupe est vrai
+ * quand toutes ses conditions le sont. Sans groupe non vide, les règles
+ * n'ajoutent aucun jeu.
+ */
+export interface CollectionRules {
+  groups: CollectionCondition[][];
+  exclude: CollectionCondition[];
 }
 
 /** Session de jeu suivie (lancement → fermeture du processus). */
@@ -309,6 +435,8 @@ export interface GameMetadata {
   sandboxDisabled?: boolean;
   /** Marqué comme fini par l'utilisateur (macaron sur la jaquette). Donnée personnelle, jamais partagée en LAN. */
   completed?: boolean;
+  /** Auto-clicker ajouté à ce jeu (case de l'overlay, opt-in). Donnée personnelle, jamais partagée en LAN. */
+  autoClickerEnabled?: boolean;
   /** IDs des collections (AppSettings.collections) du jeu. Donnée personnelle, jamais partagée en LAN. */
   collections?: string[];
   /** Historique des sessions, enregistré par main à la fermeture du jeu. Donnée personnelle. */
@@ -533,6 +661,27 @@ export interface ElectronAPI {
   /** Envoie les jeux un par un ; un seul envoi à la fois. */
   sendGamesOverLan(request: LanSendRequest): Promise<LanSendResult>;
   cancelLanSend(): Promise<void>;
+
+  // Overlay en jeu et auto-clicker (src/main/overlay.ts, src/main/auto-clicker.ts)
+  getOverlayState(): Promise<OverlayState>;
+  hideOverlay(): Promise<void>;
+  getAutoClickerStatus(): Promise<AutoClickerStatus>;
+  /** Position du curseur (coordonnées Electron) après `delayMs`, pour fixer l'endroit des clics. */
+  captureCursorPosition(delayMs: number): Promise<{ x: number; y: number }>;
+  onAutoClickerStatus(callback: (status: AutoClickerStatus) => void): () => void;
+  /** Jeux en cours changés (overlay) ; renvoie la fonction de désabonnement. */
+  onOverlayStateChanged(callback: () => void): () => void;
+  /** L'overlay vient d'être affiché (Maj+Tab). */
+  onOverlayShown(callback: () => void): () => void;
+  /** Témoin de l'auto-clicker : déplier (réglages rapides, seulement à l'arrêt) ou replier. */
+  setClickerHudExpanded(expanded: boolean): Promise<void>;
+  /** Intervalle / raccourci changés depuis le témoin (enregistrés tout de suite). */
+  saveClickerQuickSettings(patch: { intervalMs?: number; hotkey?: string }): Promise<AutoClickerStatus>;
+  /** Overlay : ajoute ou retire l'auto-clicker d'un jeu en cours (enregistré dans sa fiche). */
+  setGameAutoClicker(gameId: string, enabled: boolean): Promise<void>;
+  onClickerHudExpanded(callback: (expanded: boolean) => void): () => void;
+  /** Paramètres modifiés hors de la fenêtre principale (témoin) : à relire. */
+  onSettingsChanged(callback: () => void): () => void;
 
   // Événements (du Main vers le Renderer)
   onPanicTriggered(callback: () => void): void;
