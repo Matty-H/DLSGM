@@ -33,7 +33,7 @@ function Clock() {
   }, []);
 
   return (
-    <span className="text-[15px] font-semibold tabular-nums text-text-secondary">
+    <span className="hidden text-[15px] font-semibold tabular-nums text-text-secondary sm:inline">
       {now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
     </span>
   );
@@ -41,28 +41,38 @@ function Clock() {
 
 export default function TopNav({ activeTab, onTabChange, isFullscreen, onToggleFullscreen, isReceiving }: TopNavProps) {
   return (
-    <header className="flex flex-shrink-0 items-center gap-2 px-6 pb-2 pt-4">
-      <div className="mr-6 flex items-center gap-2 text-[17px] font-extrabold tracking-wide">
+    // Responsive : sous 1180 px, seuls l'onglet actif et les icônes gardent
+    // leur place (libellés des autres onglets en infobulle) ; la liste défile
+    // horizontalement en dernier recours au lieu de déborder de la fenêtre.
+    <header className="flex flex-shrink-0 items-center gap-2 px-4 pb-2 pt-4 sm:px-6">
+      <div className="mr-2 flex flex-shrink-0 items-center gap-2 text-[17px] font-extrabold tracking-wide lg:mr-6">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-extrabold text-white">
           DL
         </span>
-        DLSGM
+        <span className="hidden md:inline">DLSGM</span>
       </div>
-      {TABS.map(({ id, label, Icon }) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => onTabChange(id)}
-          className={`pill-tab ${activeTab === id ? 'is-active' : ''}`}
-        >
-          <Icon size={15} strokeWidth={2.25} />
-          {label}
-          {id === 'share' && isReceiving && (
-            <span className="h-2 w-2 rounded-full bg-play" title="Réception ouverte" aria-label="Réception ouverte" />
-          )}
-        </button>
-      ))}
-      <div className="ml-auto flex items-center gap-3">
+      <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
+        {TABS.map(({ id, label, Icon }) => {
+          const active = activeTab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onTabChange(id)}
+              title={label}
+              aria-label={label}
+              className={`pill-tab flex-shrink-0 px-3 min-[1180px]:px-4 ${active ? 'is-active' : ''}`}
+            >
+              <Icon size={15} strokeWidth={2.25} />
+              <span className={active ? 'hidden sm:inline' : 'hidden min-[1180px]:inline'}>{label}</span>
+              {id === 'share' && isReceiving && (
+                <span className="h-2 w-2 rounded-full bg-play" title="Réception ouverte" aria-label="Réception ouverte" />
+              )}
+            </button>
+          );
+        })}
+      </nav>
+      <div className="ml-auto flex flex-shrink-0 items-center gap-3">
         <button
           type="button"
           onClick={onToggleFullscreen}
