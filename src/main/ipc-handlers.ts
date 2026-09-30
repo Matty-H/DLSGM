@@ -642,6 +642,9 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null, onSettin
 
   // --- VPN Private Internet Access ---
   ipcMain.handle('get-pia-status', () => pia.status());
+  // Le service réseau de Chromium tourne dans un sous-processus du même
+  // exécutable : c'est lui que le split tunneling de PIA doit viser.
+  ipcMain.handle('get-app-executable-path', () => process.execPath);
 
   ipcMain.handle('begin-vpn-session', async () => {
     const { piaRegion } = await getSettings();
