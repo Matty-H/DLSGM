@@ -86,6 +86,12 @@ export async function dlsiteFetch(url: string, init?: RequestInit): Promise<Resp
   } catch (error) {
     const message = (error as Error).message || String(error);
     if ((error as Error).name === 'AbortError') throw error;
+    if (message.includes('ERR_NETWORK_ACCESS_DENIED')) {
+      throw new Error(
+        `Accès réseau refusé à DLSGM par Windows (${message}) : pare-feu, ou split tunneling de PIA en mode « Only VPN » ` +
+        'alors que le VPN est déconnecté — règle DLSGM sur « Use VPN » (Paramètres › Réseau & VPN).'
+      );
+    }
     if (/ERR_(SOCKS|PROXY|TUNNEL)/.test(message)) {
       throw new Error(`Le proxy DLsite refuse la connexion (${message}) : vérifie son adresse et ses identifiants dans Paramètres › Réseau & VPN.`);
     }
