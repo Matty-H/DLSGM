@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Circle, Square, Triangle, X, type LucideIcon } from 'lucide-react';
 import { PS_CIRCLE, PS_CROSS, PS_SQUARE, PS_TRIANGLE } from '../../lib/gamepadLayout.js';
 
@@ -21,15 +22,18 @@ export interface FooterHint {
 
 export interface FooterHintsProps {
   hints: FooterHint[];
+  /** Actions du contexte courant, à gauche (ex: Importer / Réinitialiser dans la bibliothèque). */
+  actions?: ReactNode;
 }
 
 /**
  * Barre d'aide du bas, comme les indications de boutons de manette de
  * SteamOS — ici avec les raccourcis clavier du contexte courant.
  */
-export default function FooterHints({ hints }: FooterHintsProps) {
+export default function FooterHints({ hints, actions }: FooterHintsProps) {
   return (
     <footer className="flex flex-shrink-0 items-center justify-end gap-6 border-t border-divider bg-bg-deep/80 px-6 py-2 backdrop-blur-md">
+      {actions && <div className="mr-auto flex items-center gap-2">{actions}</div>}
       {hints.map(({ keys, label }) => (
         <span key={label} className="flex items-center gap-2 text-[12px] font-semibold text-text-secondary">
           <span className="flex gap-1">

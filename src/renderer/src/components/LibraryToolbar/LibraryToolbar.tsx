@@ -1,4 +1,4 @@
-import { Search, SlidersHorizontal, RotateCcw, X, PackagePlus } from 'lucide-react';
+import { CircleCheck, EyeOff, Search, SlidersHorizontal, X } from 'lucide-react';
 import SortSelect from '../SortSelect/SortSelect';
 import Select from '../Select/Select';
 import { CREATOR_FIELD_LABELS, type CreatorFilter } from '../../lib/filterManager.js';
@@ -13,7 +13,6 @@ export interface LibraryToolbarProps {
   onSortChange: (value: string) => void;
   showAdvancedFilters: boolean;
   onToggleAdvancedFilters: () => void;
-  onResetFilters: () => void;
   /** Nombre d'œuvres affichées après filtrage. */
   resultCount: number;
   collectionFilter: string;
@@ -22,9 +21,9 @@ export interface LibraryToolbarProps {
   /** Filtre "même cercle / auteur..." posé depuis la page d'un jeu. */
   creatorFilter: CreatorFilter | null;
   onClearCreatorFilter: () => void;
-  onImport: () => void;
-  /** Texte du bouton pendant un import (ex: "Import 1/3…"), null sinon. */
-  importStatus: string | null;
+  /** Masquer les jeux marqués finis (paramètre enregistré). */
+  hideCompleted: boolean;
+  onHideCompletedChange: (value: boolean) => void;
 }
 
 /**
@@ -41,15 +40,14 @@ export default function LibraryToolbar({
   onSortChange,
   showAdvancedFilters,
   onToggleAdvancedFilters,
-  onResetFilters,
   resultCount,
   collectionFilter,
   collectionOptions,
   onCollectionFilterChange,
   creatorFilter,
   onClearCreatorFilter,
-  onImport,
-  importStatus
+  hideCompleted,
+  onHideCompletedChange
 }: LibraryToolbarProps) {
   const tabs = [{ code: 'all', name: 'Tout' }, ...categories];
 
@@ -109,21 +107,16 @@ export default function LibraryToolbar({
           Filtres
         </button>
 
+        {/* Bouton bascule, comme « Filtres » : actif = jeux finis masqués. */}
         <button
           type="button"
-          onClick={onImport}
-          disabled={importStatus !== null}
-          className="btn"
-          title="Extraire des archives de jeux (.zip, .rar, .7z, .part1.exe) dans le dossier de la bibliothèque"
+          onClick={() => onHideCompletedChange(!hideCompleted)}
+          aria-pressed={hideCompleted}
+          title={hideCompleted ? 'Les jeux finis sont masqués — cliquer pour les afficher' : 'Masquer les jeux marqués finis'}
+          className={`btn ${hideCompleted ? 'btn-primary' : ''}`}
         >
-          <PackagePlus size={15} strokeWidth={2.25} />
-          {importStatus ?? 'Importer'}
-        </button>
-
-        <button type="button" onClick={onResetFilters} className="btn btn-ghost" title="Réinitialiser les filtres et rescanner">
-
-          <RotateCcw size={15} strokeWidth={2.25} />
-          Réinitialiser
+          {hideCompleted ? <EyeOff size={15} strokeWidth={2.25} /> : <CircleCheck size={15} strokeWidth={2.25} />}
+          {hideCompleted ? 'Finis masqués' : 'Masquer les finis'}
         </button>
 
         {creatorFilter && (

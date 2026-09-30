@@ -10,7 +10,7 @@ import { categoryMap } from '../../lib/metadataManager.js';
 import { formatLastPlayed, formatPlayTime, formatSessionDuration } from '../../lib/timeFormatter.js';
 import type { GenreNames } from '../../lib/genreNames.js';
 import { creatorValues, type CreatorField, type CreatorFilter } from '../../lib/filterManager.js';
-import { gameCollectionIds, toggleGameCollection, type GameCollection } from '../../lib/collections.js';
+import { gameCollectionIds, isInCollectionByRulesOnly, toggleGameCollection, type GameCollection } from '../../lib/collections.js';
 import type { PlaySession } from '../../../../shared/ipc-types';
 
 // Sessions affichées sur la page du jeu (l'historique complet reste en cache).
@@ -99,6 +99,7 @@ export default function GameInfoDetails({
  typeof gameData.circle === 'string' && gameData.circle ? gameData.circle : null;
   const creator = circle || joinIfArray(gameData.author) || 'Créateur non disponible';
   const collectionIds = gameCollectionIds(gameData);
+  const ruleCollectionIds = collections.filter(c => isInCollectionByRulesOnly(gameData, c, genreNames)).map(c => c.id);
   const sessions: PlaySession[] = Array.isArray(gameData.playSessions) ? gameData.playSessions : [];
   const recentSessions = sessions.slice(-RECENT_SESSIONS).reverse();
   const customTags: string[] = gameData.customTags || [];
@@ -294,6 +295,7 @@ export default function GameInfoDetails({
             <CollectionsEditor
               collections={collections}
               selectedIds={collectionIds}
+              ruleIds={ruleCollectionIds}
               onToggle={id => onUpdateGame(gameId, { collections: toggleGameCollection(gameData, id) })}
               onCreate={name => {
                 const id = onCreateCollection(name);

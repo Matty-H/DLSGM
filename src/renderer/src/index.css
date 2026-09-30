@@ -226,6 +226,10 @@ textarea.input { min-height: 90px; resize: vertical; }
 .seg-opt:has(input:checked) { background: var(--color-surface-3); color: #fff; }
 .seg-opt:not(:has(input:checked)):hover { color: #fff; }
 .seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: 0; }
+/* Variante en boutons (aria-pressed) plutôt qu'en radios. */
+.seg-opt[aria-pressed='true'] { background: var(--color-surface-3); color: #fff; }
+.seg-opt[aria-pressed='false']:hover { color: #fff; }
+.seg-opt:is(button):focus-visible { outline: 2px solid var(--color-focus); outline-offset: 0; }
 
 /* Onglets pilules de la bibliothèque / barre du haut. */
 .pill-tab {

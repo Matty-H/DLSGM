@@ -1,26 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, Plus, Trash2, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
 import PiaSettings from '../PiaSettings/PiaSettings';
 import WipBadge from '../WipBadge/WipBadge';
 import IpChecker from '../IpChecker/IpChecker';
-import type { GenreTranslations } from '../../lib/genreNames.js';
+import type { GenreNames, GenreTranslations } from '../../lib/genreNames.js';
 import { getSandboxieStatus, type SandboxieStatus } from '../../lib/gameTools.js';
 import type { AppSettings } from '../../hooks/useSettings';
-import { addCollection, moveCollection, removeCollection, type GameCollection } from '../../lib/collections.js';
+import type { GameCollection, HomeShelfPrefs } from '../../lib/collections.js';
+import type { GameListItem } from '../../lib/filterManager.js';
+import { buildProxyUrl, parseProxyForm, proxyFormError, EMPTY_PROXY_FORM, type ProxyForm as ProxyFormValue } from '../../lib/proxyForm.js';
+import CollectionsSettings from '../CollectionsSettings/CollectionsSettings';
+import ProxyForm from '../ProxyForm/ProxyForm';
+import AutoClickerSettings from '../AutoClickerSettings/AutoClickerSettings';
+import type { AutoClickerSettings as ClickerSettings } from '../../lib/autoClicker.js';
 import Select from '../Select/Select';
 
-// Même format que la validation côté main (src/main/dlsite-net.ts).
-const PROXY_REGEX = /^(https?|socks[45]?):\/\/(?:([^:@/\s]+)(?::([^@/\s]*))?@)?([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\]):(\d{1,5})$/;
-
-/** Même règle que main (src/main/proxy-config.ts) : SOCKS4 n'accepte pas d'identifiants. */
-const isValidProxy = (value: string) => {
-  const match = PROXY_REGEX.exec(value);
-  return match !== null && !(/^socks4?$/.test(match[1]) && match[2] !== undefined);
-};
 
 export interface SettingsScreenProps {
   settings: AppSettings;
@@ -31,6 +29,14 @@ export interface SettingsScreenProps {
   onSetGenreTranslation: (japanese: string, english: string | null) => Promise<void>;
   /** Après une mise à jour groupée des fiches : relire le cache. */
   onMetadataUpdated: () => void;
+  /** Jeux présents (choix des jeux d'une collection, valeurs proposées pour ses règles). */
+  games: GameListItem[];
+  genreNames: GenreNames;
+  onUpdateGame: (gameId: string, patch: Record<string, unknown>) => void;
+  getWorkImageSrc: (gameId: string) => string;
+  /** Ouverture sur une section (et une collection dépliée) — lien depuis l'accueil. */
+  initialSection?: SettingsSection;
+  initialCollectionId?: string | null;
 }
 
 /** Mise à jour groupée des fiches depuis DLsite (Paramètres › Stockage). */
@@ -117,13 +123,14 @@ function nearestPreset(minutes: number): number {
   , REFRESH_PRESETS[0].value);
 }
 
-type SettingsSection = 'library' | 'network' | 'display' | 'launch' | 'collections' | 'genres' | 'storage';
+export type SettingsSection = 'library' | 'network' | 'display' | 'launch' | 'clicker' | 'collections' | 'genres' | 'storage';
 
 const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
   { id: 'library', label: 'Bibliothèque', Icon: Library },
   { id: 'network', label: 'Réseau & VPN', Icon: Globe },
   { id: 'display', label: 'Affichage', Icon: Eye },
   { id: 'launch', label: 'Lancement', Icon: Gamepad2 },
+  { id: 'clicker', label: 'Auto-clicker & overlay', Icon: MousePointerClick },
   { id: 'collections', label: 'Collections', Icon: Layers },
   { id: 'genres', label: 'Traduction des tags', Icon: Languages },
   { id: 'storage', label: 'Stockage', Icon: HardDrive }
@@ -153,7 +160,13 @@ export default function SettingsScreen({
   allGenres,
   onMetadataUpdated,
   genreTranslations,
-  onSetGenreTranslation
+  onSetGenreTranslation,
+  games,
+  genreNames,
+  onUpdateGame,
+  getWorkImageSrc,
+  initialSection = 'library',
+  initialCollectionId
 }: SettingsScreenProps) {
   const [destinationFolder, setDestinationFolder] = useState(settings.destinationFolder);
   const [refreshRate, setRefreshRate] = useState(settings.refreshRate);
@@ -161,10 +174,14 @@ export default function SettingsScreen({
   const [blurAdultContent, setBlurAdultContent] = useState(settings.blurAdultContent);
   const [sandboxLaunch, setSandboxLaunch] = useState(settings.sandboxLaunch);
   const [startFullscreen, setStartFullscreen] = useState(settings.startFullscreen);
-  const [dlsiteProxy, setDlsiteProxy] = useState(settings.dlsiteProxy ?? '');
+  const storedProxyForm = useMemo(() => parseProxyForm(settings.dlsiteProxy ?? ''), [settings.dlsiteProxy]);
+  const [proxyForm, setProxyForm] = useState<ProxyFormValue>(storedProxyForm ?? EMPTY_PROXY_FORM);
   const [proxyTest, setProxyTest] = useState<string | null>(null);
   const [collections, setCollections] = useState<GameCollection[]>(settings.collections ?? []);
-  const [newCollectionName, setNewCollectionName] = useState('');
+  const [homeShelves, setHomeShelves] = useState<Record<string, HomeShelfPrefs>>(settings.homeShelves ?? {});
+  const [showWipNetwork, setShowWipNetwork] = useState(false);
+  const [autoClicker, setAutoClicker] = useState<ClickerSettings>(settings.autoClicker);
+  const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
   const [closeToTray, setCloseToTray] = useState(settings.closeToTray);
   const [piaRetry, setPiaRetry] = useState(settings.piaRetry);
@@ -173,7 +190,11 @@ export default function SettingsScreen({
   const [defaultWorkspaceRoot, setDefaultWorkspaceRoot] = useState('');
   const [sandboxieStatus, setSandboxieStatus] = useState<SandboxieStatus | null>(null);
   const [isResettingImages, setIsResettingImages] = useState(false);
-  const [section, setSection] = useState<SettingsSection>('library');
+  const [section, setSection] = useState<SettingsSection>(initialSection);
+
+  useEffect(() => {
+    setSection(initialSection);
+  }, [initialSection, initialCollectionId]);
 
   useEffect(() => {
     setDestinationFolder(settings.destinationFolder);
@@ -182,8 +203,11 @@ export default function SettingsScreen({
     setBlurAdultContent(settings.blurAdultContent);
     setSandboxLaunch(settings.sandboxLaunch);
     setStartFullscreen(settings.startFullscreen);
-    setDlsiteProxy(settings.dlsiteProxy ?? '');
+    setProxyForm(parseProxyForm(settings.dlsiteProxy ?? '') ?? EMPTY_PROXY_FORM);
     setCollections(settings.collections ?? []);
+    setHomeShelves(settings.homeShelves ?? {});
+    setAutoClicker(settings.autoClicker);
+    setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
     setPiaRetry(settings.piaRetry);
@@ -208,6 +232,13 @@ export default function SettingsScreen({
   }, []);
 
 
+  const dlsiteProxy = buildProxyUrl(proxyForm, storedProxyForm?.username);
+  const proxyError = proxyFormError(proxyForm);
+  const proxyValid = proxyError === null;
+  const proxyDirty = dlsiteProxy !== (settings.dlsiteProxy ?? '').trim();
+
+  const clickerDirty = JSON.stringify(autoClicker) !== JSON.stringify(settings.autoClicker);
+
   const isDirty =
     destinationFolder !== settings.destinationFolder ||
     refreshRate !== settings.refreshRate ||
@@ -215,30 +246,25 @@ export default function SettingsScreen({
     blurAdultContent !== settings.blurAdultContent ||
     sandboxLaunch !== settings.sandboxLaunch ||
     startFullscreen !== settings.startFullscreen ||
-    dlsiteProxy.trim() !== (settings.dlsiteProxy ?? '') ||
+    proxyDirty ||
     autoBackupSaves !== settings.autoBackupSaves ||
     closeToTray !== settings.closeToTray ||
     piaRetry !== settings.piaRetry ||
     piaRegion !== settings.piaRegion ||
     workspaceFolder !== (settings.workspaceFolder ?? '') ||
-    JSON.stringify(collections) !== JSON.stringify(settings.collections ?? []);
+    JSON.stringify(collections) !== JSON.stringify(settings.collections ?? []) ||
+    JSON.stringify(homeShelves) !== JSON.stringify(settings.homeShelves ?? {}) ||
+    clickerDirty ||
+    overlayEnabled !== settings.overlayEnabled;
 
   const handleBrowse = async () => {
     const folderPath = await window.electronAPI.openFolderDialog();
     if (folderPath) setDestinationFolder(folderPath);
   };
 
-  const proxyValid = dlsiteProxy.trim() === '' || isValidProxy(dlsiteProxy.trim());
   // Noms de collections renommées : ni vides, ni en double.
   const collectionNames = collections.map(c => c.name.trim().toLocaleLowerCase());
   const collectionsValid = collectionNames.every((name, i) => name !== '' && collectionNames.indexOf(name) === i);
-
-  const handleAddCollection = () => {
-    const result = addCollection(collections, newCollectionName);
-    if (!result) return;
-    setCollections(result.collections);
-    setNewCollectionName('');
-  };
 
   const handleSave = () => {
     if (!proxyValid || !collectionsValid) return;
@@ -250,8 +276,11 @@ export default function SettingsScreen({
       blurAdultContent,
       sandboxLaunch,
       startFullscreen,
-      dlsiteProxy: dlsiteProxy.trim(),
+      dlsiteProxy,
       collections: collections.map(c => ({ ...c, name: c.name.trim().replace(/\s+/g, ' ') })),
+      homeShelves,
+      autoClicker,
+      overlayEnabled,
       autoBackupSaves,
       closeToTray,
       piaRetry,
@@ -377,61 +406,70 @@ export default function SettingsScreen({
               toutes les fiches », en laissant le proxy vide.
             </div>
             <IpChecker />
-            <SettingRow
-              label={
-                <>
-                  Proxy pour DLsite <WipBadge />
-                </>
-              }
-              description={
-                <>
-                  Utilisé pour les fiches et les images DLsite, en permanence (ex: un proxy japonais pour les œuvres
-                  restreintes par région) — pour un VPN à la demande, voir PIA ci-dessous. Vide : proxy de Windows.
-                  Formats : http://hôte:port, socks5://hôte:port, avec identifiants socks5://identifiant:motdepasse@hôte:port
-                  (caractères spéciaux encodés en %XX). Le mot de passe est chiffré (Windows) et ne s'affiche plus ensuite.
-                  Un proxy de navigateur (extension) n'a pas d'effet ici, il faut son adresse.
-                  {proxyTest && proxyTest !== 'running' && (
-                    <span className={`mt-1 block ${proxyTest.startsWith('Échec') ? 'text-danger' : 'text-text-secondary'}`}>{proxyTest}</span>
-                  )}
-                  {!proxyValid && <span className="mt-1 block text-danger">Adresse invalide (ex: socks5://identifiant:motdepasse@1.2.3.4:1080 ; pas d'identifiants en SOCKS4).</span>}
-                </>
-              }
+            <button
+              type="button"
+              onClick={() => setShowWipNetwork(v => !v)}
+              aria-expanded={showWipNetwork}
+              className="btn btn-ghost my-2 self-start"
             >
-              <button
-                type="button"
-                className="btn"
-                disabled={proxyTest === 'running' || dlsiteProxy.trim() !== (settings.dlsiteProxy ?? '')}
-                title={dlsiteProxy.trim() !== (settings.dlsiteProxy ?? '') ? "Enregistre d'abord le proxy" : 'Tester l’accès à DLsite avec ce proxy'}
-                onClick={async () => {
-                  setProxyTest('running');
-                  try {
-                    const { status, ms } = await window.electronAPI.testDlsiteConnection();
-                    setProxyTest(status < 400 ? `DLsite répond (HTTP ${status}, ${ms} ms).` : `DLsite répond, mais avec une erreur HTTP ${status}.`);
-                  } catch (error) {
-                    setProxyTest(`Échec : ${ipcErrorMessage(error)}`);
+              {showWipNetwork ? <ChevronDown size={16} strokeWidth={2.25} /> : <ChevronRight size={16} strokeWidth={2.25} />}
+              Proxy et PIA <WipBadge />
+            </button>
+            {showWipNetwork && (
+              <>
+                <SettingRow
+                  label={
+                    <>
+                      Proxy pour DLsite <WipBadge />
+                    </>
                   }
-                }}
-              >
-                {proxyTest === 'running' ? 'Test…' : 'Tester'}
-              </button>
-              <input
-                className="input w-[260px]"
-                placeholder="Proxy système"
-                aria-label="Proxy pour DLsite"
-                spellCheck={false}
-                value={dlsiteProxy}
-                onChange={e => setDlsiteProxy(e.target.value)}
-              />
-            </SettingRow>
+                  description={
+                    <>
+                      Utilisé pour les fiches et les images DLsite, en permanence (ex: un proxy japonais pour les œuvres
+                      restreintes par région). Aucun : proxy de Windows. Le mot de passe est chiffré (Windows) et ne
+                      s'affiche plus ensuite. Un proxy de navigateur (extension) n'a pas d'effet ici, il faut son adresse.
+                      {storedProxyForm === null && (
+                        <span className="mt-1 block text-danger">Adresse enregistrée illisible : {settings.dlsiteProxy}</span>
+                      )}
+                      {proxyTest && proxyTest !== 'running' && (
+                        <span className={`mt-1 block ${proxyTest.startsWith('Échec') ? 'text-danger' : 'text-text-secondary'}`}>{proxyTest}</span>
+                      )}
+                      {proxyError && <span className="mt-1 block text-danger">{proxyError}</span>}
+                      <span className="mt-3 block">
+                        <ProxyForm value={proxyForm} onChange={setProxyForm} storedType={storedProxyForm?.type ?? ''} />
+                      </span>
+                    </>
+                  }
+                >
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={proxyTest === 'running' || proxyDirty}
+                    title={proxyDirty ? "Enregistre d'abord le proxy" : 'Tester l’accès à DLsite avec ce proxy'}
+                    onClick={async () => {
+                      setProxyTest('running');
+                      try {
+                        const { status, ms } = await window.electronAPI.testDlsiteConnection();
+                        setProxyTest(status < 400 ? `DLsite répond (HTTP ${status}, ${ms} ms).` : `DLsite répond, mais avec une erreur HTTP ${status}.`);
+                      } catch (error) {
+                        setProxyTest(`Échec : ${ipcErrorMessage(error)}`);
+                      }
+                    }}
+                  >
+                    {proxyTest === 'running' ? 'Test…' : 'Tester'}
+                  </button>
+                </SettingRow>
 
-            <PiaSettings
-              enabled={piaRetry}
-              region={piaRegion}
-              onEnabledChange={setPiaRetry}
-              onRegionChange={setPiaRegion}
-              regionDirty={piaRegion !== settings.piaRegion}
-              onRetried={onMetadataUpdated}
-            />
+                <PiaSettings
+                  enabled={piaRetry}
+                  region={piaRegion}
+                  onEnabledChange={setPiaRetry}
+                  onRegionChange={setPiaRegion}
+                  regionDirty={piaRegion !== settings.piaRegion}
+                  onRetried={onMetadataUpdated}
+                />
+              </>
+            )}
           </>
         )}
 
@@ -528,68 +566,29 @@ export default function SettingsScreen({
           </>
         )}
 
-        {section === 'collections' && (
-          <div className="py-4">
-            <div className="text-[15px] font-semibold">Mes collections</div>
-            <p className="mb-4 mt-1 text-[13px] leading-relaxed text-text-muted">
-              Chaque collection a son étagère sur l'accueil, dans cet ordre, et sert de filtre dans la bibliothèque. On y
-              ajoute un jeu depuis sa page. « À finir », « Jamais lancés » et « Finis » sont automatiques.
-            </p>
-            {collections.map((collection, index) => (
-              <div key={collection.id} className="flex items-center gap-2 border-b border-divider py-1.5 last:border-0">
-                <input
-                  className="input flex-1"
-                  aria-label={`Nom de la collection ${collection.name}`}
-                  value={collection.name}
-                  onChange={e => setCollections(prev => prev.map(c => (c.id === collection.id ? { ...c, name: e.target.value } : c)))}
-                />
-                <button
-                  type="button"
-                  disabled={index === 0}
-                  onClick={() => setCollections(prev => moveCollection(prev, collection.id, -1))}
-                  aria-label={`Monter ${collection.name}`}
-                  className="btn btn-ghost btn-icon"
-                >
-                  <ArrowUp size={16} strokeWidth={2.25} />
-                </button>
-                <button
-                  type="button"
-                  disabled={index === collections.length - 1}
-                  onClick={() => setCollections(prev => moveCollection(prev, collection.id, 1))}
-                  aria-label={`Descendre ${collection.name}`}
-                  className="btn btn-ghost btn-icon"
-                >
-                  <ArrowDown size={16} strokeWidth={2.25} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCollections(prev => removeCollection(prev, collection.id))}
-                  aria-label={`Supprimer ${collection.name}`}
-                  title="Supprimer la collection (les jeux ne sont pas touchés)"
-                  className="btn btn-ghost btn-icon"
-                >
-                  <Trash2 size={16} strokeWidth={2.25} />
-                </button>
-              </div>
-            ))}
-            {!collectionsValid && <p className="mt-2 text-[13px] text-danger">Chaque collection doit avoir un nom, différent des autres.</p>}
-            <div className="mt-4 flex gap-2">
-              <input
-                className="input flex-1"
-                placeholder="Nouvelle collection…"
-                aria-label="Nom de la nouvelle collection"
-                value={newCollectionName}
-                onChange={e => setNewCollectionName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddCollection()}
-              />
-              <button type="button" onClick={handleAddCollection} className="btn">
-                <Plus size={16} strokeWidth={2.25} />
-                Créer
-              </button>
-            </div>
-          </div>
+        {section === 'clicker' && (
+          <AutoClickerSettings
+            value={autoClicker}
+            onChange={setAutoClicker}
+            overlayEnabled={overlayEnabled}
+            onOverlayEnabledChange={setOverlayEnabled}
+            isDirty={clickerDirty || overlayEnabled !== settings.overlayEnabled}
+          />
         )}
 
+        {section === 'collections' && (
+          <CollectionsSettings
+            collections={collections}
+            onCollectionsChange={setCollections}
+            homeShelves={homeShelves}
+            onHomeShelvesChange={setHomeShelves}
+            games={games}
+            genreNames={genreNames}
+            onUpdateGame={onUpdateGame}
+            getWorkImageSrc={getWorkImageSrc}
+            initialExpandedId={initialCollectionId}
+          />
+        )}
 
         {section === 'genres' && (
           <GenreTranslationsEditor translations={genreTranslations} libraryGenres={allGenres} onSetTranslation={onSetGenreTranslation} />

@@ -27,7 +27,8 @@ const noFilters: GameFilters = {
   selectedRating: 0,
   genreNames: IDENTITY_GENRE_NAMES,
   creatorFilter: null,
-  collectionFilter: ALL_COLLECTIONS
+  collectionFilter: ALL_COLLECTIONS,
+  collections: []
 };
 
 describe('matchesFilters', () => {
@@ -143,7 +144,7 @@ describe('buildShelves', () => {
 
   it('limite le nombre de jeux par étagère', () => {
     const many = Array.from({ length: 20 }, (_, i) => ({ id: `RJ${i}`, data: game({ addedDate: `2026-01-${String(i + 1).padStart(2, '0')}` }) }));
-    const added = buildShelves(many, [], 12).find(s => s.key === 'added')!;
+    const added = buildShelves(many, [], { limit: 12 }).find(s => s.key === 'added')!;
     expect(added.games).toHaveLength(12);
     expect(added.total).toBe(20);
   });

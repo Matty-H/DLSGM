@@ -1,6 +1,7 @@
 import type { GameCacheEntry } from './cacheManager.js';
 import type { GenreNames } from './genreNames.js';
-import { matchesCollectionFilter } from './collections.js';
+import { matchesCollectionFilter, smartFilter, type GameCollection } from './collections.js';
+import { matchesCreator, type CreatorFilter } from './creators.js';
 
 /**
  * Prédicat de filtrage pur : détermine si un jeu correspond aux critères de
@@ -9,65 +10,7 @@ import { matchesCollectionFilter } from './collections.js';
  * explicitement plutôt que lu depuis des variables de module mutables.
  */
 
-/** Champs de fiche qui désignent une personne ou un groupe, filtrables depuis la page d'un jeu. */
-export type CreatorField =
-  | 'circle'
-  | 'brand'
-  | 'publisher'
-  | 'label'
-  | 'series'
-  | 'author'
-  | 'writer'
-  | 'scenario'
-  | 'illustration'
-  | 'voice_actor'
-  | 'music';
-
-export const CREATOR_FIELD_LABELS: Record<CreatorField, string> = {
-  circle: 'Cercle',
-  brand: 'Marque',
-  publisher: 'Éditeur',
-  label: 'Label',
-  series: 'Série',
-  author: 'Auteur',
-  writer: 'Scénariste',
-  scenario: 'Scénario',
-  illustration: 'Illustration',
-  voice_actor: 'Voix',
-  music: 'Musique'
-};
-
-/** Filtre "même cercle / auteur / série..." : correspondance exacte sur un champ. */
-export interface CreatorFilter {
-  field: CreatorField;
-  value: string;
-  /**
-   * Cercle / marque : identifiant DLsite (RG...), qui ne dépend pas de la
-   * langue du fetch ("cat 3" et "猫3" sont le même cercle).
-   */
-  makerId?: string | null;
-  /** Autres noms du même cercle (sa traduction anglaise) : pour les fiches sans identifiant. */
-  otherNames?: (string | null | undefined)[];
-}
-
-/** Correspondance d'un jeu avec un filtre créateur : par identifiant de cercle si les deux l'ont, sinon par nom. */
-export function matchesCreator(game: GameCacheEntry, filter: CreatorFilter): boolean {
-  const gameMakerId = (game as Record<string, unknown>).maker_id;
-  if ((filter.field === 'circle' || filter.field === 'brand') && filter.makerId && typeof gameMakerId === 'string' && gameMakerId) {
-    return gameMakerId === filter.makerId;
-  }
-  const names = [filter.value, ...(filter.otherNames ?? [])].filter((n): n is string => Boolean(n));
-  const gameNames = creatorValues(game, filter.field);
-  if (filter.field === 'circle' && typeof game.circle_en === 'string') gameNames.push(game.circle_en);
-  return gameNames.some(name => names.includes(name));
-}
-
-/** Valeurs d'un champ créateur d'une fiche (chaîne ou liste selon le champ). */
-export function creatorValues(game: GameCacheEntry, field: CreatorField): string[] {
-  const value = (game as Record<string, unknown>)[field];
-  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string' && v.trim() !== '');
-  return typeof value === 'string' && value.trim() !== '' ? [value] : [];
-}
+export { CREATOR_FIELD_LABELS, creatorValues, matchesCreator, type CreatorField, type CreatorFilter } from './creators.js';
 
 export interface GameFilters {
   selectedCategoryCode: string;
@@ -80,6 +23,10 @@ export interface GameFilters {
   creatorFilter: CreatorFilter | null;
   /** Voir lib/collections.ts ('all', 'smart:<id>', 'user:<id>'). */
   collectionFilter: string;
+  /** Collections de l'utilisateur (leurs règles décident aussi de l'appartenance). */
+  collections: GameCollection[];
+  /** Masque les jeux marqués finis (sauf dans la collection « Finis », qui n'aurait plus rien). */
+  hideCompleted?: boolean;
 }
 
 export interface GameListItem {
@@ -88,10 +35,12 @@ export interface GameListItem {
 }
 
 export function matchesFilters(game: GameCacheEntry, filters: GameFilters): boolean {
-  const { selectedCategoryCode, searchTerm, selectedGenres, selectedRating, genreNames, creatorFilter, collectionFilter } = filters;
+  const { selectedCategoryCode, searchTerm, selectedGenres, selectedRating, genreNames, creatorFilter, collectionFilter, collections } = filters;
   const gameName = game.work_name || '';
 
-  if (!matchesCollectionFilter(game, collectionFilter)) return false;
+  if (!matchesCollectionFilter(game, collectionFilter, { collections, genreNames })) return false;
+
+  if (filters.hideCompleted && game.completed && collectionFilter !== smartFilter('completed')) return false;
 
   if (creatorFilter && !matchesCreator(game, creatorFilter)) {
 

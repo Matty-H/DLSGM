@@ -5,7 +5,8 @@ import AdvancedFilterPanel from './components/AdvancedFilterPanel/AdvancedFilter
 import GamesGrid from './components/GamesGrid/GamesGrid';
 import GameInfoPanel from './components/GameInfoPanel/GameInfoPanel';
 import StatsScreen from './components/StatsScreen/StatsScreen';
-import SettingsScreen from './components/SettingsScreen/SettingsScreen';
+import { PackagePlus, RotateCcw } from 'lucide-react';
+import SettingsScreen, { type SettingsSection } from './components/SettingsScreen/SettingsScreen';
 import ShareScreen from './components/ShareScreen/ShareScreen';
 import HomeScreen from './components/HomeScreen/HomeScreen';
 import WishlistScreen from './components/WishlistScreen/WishlistScreen';
@@ -105,6 +106,10 @@ export default function App() {
     if (activeTab !== 'library') setReturnTab(null);
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab !== 'settings') setSettingsTarget(null);
+  }, [activeTab]);
+
   // Les fiches des jeux absents du dossier sont conservées dans le cache (pas
   // de purge), mais seuls les jeux présents alimentent les filtres
   // et les statistiques.
@@ -133,7 +138,13 @@ export default function App() {
     () => library.gameFolders.filter(id => library.cache[id]).map(id => ({ id, data: library.cache[id] })),
     [library.gameFolders, library.cache]
   );
-  const shelves = useMemo(() => buildShelves(presentGames, collections), [presentGames, collections]);
+  const homeShelves = settings?.homeShelves;
+  const shelves = useMemo(
+    () => buildShelves(presentGames, collections, { genreNames, prefs: homeShelves }),
+    [presentGames, collections, genreNames, homeShelves]
+  );
+  // Paramètres ouverts sur une collection précise (lien d'une étagère vide de l'accueil).
+  const [settingsTarget, setSettingsTarget] = useState<{ section: SettingsSection; collectionId: string | null } | null>(null);
 
   const displayedGames = useMemo(() => {
     const filterState = {
@@ -143,7 +154,9 @@ export default function App() {
       selectedRating: filters.selectedRating,
       genreNames,
       creatorFilter: filters.creatorFilter,
-      collectionFilter
+      collectionFilter,
+      collections,
+      hideCompleted: settings?.hideCompleted ?? false
     };
 
     return presentGames
@@ -158,6 +171,8 @@ export default function App() {
     filters.selectedSort,
     filters.creatorFilter,
     collectionFilter,
+    collections,
+    settings?.hideCompleted,
     genreNames
   ]);
 
@@ -364,15 +379,14 @@ export default function App() {
             onSortChange={filters.setSelectedSort}
             showAdvancedFilters={showAdvancedFilters}
             onToggleAdvancedFilters={() => setShowAdvancedFilters(prev => !prev)}
-            onResetFilters={handleResetFilters}
             resultCount={displayedGames.length}
             collectionFilter={collectionFilter}
             collectionOptions={collectionOptions}
             onCollectionFilterChange={filters.setCollectionFilter}
             creatorFilter={filters.creatorFilter}
             onClearCreatorFilter={() => filters.setCreatorFilter(null)}
-            onImport={archiveImport.start}
-            importStatus={importStatus}
+            hideCompleted={settings?.hideCompleted ?? false}
+            onHideCompletedChange={hideCompleted => settings && saveSettings({ ...settings, hideCompleted })}
           />
 
           {archiveImport.results && (
@@ -456,6 +470,10 @@ export default function App() {
           onOpenGame={gameId => handleOpenGameFrom('home', gameId)}
           onReveal={handleReveal}
           onShowAll={handleShowShelf}
+          onEditCollection={collectionId => {
+            setSettingsTarget({ section: 'collections', collectionId });
+            setActiveTab('settings');
+          }}
         />
       )}
 
@@ -490,11 +508,40 @@ export default function App() {
         <SettingsScreen settings={settings} onSave={handleSaveSettings} allGenres={rawGenres} onMetadataUpdated={library.reloadCache}
           genreTranslations={genreTranslations.translations}
           onSetGenreTranslation={genreTranslations.setTranslation}
+          games={presentGames}
+          genreNames={genreNames}
+          onUpdateGame={library.updateGame}
+          getWorkImageSrc={library.getWorkImageSrc}
+          initialSection={settingsTarget?.section}
+          initialCollectionId={settingsTarget?.collectionId}
         />
 
       )}
 
-      <FooterHints hints={footerHints} />
+      <FooterHints
+        hints={footerHints}
+        actions={
+          activeTab === 'library' &&
+          !isGamePageOpen && (
+            <>
+              <button
+                type="button"
+                onClick={archiveImport.start}
+                disabled={importStatus !== null}
+                className="btn btn-ghost py-1 text-[12px]"
+                title="Extraire des archives de jeux (.zip, .rar, .7z, .part1.exe) dans le dossier de la bibliothèque"
+              >
+                <PackagePlus size={14} strokeWidth={2.25} />
+                {importStatus ?? 'Importer'}
+              </button>
+              <button type="button" onClick={handleResetFilters} className="btn btn-ghost py-1 text-[12px]" title="Réinitialiser les filtres et rescanner">
+                <RotateCcw size={14} strokeWidth={2.25} />
+                Réinitialiser
+              </button>
+            </>
+          )
+        }
+      />
 
       <PanicOverlay active={panicActive} />
     </div>
