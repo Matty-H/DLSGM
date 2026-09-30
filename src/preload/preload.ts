@@ -65,10 +65,10 @@ const electronAPI: ElectronAPI = {
   snapshotCache: () => ipcRenderer.invoke('snapshot-cache'),
 
   testDlsiteConnection: () => ipcRenderer.invoke('test-dlsite-connection'),
+  checkIp: () => ipcRenderer.invoke('check-ip'),
 
   // VPN Private Internet Access
   getPiaStatus: () => ipcRenderer.invoke('get-pia-status'),
-  getAppExecutablePath: () => ipcRenderer.invoke('get-app-executable-path'),
   beginVpnSession: () => ipcRenderer.invoke('begin-vpn-session'),
   endVpnSession: () => ipcRenderer.invoke('end-vpn-session'),
 

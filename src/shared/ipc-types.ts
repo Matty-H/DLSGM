@@ -54,6 +54,20 @@ export interface AppSettings {
   piaRegion: string;
 }
 
+export interface LanAddress {
+  /** Nom de l'interface Windows (Ethernet, Wi-Fi, adaptateur du VPN...). */
+  interface: string;
+  address: string;
+}
+
+/** Adresses IP (voir src/main/ip-check.ts). */
+export interface IpCheckResult {
+  lan: LanAddress[];
+  /** IP publique telle que DLsite la voit (même chemin réseau : proxy / VPN). */
+  wan?: { ip: string; country: string | null; region: string | null; city: string | null; org: string | null };
+  wanError?: string;
+}
+
 /** État de Private Internet Access (voir src/main/pia.ts). */
 export interface PiaStatus {
   /** piactl trouvé sur ce PC. */
@@ -459,13 +473,13 @@ export interface ElectronAPI {
   /** Copie cache.db dans userData/db_backups (5 dernières gardées) ; renvoie le chemin de la copie. */
   snapshotCache(): Promise<string>;
 
+  /** IP locales (LAN) et publique (WAN, via ipinfo.io par le même chemin que DLsite). */
+  checkIp(): Promise<IpCheckResult>;
   /** Accès à DLsite avec le proxy enregistré : statut HTTP et durée ; lève l'erreur réseau sinon. */
   testDlsiteConnection(): Promise<{ status: number; ms: number }>;
 
   // VPN Private Internet Access (voir src/main/pia.ts)
   getPiaStatus(): Promise<PiaStatus>;
-  /** Exécutable de DLSGM (à déclarer dans le split tunneling de PIA pour lui réserver le VPN). */
-  getAppExecutablePath(): Promise<string>;
   /**
    * Connecte PIA à la région des paramètres (ou rejoint la session en cours).
    * Chaque appel réussi doit être suivi de `endVpnSession`, qui restaure

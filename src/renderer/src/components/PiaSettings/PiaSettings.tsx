@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Copy, Download, RotateCw } from 'lucide-react';
+import { Download, RotateCw } from 'lucide-react';
 import Select from '../Select/Select';
 import { retryAllFailuresThroughVpn } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import { getPiaStatus, sortRegions, type PiaStatus } from '../../lib/vpn.js';
+import WipBadge from '../WipBadge/WipBadge';
 
 export interface PiaSettingsProps {
   enabled: boolean;
@@ -25,23 +26,12 @@ export default function PiaSettings({ enabled, region, onEnabledChange, onRegion
   const [status, setStatus] = useState<PiaStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
-  const [exePath, setExePath] = useState('');
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     getPiaStatus().then(setStatus).catch(() => setStatus({ available: false, connectionState: null, region: null, regions: [] }));
-    window.electronAPI.getAppExecutablePath().then(setExePath).catch(() => undefined);
   }, []);
 
-  const copyExePath = async () => {
-    try {
-      await navigator.clipboard.writeText(exePath);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // presse-papiers refusé : le chemin reste sélectionnable à la main
-    }
-  };
+
 
   const retryNow = async () => {
     setBusy(true);
@@ -73,12 +63,14 @@ export default function PiaSettings({ enabled, region, onEnabledChange, onRegion
     <div className="border-b border-divider py-4 last:border-0">
       <div className="flex items-center justify-between gap-6">
         <div className="min-w-0">
-          <div className="text-[15px] font-semibold">Réessayer les échecs via Private Internet Access</div>
+          <div className="text-[15px] font-semibold">
+            Réessayer les échecs via Private Internet Access <WipBadge />
+          </div>
           <div className="mt-1 text-[13px] leading-relaxed text-text-muted">
             Une œuvre à restriction régionale ne répond pas hors du Japon et passe pour introuvable. Avec cette option, les
             fiches en échec (scan, mise à jour groupée) sont refaites en connectant PIA au Japon le temps des requêtes, puis
-            PIA revient à son état d'avant. PIA doit être ouvert (ou « piactl background enable »). Sans split tunneling
-            (ci-dessous), le VPN s'applique à tout le PC pendant ces quelques secondes.
+            PIA revient à son état d'avant. PIA doit être ouvert (ou « piactl background enable »). Le VPN s'applique à tout
+            le PC pendant ces quelques secondes.
           </div>
           <div className="mt-2 text-[13px]">
             {status === null ? (
@@ -122,27 +114,6 @@ export default function PiaSettings({ enabled, region, onEnabledChange, onRegion
             {busy ? 'Connexion et nouvelles tentatives…' : 'Réessayer les échecs maintenant'}
           </button>
           {regionDirty && <span className="text-[12px] text-text-muted">Enregistre d'abord la nouvelle région.</span>}
-        </div>
-      )}
-      {status?.available && (
-        <div className="mt-4 rounded-md bg-bg-deep p-4 text-[13px] leading-relaxed">
-          <div className="font-semibold">Réserver le VPN à DLSGM (split tunneling de PIA)</div>
-          <p className="mb-2 mt-1 text-text-muted">
-            Pour que seul DLSGM passe par le Japon, le reste du PC gardant ta connexion directe : à régler une fois dans
-            l'application PIA, VPN déconnecté — Paramètres › Split Tunnel : coche « Split Tunnel », mets « All Other Apps » sur
-            « Bypass VPN », puis « Add Application » avec l'exécutable ci-dessous, réglé sur « Use VPN » (pas « Only VPN » :
-            DLSGM n'aurait plus du tout d'accès Internet quand le VPN est déconnecté). Tu peux alors aussi laisser PIA connecté
-            en permanence : seul DLSGM l'utilisera. Les jeux lancés depuis DLSGM (autres exécutables) n'y passent pas.
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-sm bg-surface-2 px-2 py-1.5 font-mono text-[12px]" title={exePath}>
-              {exePath || '…'}
-            </code>
-            <button type="button" onClick={copyExePath} disabled={!exePath} className="btn btn-ghost flex-shrink-0 px-2 py-1 text-[13px]">
-              <Copy size={14} strokeWidth={2.25} />
-              {copied ? 'Copié' : 'Copier'}
-            </button>
-          </div>
         </div>
       )}
       {message && <p className={`mb-0 mt-2 text-[13px] ${message.isError ? 'text-danger' : 'text-text-secondary'}`}>{message.text}</p>}

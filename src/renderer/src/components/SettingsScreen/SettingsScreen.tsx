@@ -5,6 +5,8 @@ import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } fr
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
 import PiaSettings from '../PiaSettings/PiaSettings';
+import WipBadge from '../WipBadge/WipBadge';
+import IpChecker from '../IpChecker/IpChecker';
 import type { GenreTranslations } from '../../lib/genreNames.js';
 import { getSandboxieStatus, type SandboxieStatus } from '../../lib/gameTools.js';
 import type { AppSettings } from '../../hooks/useSettings';
@@ -128,7 +130,7 @@ const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
 ];
 
 /** Ligne de réglage SteamOS : libellé et description à gauche, contrôle à droite. */
-function SettingRow({ label, description, children }: { label: string; description?: ReactNode; children?: ReactNode }) {
+function SettingRow({ label, description, children }: { label: ReactNode; description?: ReactNode; children?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-6 border-b border-divider py-4 last:border-0">
       <div className="min-w-0">
@@ -368,8 +370,19 @@ export default function SettingsScreen({
 
         {section === 'network' && (
           <>
+            <div className="mt-4 rounded-md bg-bg-deep px-4 py-3 text-[13px] leading-relaxed text-text-secondary">
+              <span className="font-semibold text-text">Section en cours de développement.</span> Une prochaine version se
+              branchera de façon plus fiable à un VPN (SOCKS5, OpenVPN ou WireGuard). En attendant, pour les œuvres réservées
+              au Japon : allume ton VPN sur le Japon (ex: PIA, région jp-tokyo) avant de lancer un scan ou « Mettre à jour
+              toutes les fiches », en laissant le proxy vide.
+            </div>
+            <IpChecker />
             <SettingRow
-              label="Proxy pour DLsite"
+              label={
+                <>
+                  Proxy pour DLsite <WipBadge />
+                </>
+              }
               description={
                 <>
                   Utilisé pour les fiches et les images DLsite, en permanence (ex: un proxy japonais pour les œuvres
