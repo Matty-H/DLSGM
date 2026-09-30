@@ -22,8 +22,10 @@ import { Pia } from './pia';
 import { DEFAULT_LAN_PORT, LanShare } from './lan-share';
 import { AutoClicker, DEFAULT_AUTO_CLICKER, sanitizeClickerSettings } from './auto-clicker';
 import { GameOverlay, OVERLAY_HOTKEY } from './overlay';
-import { ClickerHud } from './clicker-hud';
-import type { AppSettings, AutoClickerSettings, AutoClickerStatus, ArchiveImportResult, OverlayState, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import { ClickerHud, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSET_X } from './clicker-hud';
+import { TriggerZonesWindow } from './trigger-zones';
+import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
+import type { AppSettings, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -64,6 +66,7 @@ const settingsStore = new Store('settings.db', {
   homeShelves: {},
   hideCompleted: false,
   autoClicker: { enabled: false, hotkey: 'F6', intervalMs: 100, button: 'left', double: false, repeat: 0, position: null },
+  pixelTrigger: { enabled: false, hotkey: 'F7' },
   overlayEnabled: true,
   autoBackupSaves: true,
   closeToTray: false,
@@ -414,6 +417,104 @@ const clickerEnabledGames = new Set<string>();
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// --- Détecteur de rythme (même modèle que l'auto-clicker) ---
+let pixelTrigger: PixelTriggerDetector | null = null;
+let triggerHud: ClickerHud | null = null;
+// Contours des zones par-dessus le jeu, verts un instant à chaque action.
+let triggerZones: TriggerZonesWindow | null = null;
+let triggerHotkey: string | null = null;
+// Réglages et zones gardés en mémoire : le raccourci agit sans relire la base.
+let triggerConfig: PixelTriggerSettings = DEFAULT_PIXEL_TRIGGER;
+// Zones des jeux lancés depuis DLSGM en cours (`pixelTriggers` de leur fiche)…
+const runningGameTriggers = new Map<string, PixelTrigger[]>();
+// … et ceux où le détecteur a été ajouté (case de l'overlay, `pixelTriggerEnabled` : opt-in par jeu).
+const triggerEnabledGames = new Set<string>();
+
+/** Zones utilisables des jeux en cours où le détecteur a été ajouté. */
+function currentTriggers(): PixelTrigger[] {
+  return [...runningGameTriggers].filter(([id]) => triggerEnabledGames.has(id)).flatMap(([, triggers]) => activeTriggers(triggers));
+}
+
+export async function applyPixelTriggerSettings(): Promise<void> {
+  triggerConfig = sanitizePixelTriggerSettings((await getSettings()).pixelTrigger);
+  refreshPixelTrigger();
+}
+
+/**
+ * Comme l'auto-clicker : témoin et zones affichés seulement si le détecteur
+ * est activé (Paramètres, Windows) et qu'un jeu lancé depuis DLSGM où il a
+ * été ajouté (case de l'overlay) tourne. Armé (raccourci enregistré, worker
+ * préchauffé, dossiers des jeux transmis) seulement avec au moins une zone
+ * active : sinon le raccourci reste au jeu.
+ */
+function refreshPixelTrigger(): void {
+  if (!pixelTrigger) return;
+  const config = triggerConfig;
+  const triggers = currentTriggers();
+  const gameDirs = [...runningGameDirs]
+    .filter(([id]) => triggerEnabledGames.has(id) && activeTriggers(runningGameTriggers.get(id) ?? []).length > 0)
+    .map(([, dir]) => dir);
+  const { shown, armed: active } = triggerVisibility({
+    enabled: config.enabled,
+    available: pixelTrigger.getStatus().available,
+    runningGames: [...runningGameDirs.keys()].filter(id => triggerEnabledGames.has(id)).length,
+    zones: triggers.length
+  });
+  pixelTrigger.setInGame(active, shown ? triggers.length : 0);
+
+  if (triggerHotkey && (!active || triggerHotkey !== config.hotkey)) {
+    globalShortcut.unregister(triggerHotkey);
+    triggerHotkey = null;
+  }
+  if (!active) {
+    pixelTrigger.dispose();
+    pixelTrigger.setHotkeyActive(false);
+  } else {
+    // Refusé s'il est déjà pris par DLSGM (panique, overlay, auto-clicker).
+    const taken = [...RESERVED_HOTKEYS, ...(clickerConfig.enabled ? [clickerConfig.hotkey] : [])];
+    if (!triggerHotkey && !taken.some(key => key.toLowerCase() === config.hotkey.toLowerCase())) {
+      try {
+        // Rien d'asynchrone avant l'envoi de la commande (voir AutoClicker.start).
+        const onHotkey = () => {
+          togglePixelTriggerNow().catch(error => console.error('Détecteur de rythme :', error));
+        };
+        if (globalShortcut.register(config.hotkey, onHotkey)) triggerHotkey = config.hotkey;
+      } catch {
+        // accélérateur invalide : raccourci indiqué comme indisponible
+      }
+    }
+    pixelTrigger.setHotkeyActive(triggerHotkey !== null);
+    pixelTrigger.warmUp().catch(error => console.error('Préparation du détecteur de rythme impossible:', error));
+    pixelTrigger.setGameDirs(gameDirs);
+    pixelTrigger.restartIfRunning(triggers);
+  }
+  triggerHud?.setVisible(shown && !panicActive);
+  if (shown && !panicActive) triggerZones?.show(triggers);
+  else triggerZones?.hide();
+  overlay?.send('overlay-state-changed');
+  triggerHud?.send('overlay-state-changed');
+}
+
+/** Zones d'un jeu modifiées (page du jeu ou overlay) : appliquées tout de suite s'il tourne. */
+function gameTriggersChanged(gameId: string, triggers: PixelTrigger[]): void {
+  if (!runningGameTriggers.has(gameId)) return;
+  runningGameTriggers.set(gameId, triggers);
+  refreshPixelTrigger();
+}
+
+/** Marche / arrêt. Aucun await ne doit précéder `toggle` (raccourci global). */
+async function togglePixelTriggerNow(): Promise<PixelTriggerStatus> {
+  if (!pixelTrigger) throw new Error('Détecteur de rythme indisponible.');
+  if (!pixelTrigger.getStatus().running) {
+    if (!triggerConfig.enabled) throw new Error('Le détecteur de rythme est désactivé (Paramètres › Outils en jeu).');
+    if (!pixelTrigger.getStatus().inGame) {
+      throw new Error("Le détecteur de rythme ne fonctionne que pendant un jeu lancé depuis DLSGM où il a été ajouté (case de l'overlay Maj+Tab), avec au moins une zone.");
+    }
+  }
+  await pixelTrigger.toggle(currentTriggers());
+  return pixelTrigger.getStatus();
+}
+
 async function clickerSettings() {
   return sanitizeClickerSettings((await getSettings()).autoClicker);
 }
@@ -422,6 +523,7 @@ async function clickerSettings() {
 export async function applyAutoClickerSettings(): Promise<void> {
   clickerConfig = await clickerSettings();
   refreshAutoClicker();
+  refreshPixelTrigger();
 }
 
 /**
@@ -446,7 +548,9 @@ function refreshAutoClicker(): void {
     autoClicker.dispose();
     autoClicker.setHotkeyActive(false);
   } else {
-    if (!clickerHotkey && !RESERVED_HOTKEYS.some(key => key.toLowerCase() === config.hotkey.toLowerCase())) {
+    // Le raccourci du détecteur de rythme, s'il est déjà enregistré, reste le sien.
+    const taken = [...RESERVED_HOTKEYS, ...(triggerHotkey ? [triggerHotkey] : [])];
+    if (!clickerHotkey && !taken.some(key => key.toLowerCase() === config.hotkey.toLowerCase())) {
       try {
         const onHotkey = () => {
           const pressedAt = Date.now();
@@ -475,7 +579,7 @@ function refreshAutoClicker(): void {
 async function toggleAutoClicker(requestedAt = Date.now()): Promise<AutoClickerStatus> {
   if (!autoClicker) throw new Error('Auto-clicker indisponible.');
   if (!autoClicker.getStatus().running) {
-    if (!clickerConfig.enabled) throw new Error("L'auto-clicker est désactivé (Paramètres › Auto-clicker).");
+    if (!clickerConfig.enabled) throw new Error("L'auto-clicker est désactivé (Paramètres › Outils en jeu).");
     if (!autoClicker.getStatus().inGame) {
       throw new Error("L'auto-clicker ne fonctionne que pendant un jeu lancé depuis DLSGM, où il a été ajouté (case de l'overlay Maj+Tab).");
     }
@@ -487,15 +591,20 @@ async function toggleAutoClicker(requestedAt = Date.now()): Promise<AutoClickerS
 /** Alt+Espace : arrête les clics et bascule le mode panique (le témoin suit). */
 export function togglePanic(): void {
   autoClicker?.stop();
+  pixelTrigger?.stop();
   panicActive = !panicActive;
   refreshAutoClicker();
+  refreshPixelTrigger();
 }
 
 /** Fermeture de la fenêtre principale ou de l'application. */
 export function shutdownInGameTools(): void {
   autoClicker?.dispose();
+  pixelTrigger?.dispose();
   overlay?.destroy();
   clickerHud?.destroy();
+  triggerHud?.destroy();
+  triggerZones?.destroy();
 }
 
 export interface PageLoader {
@@ -539,10 +648,84 @@ export function setupIpcHandlers(
   notifySettingsChanged = () => getWindow()?.webContents.send('settings-changed');
   applyAutoClickerSettings().catch(error => console.error('Auto-clicker au démarrage :', error));
 
+  const detector = new PixelTriggerDetector({
+    scriptDir: app.getPath('userData'),
+    toScreenPoint: point => (process.platform === 'win32' ? screen.dipToScreenPoint(point) : point),
+    onStatus: status => {
+      getWindow()?.webContents.send('pixel-trigger-status', status);
+      triggerHud?.send('pixel-trigger-status', status);
+      triggerZones?.send('pixel-trigger-status', status);
+      // Démarré par le raccourci pendant que le témoin est déplié : on le replie.
+      if (status.running) triggerHud?.setExpanded(false);
+      overlay?.send('pixel-trigger-status', status);
+    }
+  });
+  pixelTrigger = detector;
+  triggerHud = new ClickerHud({
+    preloadPath: pages.preloadPath,
+    loadPage: window => pages.loadPage(window, 'trigger-hud'),
+    offsetX: TRIGGER_HUD_OFFSET_X,
+    expandedSize: TRIGGER_HUD_EXPANDED
+  });
+  triggerZones = new TriggerZonesWindow({ preloadPath: pages.preloadPath, loadPage: window => pages.loadPage(window, 'trigger-zones') });
+  applyPixelTriggerSettings().catch(error => console.error('Détecteur de rythme au démarrage :', error));
+
+  ipcMain.handle('get-pixel-trigger-state', () => ({ status: detector.getStatus(), settings: triggerConfig }));
+  // Témoin du détecteur : réglages rapides (déplié seulement à l'arrêt, comme celui de l'auto-clicker).
+  ipcMain.handle('set-trigger-hud-expanded', (event: IpcMainInvokeEvent, expanded: boolean) => {
+    triggerHud?.setExpanded(Boolean(expanded) && !detector.getStatus().running);
+  });
+  ipcMain.handle('save-trigger-quick-settings', async (event: IpcMainInvokeEvent, patch: { hotkey?: string }) => {
+    const next = sanitizePixelTriggerSettings({ ...triggerConfig, ...(typeof patch?.hotkey === 'string' && { hotkey: patch.hotkey }) });
+    await settingsStore.set('pixelTrigger', next);
+    await applyPixelTriggerSettings();
+    notifySettingsChanged?.();
+    return detector.getStatus();
+  });
+  ipcMain.handle('get-trigger-zones', () => triggerZones?.getView() ?? null);
+  ipcMain.handle('set-game-pixel-trigger', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
+    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error('ID de jeu invalide.');
+    await cacheStore.update(gameId, () => ({ pixelTriggerEnabled: Boolean(enabled) }));
+    // Retiré en pleine surveillance : refreshPixelTrigger repart sans ses zones (ou s'arrête).
+    if (enabled) triggerEnabledGames.add(gameId);
+    else triggerEnabledGames.delete(gameId);
+    overlay?.updateGame(gameId, { pixelTriggerEnabled: Boolean(enabled) });
+    refreshPixelTrigger();
+    getWindow()?.webContents.send('cache-entry-changed', gameId, { pixelTriggerEnabled: Boolean(enabled) });
+  });
+  // « Viser » : le temps de placer la souris dans le jeu, puis sa position (DIP) et la couleur dessous.
+  // Depuis l'overlay, il s'efface le temps de viser : sinon on lirait la couleur de son voile sombre.
+  ipcMain.handle('capture-pixel-target', async (event: IpcMainInvokeEvent, delayMs: number, hideOverlay: boolean) => {
+    if (hideOverlay) overlay?.hide();
+    try {
+      const warm = detector.warmUp();
+      await delay(Math.min(10_000, Math.max(0, Number(delayMs) || 0)));
+      await warm;
+      const target = await detector.captureTarget(screen.getCursorScreenPoint());
+      // Worker lancé pour la seule visée : il s'arrête s'il n'a rien à surveiller.
+      if (!detector.getStatus().inGame) detector.dispose();
+      return target;
+    } finally {
+      if (hideOverlay) overlay?.show();
+    }
+  });
+  ipcMain.handle('set-game-pixel-triggers', async (event: IpcMainInvokeEvent, gameId: string, raw: unknown) => {
+    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error('ID de jeu invalide.');
+    const triggers = sanitizePixelTriggers(raw);
+    await cacheStore.update(gameId, () => ({ pixelTriggers: triggers }));
+    gameTriggersChanged(gameId, triggers);
+    // La fenêtre principale fusionne la modification dans sa copie de la fiche.
+    getWindow()?.webContents.send('cache-entry-changed', gameId, { pixelTriggers: triggers });
+    return triggers;
+  });
+
   ipcMain.handle('get-overlay-state', async (): Promise<OverlayState> => ({
     games: gameOverlay.listGames(),
     clicker: clicker.getStatus(),
-    clickerSettings: clickerConfig
+    clickerSettings: clickerConfig,
+    trigger: pixelTrigger?.getStatus() ?? { available: false, running: false, paused: false, inGame: false, hotkeyActive: false, zoneCount: 0, hits: {}, frameMs: null, error: null },
+    triggerSettings: triggerConfig,
+    gameTriggers: Object.fromEntries(runningGameTriggers)
   }));
   ipcMain.handle('hide-overlay', () => gameOverlay.hide());
   // Témoin : réglages rapides (déplié seulement à l'arrêt, sinon les clics tomberaient dessus).
@@ -613,6 +796,7 @@ export function setupIpcHandlers(
     await settingsStore.setAll({ ...newSettings, ...proxy } as unknown as Record<string, unknown>);
     await applyDlsiteProxy(proxy.dlsiteProxy, proxy.dlsiteProxySecret);
     await applyAutoClickerSettings();
+    await applyPixelTriggerSettings();
     await overlay?.refreshHotkey();
     onSettingsSaved?.(newSettings);
     return true;
@@ -638,6 +822,11 @@ export function setupIpcHandlers(
   // scan...).
   ipcMain.handle('update-cache-entry', async (event: IpcMainInvokeEvent, gameId: string, patch: Record<string, unknown>) => {
     assertGameId(gameId);
+    if (patch && 'pixelTriggers' in patch) {
+      const triggers = sanitizePixelTriggers(patch.pixelTriggers);
+      patch = { ...patch, pixelTriggers: triggers };
+      gameTriggersChanged(gameId, triggers);
+    }
     return cacheStore.update(gameId, patch);
   });
 
@@ -714,12 +903,17 @@ export function setupIpcHandlers(
       previousPlayTime: Number(entry.totalPlayTime) || 0,
       sessionCount: Array.isArray(entry.playSessions) ? entry.playSessions.length : 0,
       lastPlayed: typeof entry.lastPlayed === 'string' ? entry.lastPlayed : null,
-      autoClickerEnabled: entry.autoClickerEnabled === true
+      autoClickerEnabled: entry.autoClickerEnabled === true,
+      pixelTriggerEnabled: entry.pixelTriggerEnabled === true
     });
     runningGameDirs.set(gameId, gamePath);
     if (entry.autoClickerEnabled === true) clickerEnabledGames.add(gameId);
     else clickerEnabledGames.delete(gameId);
+    runningGameTriggers.set(gameId, sanitizePixelTriggers(entry.pixelTriggers));
+    if (entry.pixelTriggerEnabled === true) triggerEnabledGames.add(gameId);
+    else triggerEnabledGames.delete(gameId);
     refreshAutoClicker();
+    refreshPixelTrigger();
     try {
       result = await startGameProcess(gameId, gamePath, executablePath);
     } finally {
@@ -727,7 +921,9 @@ export function setupIpcHandlers(
       await overlay?.gameEnded(gameId);
       // Plus de jeu : plus d'auto-clicker (ni raccourci, ni témoin).
       runningGameDirs.delete(gameId);
+      runningGameTriggers.delete(gameId);
       refreshAutoClicker();
+      refreshPixelTrigger();
     }
 
     const { code: _code, exitCode: _exitCode, ...launchResult } = result;

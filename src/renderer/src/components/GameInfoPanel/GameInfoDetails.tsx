@@ -6,6 +6,7 @@ import CustomTagsEditor from '../CustomTagsEditor/CustomTagsEditor';
 import CollectionsEditor from '../CollectionsEditor/CollectionsEditor';
 import GameToolsSection from '../GameToolsSection/GameToolsSection';
 import WorkspaceSection from '../WorkspaceSection/WorkspaceSection';
+import PixelTriggerSection from '../PixelTriggerSection/PixelTriggerSection';
 import { categoryMap } from '../../lib/metadataManager.js';
 import { formatLastPlayed, formatPlayTime, formatSessionDuration } from '../../lib/timeFormatter.js';
 import type { GenreNames } from '../../lib/genreNames.js';
@@ -340,6 +341,10 @@ export default function GameInfoDetails({
 
               onSandboxDisabledChange={disabled => onUpdateGame(gameId, { sandboxDisabled: disabled })}
             />
+          </Section>
+
+          <Section title="Détecteur de rythme">
+            <PixelTriggerSection triggers={gameData.pixelTriggers} onChange={pixelTriggers => onUpdateGame(gameId, { pixelTriggers })} />
           </Section>
         </div>
       </div>

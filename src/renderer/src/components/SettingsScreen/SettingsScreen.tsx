@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, ScanEye, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
@@ -16,6 +16,8 @@ import { buildProxyUrl, parseProxyForm, proxyFormError, EMPTY_PROXY_FORM, type P
 import CollectionsSettings from '../CollectionsSettings/CollectionsSettings';
 import ProxyForm from '../ProxyForm/ProxyForm';
 import AutoClickerSettings from '../AutoClickerSettings/AutoClickerSettings';
+import PixelTriggerSettings from '../PixelTriggerSettings/PixelTriggerSettings';
+import type { PixelTriggerSettings as TriggerSettings } from '../../lib/pixelTrigger.js';
 import type { AutoClickerSettings as ClickerSettings } from '../../lib/autoClicker.js';
 import Select from '../Select/Select';
 
@@ -130,7 +132,7 @@ const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
   { id: 'network', label: 'Réseau & VPN', Icon: Globe },
   { id: 'display', label: 'Affichage', Icon: Eye },
   { id: 'launch', label: 'Lancement', Icon: Gamepad2 },
-  { id: 'clicker', label: 'Auto-clicker & overlay', Icon: MousePointerClick },
+  { id: 'clicker', label: 'Outils en jeu', Icon: MousePointerClick },
   { id: 'collections', label: 'Collections', Icon: Layers },
   { id: 'genres', label: 'Traduction des tags', Icon: Languages },
   { id: 'storage', label: 'Stockage', Icon: HardDrive }
@@ -146,6 +148,24 @@ function SettingRow({ label, description, children }: { label: ReactNode; descri
       </div>
       {children && <div className="flex flex-shrink-0 items-center gap-2">{children}</div>}
     </div>
+  );
+}
+
+/** Un outil de l'onglet « Outils en jeu » : en-tête (icône, nom, résumé) puis ses réglages, dans son propre cadre. */
+function ToolGroup({ Icon, title, summary, children }: { Icon: LucideIcon; title: string; summary: ReactNode; children: ReactNode }) {
+  return (
+    <section className="panel mb-6 border border-divider px-5 pb-1 pt-4">
+      <div className="flex items-center gap-3 border-b border-divider pb-3">
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-accent/15 text-accent">
+          <Icon size={18} strokeWidth={2.25} />
+        </span>
+        <div className="min-w-0">
+          <h3 className="m-0 text-[17px] font-bold">{title}</h3>
+          <p className="m-0 text-[12px] text-text-muted">{summary}</p>
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -181,6 +201,7 @@ export default function SettingsScreen({
   const [homeShelves, setHomeShelves] = useState<Record<string, HomeShelfPrefs>>(settings.homeShelves ?? {});
   const [showWipNetwork, setShowWipNetwork] = useState(false);
   const [autoClicker, setAutoClicker] = useState<ClickerSettings>(settings.autoClicker);
+  const [pixelTrigger, setPixelTrigger] = useState<TriggerSettings>(settings.pixelTrigger);
   const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
   const [closeToTray, setCloseToTray] = useState(settings.closeToTray);
@@ -207,6 +228,7 @@ export default function SettingsScreen({
     setCollections(settings.collections ?? []);
     setHomeShelves(settings.homeShelves ?? {});
     setAutoClicker(settings.autoClicker);
+    setPixelTrigger(settings.pixelTrigger);
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
@@ -238,6 +260,7 @@ export default function SettingsScreen({
   const proxyDirty = dlsiteProxy !== (settings.dlsiteProxy ?? '').trim();
 
   const clickerDirty = JSON.stringify(autoClicker) !== JSON.stringify(settings.autoClicker);
+  const triggerDirty = JSON.stringify(pixelTrigger) !== JSON.stringify(settings.pixelTrigger);
 
   const isDirty =
     destinationFolder !== settings.destinationFolder ||
@@ -255,6 +278,7 @@ export default function SettingsScreen({
     JSON.stringify(collections) !== JSON.stringify(settings.collections ?? []) ||
     JSON.stringify(homeShelves) !== JSON.stringify(settings.homeShelves ?? {}) ||
     clickerDirty ||
+    triggerDirty ||
     overlayEnabled !== settings.overlayEnabled;
 
   const handleBrowse = async () => {
@@ -280,6 +304,7 @@ export default function SettingsScreen({
       collections: collections.map(c => ({ ...c, name: c.name.trim().replace(/\s+/g, ' ') })),
       homeShelves,
       autoClicker,
+      pixelTrigger,
       overlayEnabled,
       autoBackupSaves,
       closeToTray,
@@ -567,13 +592,24 @@ export default function SettingsScreen({
         )}
 
         {section === 'clicker' && (
-          <AutoClickerSettings
-            value={autoClicker}
-            onChange={setAutoClicker}
-            overlayEnabled={overlayEnabled}
-            onOverlayEnabledChange={setOverlayEnabled}
-            isDirty={clickerDirty || overlayEnabled !== settings.overlayEnabled}
-          />
+          <>
+            <ToolGroup Icon={PanelsTopLeft} title="Overlay en jeu" summary={<>Maj+Tab pendant une partie lancée depuis DLSGM — c'est là qu'on ajoute les outils ci-dessous à un jeu.</>}>
+              <SettingRow
+                label="Activer l'overlay (Maj+Tab)"
+                description="Affiche par-dessus le jeu : temps de session, temps de jeu total, et une case par outil pour l'ajouter à ce jeu. Fenêtré ou plein écran sans bordure seulement (pas le plein écran exclusif). Maj+Tab n'est pris que pendant la partie."
+              >
+                <input type="checkbox" className="toggle" aria-label="Overlay en jeu" checked={overlayEnabled} onChange={e => setOverlayEnabled(e.target.checked)} />
+              </SettingRow>
+            </ToolGroup>
+
+            <ToolGroup Icon={MousePointerClick} title="Auto-clicker" summary={<>Clics à intervalle régulier, au curseur ou sur un point fixe — raccourci {autoClicker.hotkey}.</>}>
+              <AutoClickerSettings value={autoClicker} onChange={setAutoClicker} isDirty={clickerDirty} />
+            </ToolGroup>
+
+            <ToolGroup Icon={ScanEye} title="Détecteur de rythme" summary={<>Clique (ou appuie sur une touche) quand une note passe dans une zone — raccourci {pixelTrigger.hotkey}.</>}>
+              <PixelTriggerSettings value={pixelTrigger} onChange={setPixelTrigger} clickerHotkey={autoClicker.hotkey} isDirty={triggerDirty} />
+            </ToolGroup>
+          </>
         )}
 
         {section === 'collections' && (

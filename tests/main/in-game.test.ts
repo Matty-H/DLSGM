@@ -17,7 +17,9 @@ vi.mock('electron', () => ({
 import path from 'path';
 import { DEFAULT_AUTO_CLICKER, MIN_INTERVAL_MS, dirsCommand, sanitizeClickerSettings, startCommand } from '../../src/main/auto-clicker';
 import { GameOverlay, OVERLAY_HOTKEY } from '../../src/main/overlay';
-import { HUD_COLLAPSED, HUD_EXPANDED, hudBounds } from '../../src/main/clicker-hud';
+import { HUD_COLLAPSED, HUD_EXPANDED, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSET_X, hudBounds } from '../../src/main/clicker-hud';
+import { zonesView } from '../../src/main/trigger-zones';
+import { newPixelTrigger } from '../../src/renderer/src/lib/pixelTrigger';
 import type { OverlayGame } from '../../src/shared/ipc-types';
 
 describe('auto-clicker', () => {
@@ -55,7 +57,8 @@ describe('overlay en jeu', () => {
     previousPlayTime: 0,
     sessionCount: 0,
     lastPlayed: null,
-    autoClickerEnabled: true
+    autoClickerEnabled: true,
+    pixelTriggerEnabled: false
   });
   let enabled: boolean;
   let overlay: GameOverlay;
@@ -101,5 +104,22 @@ describe('témoin de l’auto-clicker', () => {
     expect(collapsed).toEqual({ x: 1932, y: 1040 - HUD_COLLAPSED.height - 12, ...HUD_COLLAPSED });
     expect(expanded.y + expanded.height).toBe(collapsed.y + collapsed.height);
     expect(expanded.width).toBe(HUD_EXPANDED.width);
+  });
+});
+
+describe('détecteur de rythme : témoin et zones', () => {
+  it('témoin à droite de celui de l’auto-clicker, même quand les deux sont dépliés', () => {
+    const workArea = { x: 0, y: 0, width: 1920, height: 1040 };
+    const clicker = hudBounds(workArea, true);
+    const trigger = hudBounds(workArea, true, TRIGGER_HUD_OFFSET_X, TRIGGER_HUD_EXPANDED);
+    expect(trigger.x).toBeGreaterThan(clicker.x + clicker.width);
+    expect(trigger).toMatchObject(TRIGGER_HUD_EXPANDED);
+    expect(trigger.y + trigger.height).toBe(clicker.y + clicker.height);
+  });
+
+  it('zones transmises à la fenêtre : seulement les zones visées, avec leur délai (flash vert au moment du clic)', () => {
+    const aimed = { ...newPixelTrigger(0), id: 'a', delayMs: 40, zone: { x: 2000, y: 10, width: 8, height: 8 } };
+    const view = zonesView([aimed, newPixelTrigger(1)], { bounds: { x: 1920, y: 0 } });
+    expect(view).toEqual({ origin: { x: 1920, y: 0 }, zones: [{ id: 'a', name: aimed.name, zone: aimed.zone, delayMs: 40 }] });
   });
 });

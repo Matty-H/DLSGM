@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Clock, MousePointerClick, X } from 'lucide-react';
+import { Clock, MousePointerClick, ScanEye, X } from 'lucide-react';
 import { formatClock } from '../../lib/autoClicker.js';
 import { formatLastPlayed, formatPlayTime } from '../../lib/timeFormatter.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
+import OverlayPixelTriggers from './OverlayPixelTriggers';
 import type { OverlayState } from '../../../../shared/ipc-types';
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -17,8 +18,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 /**
  * Overlay en jeu (Maj+Tab), façon overlay Steam : fenêtre transparente
  * toujours au premier plan (src/main/overlay.ts) qui charge ce renderer à la
- * route #overlay. Session en cours, temps de jeu, et la case qui ajoute
- * l'auto-clicker à ce jeu (son état et ses réglages rapides sont dans le
+ * route #overlay. Session en cours, temps de jeu, les zones du détecteur de
+ * pixels (OverlayPixelTriggers) et la case qui ajoute l'auto-clicker à ce jeu (son état et ses réglages rapides sont dans le
  * témoin en bas à gauche, src/main/clicker-hud.ts). Elle ne prend pas le
  * focus (le jeu reste au premier plan) : seuls Maj+Tab et Échap (raccourci
  * global le temps de l'affichage) la ferment, pas un clic ailleurs.
@@ -42,9 +43,11 @@ export default function OverlayApp() {
       setError(null);
       refresh();
     });
+    const offTrigger = window.electronAPI.onPixelTriggerStatus(trigger => setState(prev => (prev ? { ...prev, trigger } : prev)));
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       offState();
+      offTrigger();
       offShown();
       clearInterval(timer);
     };
@@ -56,6 +59,16 @@ export default function OverlayApp() {
     setError(null);
     try {
       await window.electronAPI.setGameAutoClicker(gameId, enabled);
+      refresh();
+    } catch (err) {
+      setError(ipcErrorMessage(err));
+    }
+  };
+
+  const setGameTrigger = async (gameId: string, enabled: boolean) => {
+    setError(null);
+    try {
+      await window.electronAPI.setGamePixelTrigger(gameId, enabled);
       refresh();
     } catch (err) {
       setError(ipcErrorMessage(err));
@@ -128,11 +141,53 @@ export default function OverlayApp() {
                             démarre / arrête les clics, un clic sur le témoin (à l'arrêt) règle l'intervalle et le raccourci.
                           </>
                         ) : (
-                          "Active d'abord l'auto-clicker dans Paramètres › Auto-clicker & overlay."
+                          "Active d'abord l'auto-clicker dans Paramètres › Outils en jeu."
                         )}
                       </span>
                     </span>
                   </label>
+                </div>
+              )}
+
+              {state.trigger.available && (
+                <div className="flex flex-col gap-2.5 border-t border-divider pt-3">
+                  <label
+                    className={`flex items-start gap-2.5 text-[13px] ${state.triggerSettings.enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 flex-shrink-0 accent-accent"
+                      checked={game.pixelTriggerEnabled}
+                      disabled={!state.triggerSettings.enabled}
+                      onChange={e => setGameTrigger(game.id, e.target.checked)}
+                    />
+                    <span>
+                      <span className="flex items-center gap-1.5 font-semibold">
+                        <ScanEye size={14} strokeWidth={2.25} />
+                        Ajouter le détecteur de rythme à ce jeu
+                      </span>
+                      <span className="mt-0.5 block text-[12px] leading-relaxed text-text-muted">
+                        {state.triggerSettings.enabled ? (
+                          <>
+                            Clique quand une note passe dans une zone. Un témoin s'affichera en bas à gauche et les zones
+                            seront encadrées sur le jeu (vert à chaque clic) : <span className="kbd">{state.triggerSettings.hotkey}</span>{' '}
+                            démarre / arrête.
+                          </>
+                        ) : (
+                          "Active d'abord le détecteur de rythme dans Paramètres › Outils en jeu."
+                        )}
+                      </span>
+                    </span>
+                  </label>
+                  {game.pixelTriggerEnabled && state.triggerSettings.enabled && (
+                    <OverlayPixelTriggers
+                      gameId={game.id}
+                      triggers={state.gameTriggers[game.id] ?? []}
+                      status={state.trigger}
+                      settings={state.triggerSettings}
+                      onSaved={refresh}
+                    />
+                  )}
                 </div>
               )}
             </section>
