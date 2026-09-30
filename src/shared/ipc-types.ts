@@ -40,6 +40,24 @@ export interface AppSettings {
    * Vide = Documents/DLSGM/Travaux. Voir src/main/workspace.ts.
    */
   workspaceFolder: string;
+  /**
+   * Refaire les fetchs DLsite en échec à travers Private Internet Access,
+   * connecté le temps des fetchs à `piaRegion` (restriction régionale).
+   */
+  piaRetry: boolean;
+  /** Région PIA (identifiant de `piactl get regions`, ex: jp-tokyo). */
+  piaRegion: string;
+}
+
+/** État de Private Internet Access (voir src/main/pia.ts). */
+export interface PiaStatus {
+  /** piactl trouvé sur ce PC. */
+  available: boolean;
+  connectionState: string | null;
+  region: string | null;
+  regions: string[];
+  /** piactl présent mais sans réponse (service PIA arrêté...). */
+  error?: string;
 }
 
 export interface GameWorkspaceEntry {
@@ -253,6 +271,9 @@ export interface GameMetadata {
    * depuis DLsite ne la touche pas. Remis à false par un fetch forcé du jeu.
    */
   manuallyEdited?: boolean;
+  /** Fiche en échec dont la dernière tentative passait déjà par le VPN : pas refaite automatiquement à chaque scan. */
+  failedThroughVpn?: boolean;
+
   addedDate?: string;
 
 
@@ -433,7 +454,18 @@ export interface ElectronAPI {
   /** Copie cache.db dans userData/db_backups (5 dernières gardées) ; renvoie le chemin de la copie. */
   snapshotCache(): Promise<string>;
 
+  // VPN Private Internet Access (voir src/main/pia.ts)
+  getPiaStatus(): Promise<PiaStatus>;
+  /**
+   * Connecte PIA à la région des paramètres (ou rejoint la session en cours).
+   * Chaque appel réussi doit être suivi de `endVpnSession`, qui restaure
+   * l'état d'avant (région, connecté ou non) à la fin de la dernière session.
+   */
+  beginVpnSession(): Promise<void>;
+  endVpnSession(): Promise<void>;
+
   // Dossier de travaux d'un jeu (voir src/main/workspace.ts)
+
 
   getGameWorkspace(gameId: string): Promise<GameWorkspaceInfo>;
   /** Crée le dossier s'il n'existe pas encore, puis l'ouvre dans l'explorateur. */

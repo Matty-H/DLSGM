@@ -3,7 +3,7 @@ import { ChevronLeft } from 'lucide-react';
 import FetchFailedView from '../FetchFailedView/FetchFailedView';
 import ManualEditForm from '../ManualEditForm/ManualEditForm';
 import GameInfoDetails from './GameInfoDetails';
-import { fetchGameMetadata, refetchGameMetadata } from '../../lib/dataFetcher.js';
+import { fetchGameMetadata, refetchGameMetadata, retryThroughVpn } from '../../lib/dataFetcher.js';
 import type { GenreNames } from '../../lib/genreNames.js';
 import type { CreatorFilter } from '../../lib/filterManager.js';
 import type { GameCollection } from '../../lib/collections.js';
@@ -30,6 +30,8 @@ export interface GameInfoPanelProps {
   genreNames: GenreNames;
   /** Genres existants dans la bibliothèque (sélection dans l'édition manuelle). */
   allGenres: string[];
+  /** PIA installé : bouton « Réessayer via le VPN » sur une fiche en échec. */
+  vpnAvailable: boolean;
   collections: GameCollection[];
   onCreateCollection: (name: string) => string | null;
 }
@@ -63,7 +65,8 @@ export default function GameInfoPanel({
   genreNames,
   allGenres,
   collections,
-  onCreateCollection
+  onCreateCollection,
+  vpnAvailable
 }: GameInfoPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -124,6 +127,14 @@ export default function GameInfoPanel({
                   .then(onAfterRetryFetch);
                 onClose();
               }}
+              onRetryVpn={
+                vpnAvailable
+                  ? async () => {
+                      await retryThroughVpn({ failedEntries: [gameId] });
+                      onAfterRetryFetch();
+                    }
+                  : undefined
+              }
               onManualEdit={() => setIsEditing(true)}
               onOpenFolder={() => onOpenFolder(gameId)}
             />

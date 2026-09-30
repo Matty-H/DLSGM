@@ -16,7 +16,10 @@ export interface AppSettings {
   autoBackupSaves: boolean;
   closeToTray: boolean;
   workspaceFolder: string;
+  piaRetry: boolean;
+  piaRegion: string;
   selectedSort: string;
+
 
 
 }

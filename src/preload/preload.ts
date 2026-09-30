@@ -64,7 +64,13 @@ const electronAPI: ElectronAPI = {
 
   snapshotCache: () => ipcRenderer.invoke('snapshot-cache'),
 
+  // VPN Private Internet Access
+  getPiaStatus: () => ipcRenderer.invoke('get-pia-status'),
+  beginVpnSession: () => ipcRenderer.invoke('begin-vpn-session'),
+  endVpnSession: () => ipcRenderer.invoke('end-vpn-session'),
+
   // Dossier de travaux d'un jeu
+
 
   getGameWorkspace: (gameId) => ipcRenderer.invoke('get-game-workspace', gameId),
   openGameWorkspace: (gameId) => ipcRenderer.invoke('open-game-workspace', gameId),
