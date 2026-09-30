@@ -2,7 +2,7 @@ import { app, BrowserWindow, globalShortcut, Menu, net, protocol } from 'electro
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
-import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare } from './ipc-handlers';
+import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive } from './ipc-handlers';
 import { initAutoUpdater } from './updater';
 import { applyDlsiteProxy } from './dlsite-net';
 import { hideInsteadOfClose, setTrayEnabled } from './tray';
@@ -137,7 +137,22 @@ app.whenReady().then(async () => {
 
 });
 
+// VPN PIA ouvert par DLSGM (fetchs en cours) : remis dans son état d'avant
+// avant de quitter, sinon la machine resterait connectée au Japon.
+let vpnRestored = false;
+app.on('before-quit', (event) => {
+  // Uniquement si une session est ouverte : sinon on ne retarde pas la
+  // fermeture (mise à jour automatique comprise).
+  if (vpnRestored || !isVpnActive()) return;
+  event.preventDefault();
+  vpnRestored = true;
+  shutdownVpn()
+    .catch(error => console.error('Restauration de PIA impossible:', error))
+    .finally(() => app.quit());
+});
+
 // Libération des raccourcis à la fermeture
+
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   // Ferme le port de réception réseau local et annule les transferts en cours.

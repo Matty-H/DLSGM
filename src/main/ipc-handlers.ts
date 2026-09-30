@@ -1,4 +1,5 @@
-import { app, ipcMain, dialog, shell, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
+import { app, ipcMain, dialog, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
+
 import path from 'path';
 import fs from 'fs';
 import { Readable } from 'stream';
@@ -16,6 +17,7 @@ import { ARCHIVE_EXTENSIONS, importArchive, removeStaleImports } from './archive
 import { Wishlist } from './wishlist';
 import { describeWorkspace, workspaceRoot } from './workspace';
 import { snapshotDatabase } from './db-backup';
+import { Pia } from './pia';
 import { DEFAULT_LAN_PORT, LanShare } from './lan-share';
 import type { AppSettings, ArchiveImportResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
@@ -57,8 +59,22 @@ const settingsStore = new Store('settings.db', {
   collections: [],
   autoBackupSaves: true,
   closeToTray: false,
-  workspaceFolder: ''
+  workspaceFolder: '',
+  piaRetry: false,
+  piaRegion: 'jp-tokyo'
 }, 'settings.json');
+
+// VPN PIA pour refaire les fetchs à restriction régionale.
+const pia = new Pia();
+
+export function isVpnActive(): boolean {
+  return pia.active;
+}
+
+/** Remet PIA dans son état d'avant si une session est ouverte (fermeture de l'app). */
+export async function shutdownVpn(): Promise<void> {
+  if (pia.active) await pia.restore();
+}
 
 const cacheStore = new Store('cache.db', {}, 'cache.json');
 
@@ -617,6 +633,22 @@ export function setupIpcHandlers(getWindow: () => BrowserWindow | null, onSettin
     } finally {
       importing = false;
     }
+  });
+
+  // --- VPN Private Internet Access ---
+  ipcMain.handle('get-pia-status', () => pia.status());
+
+  ipcMain.handle('begin-vpn-session', async () => {
+    const { piaRegion } = await getSettings();
+    await pia.begin(piaRegion || 'jp-tokyo');
+    // Connexions HTTP ouvertes avant le tunnel : fermées, pour que les
+    // requêtes suivantes passent bien par le VPN.
+    await session.defaultSession.closeAllConnections();
+  });
+
+  ipcMain.handle('end-vpn-session', async () => {
+    await pia.end();
+    if (!pia.active) await session.defaultSession.closeAllConnections();
   });
 
   // --- Copie de la base (avant une mise à jour groupée) ---

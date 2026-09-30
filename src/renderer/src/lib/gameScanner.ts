@@ -1,4 +1,5 @@
-import { fetchGameMetadata, retryMissingImages } from './dataFetcher.js';
+import { fetchGameMetadata, retryMissingImages, retryThroughVpn } from './dataFetcher.js';
+import { loadSettings } from './settings.js';
 import { getGamesFolderPath } from './osHandler.js';
 import { loadCache } from './cacheManager.js';
 
@@ -68,8 +69,20 @@ export async function scanGames(): Promise<ScanResult> {
   // image pour toujours, invisibles à la fois du statut "échec" et de ce filtre.
   const gamesNeedingImages = gameFolders.filter(gameId => cache[gameId] && cache[gameId].imagesComplete !== true);
 
-  await runWithConcurrencyLimit(gamesToFetch, FETCH_CONCURRENCY, fetchGameMetadata);
+  await runWithConcurrencyLimit(gamesToFetch, FETCH_CONCURRENCY, gameId => fetchGameMetadata(gameId).then(() => undefined));
   await runWithConcurrencyLimit(gamesNeedingImages, FETCH_CONCURRENCY, retryMissingImages);
+
+  // Fiches en échec refaites une fois à travers le VPN japonais (restriction
+  // régionale) si l'option est active ; un nouvel échec y est noté
+  // (`failedThroughVpn`) pour ne pas reconnecter le VPN à chaque scan.
+  if ((await loadSettings()).piaRetry) {
+    const afterFetch = await loadCache();
+    const failed = gameFolders.filter(gameId => afterFetch[gameId]?.fetchFailed && !afterFetch[gameId].failedThroughVpn);
+    if (failed.length > 0) {
+      await retryThroughVpn({ failedEntries: failed }).catch(error => console.error('Nouvelle tentative via le VPN impossible :', error));
+    }
+  }
+
 
   return { status: 'ok', gameFolders };
 }

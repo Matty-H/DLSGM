@@ -28,7 +28,10 @@ const DEFAULT_SETTINGS: Settings = {
   autoBackupSaves: true,
   closeToTray: false,
   workspaceFolder: '',
+  piaRetry: false,
+  piaRegion: 'jp-tokyo',
   selectedSort: 'name_asc'
+
 
 
 };

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Download, Eye, FolderOpen, Gamepad2, HardDrive, Layers, Languages, Library, Plus, Trash2, type LucideIcon } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, Plus, Trash2, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
+import PiaSettings from '../PiaSettings/PiaSettings';
 import type { GenreTranslations } from '../../lib/genreNames.js';
 import { getSandboxieStatus, type SandboxieStatus } from '../../lib/gameTools.js';
 import type { AppSettings } from '../../hooks/useSettings';
@@ -108,10 +109,11 @@ function nearestPreset(minutes: number): number {
   , REFRESH_PRESETS[0].value);
 }
 
-type SettingsSection = 'library' | 'display' | 'launch' | 'collections' | 'genres' | 'storage';
+type SettingsSection = 'library' | 'network' | 'display' | 'launch' | 'collections' | 'genres' | 'storage';
 
 const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
   { id: 'library', label: 'Bibliothèque', Icon: Library },
+  { id: 'network', label: 'Réseau & VPN', Icon: Globe },
   { id: 'display', label: 'Affichage', Icon: Eye },
   { id: 'launch', label: 'Lancement', Icon: Gamepad2 },
   { id: 'collections', label: 'Collections', Icon: Layers },
@@ -156,6 +158,8 @@ export default function SettingsScreen({
   const [newCollectionName, setNewCollectionName] = useState('');
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
   const [closeToTray, setCloseToTray] = useState(settings.closeToTray);
+  const [piaRetry, setPiaRetry] = useState(settings.piaRetry);
+  const [piaRegion, setPiaRegion] = useState(settings.piaRegion);
   const [workspaceFolder, setWorkspaceFolder] = useState(settings.workspaceFolder ?? '');
   const [defaultWorkspaceRoot, setDefaultWorkspaceRoot] = useState('');
   const [sandboxieStatus, setSandboxieStatus] = useState<SandboxieStatus | null>(null);
@@ -173,6 +177,8 @@ export default function SettingsScreen({
     setCollections(settings.collections ?? []);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
+    setPiaRetry(settings.piaRetry);
+    setPiaRegion(settings.piaRegion);
     setWorkspaceFolder(settings.workspaceFolder ?? '');
   }, [settings]);
 
@@ -203,6 +209,8 @@ export default function SettingsScreen({
     dlsiteProxy.trim() !== (settings.dlsiteProxy ?? '') ||
     autoBackupSaves !== settings.autoBackupSaves ||
     closeToTray !== settings.closeToTray ||
+    piaRetry !== settings.piaRetry ||
+    piaRegion !== settings.piaRegion ||
     workspaceFolder !== (settings.workspaceFolder ?? '') ||
     JSON.stringify(collections) !== JSON.stringify(settings.collections ?? []);
 
@@ -237,6 +245,8 @@ export default function SettingsScreen({
       collections: collections.map(c => ({ ...c, name: c.name.trim().replace(/\s+/g, ' ') })),
       autoBackupSaves,
       closeToTray,
+      piaRetry,
+      piaRegion,
       workspaceFolder
     });
   };
@@ -332,11 +342,31 @@ export default function SettingsScreen({
             </SettingRow>
 
             <SettingRow
+              label="Langue des tags"
+              description="Les fiches sont toujours récupérées en japonais (langue de référence), avec la traduction anglaise de DLsite. Choisis la langue dans laquelle afficher les tags ; titres et cercles restent en japonais (la recherche trouve aussi leur nom anglais)."
+            >
+              <div className="seg">
+                <label className="seg-opt">
+                  <input type="radio" name="language" checked={language === 'en_US'} onChange={() => setLanguage('en_US')} />
+                  English (traduction)
+                </label>
+                <label className="seg-opt">
+                  <input type="radio" name="language" checked={language === 'ja_JP'} onChange={() => setLanguage('ja_JP')} />
+                  日本語 (original)
+                </label>
+              </div>
+            </SettingRow>
+          </>
+        )}
+
+        {section === 'network' && (
+          <>
+            <SettingRow
               label="Proxy pour DLsite"
               description={
                 <>
                   Utilisé pour les fiches et les images DLsite (ex: un proxy japonais pour les œuvres restreintes par
-                  région). Vide : proxy de Windows. Formats : http://hôte:port ou socks5://hôte:port — un proxy de
+                  région), en permanence — pour un VPN à la demande, voir PIA ci-dessous. Vide : proxy de Windows. Formats : http://hôte:port ou socks5://hôte:port — un proxy de
                   navigateur (extension) n'a pas d'effet ici, il faut son adresse.
                   {!proxyValid && <span className="mt-1 block text-danger">Adresse invalide (ex: http://127.0.0.1:8080).</span>}
                 </>
@@ -352,21 +382,14 @@ export default function SettingsScreen({
               />
             </SettingRow>
 
-            <SettingRow
-              label="Langue des tags"
-              description="Les fiches sont toujours récupérées en japonais (langue de référence), avec la traduction anglaise de DLsite. Choisis la langue dans laquelle afficher les tags ; titres et cercles restent en japonais (la recherche trouve aussi leur nom anglais)."
-            >
-              <div className="seg">
-                <label className="seg-opt">
-                  <input type="radio" name="language" checked={language === 'en_US'} onChange={() => setLanguage('en_US')} />
-                  English (traduction)
-                </label>
-                <label className="seg-opt">
-                  <input type="radio" name="language" checked={language === 'ja_JP'} onChange={() => setLanguage('ja_JP')} />
-                  日本語 (original)
-                </label>
-              </div>
-            </SettingRow>
+            <PiaSettings
+              enabled={piaRetry}
+              region={piaRegion}
+              onEnabledChange={setPiaRetry}
+              onRegionChange={setPiaRegion}
+              regionDirty={piaRegion !== settings.piaRegion}
+              onRetried={onMetadataUpdated}
+            />
           </>
         )}
 

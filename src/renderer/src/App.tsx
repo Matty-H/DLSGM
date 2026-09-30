@@ -27,6 +27,7 @@ import { matchesFilters, compareGames, type CreatorFilter } from './lib/filterMa
 import { addCollection, buildShelves, collectionFilterOptions, normalizeCollectionFilter, type Shelf } from './lib/collections.js';
 import { collectCanonicalGenres, makeGenreNames } from './lib/genreNames.js';
 import { useGenreTranslations } from './hooks/useGenreTranslations';
+import { getPiaStatus } from './lib/vpn.js';
 import { openGameFolder } from './lib/osHandler.js';
 import { PAD_LABELS } from './lib/gamepadLayout.js';
 
@@ -41,6 +42,11 @@ export default function App() {
   const lanShare = useLanShare({ onGameReceived: () => library.rescan() });
   // Même principe pour un jeu extrait de son archive.
   const archiveImport = useArchiveImport(library.rescan);
+  // PIA installé : proposé sur les fiches en échec (restriction régionale).
+  const [vpnAvailable, setVpnAvailable] = useState(false);
+  useEffect(() => {
+    getPiaStatus().then(status => setVpnAvailable(status.available)).catch(() => undefined);
+  }, []);
   const importStatus = archiveImport.running
     ? archiveImport.progress
       ? `Import ${archiveImport.progress.index}/${archiveImport.progress.total}…`
@@ -434,6 +440,7 @@ export default function App() {
             allGenres={rawGenres}
             collections={collections}
             onCreateCollection={handleCreateCollection}
+            vpnAvailable={vpnAvailable}
           />
         </div>
       )}
