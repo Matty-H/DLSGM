@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Camera, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, ScanEye, type LucideIcon } from 'lucide-react';
+import { Camera, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
@@ -20,7 +20,7 @@ import AutoClickerSettings from '../AutoClickerSettings/AutoClickerSettings';
 import PixelTriggerSettings from '../PixelTriggerSettings/PixelTriggerSettings';
 import MacroSettings from '../MacroSettings/MacroSettings';
 import OcrSettings from '../OcrSettings/OcrSettings';
-import type { OcrTranslateSettings, ScreenshotSettings } from '../../../../shared/ipc-types';
+import type { AppUpdateInfo, OcrTranslateSettings, ScreenshotSettings } from '../../../../shared/ipc-types';
 import { HOTKEY_OPTIONS } from '../../lib/autoClicker.js';
 import type { MacroRecorderSettings } from '../../lib/macros.js';
 import type { PixelTriggerSettings as TriggerSettings } from '../../lib/pixelTrigger.js';
@@ -48,6 +48,47 @@ export interface SettingsScreenProps {
 }
 
 /** Mise à jour groupée des fiches depuis DLsite (Paramètres › Stockage). */
+/** Version installée et vérification manuelle ; les pop-ups (mise à jour disponible, à jour, erreur) viennent de main. */
+function UpdateCheck() {
+  const [info, setInfo] = useState<AppUpdateInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.electronAPI.getAppUpdateInfo().then(setInfo).catch(() => setInfo(null));
+  }, []);
+
+  const check = async () => {
+    setChecking(true);
+    setError(null);
+    try {
+      const result = await window.electronAPI.checkForUpdates();
+      if (result.status === 'error') setError(result.message);
+    } catch (err) {
+      setError(ipcErrorMessage(err));
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const mode = !info ? '' : info.portable
+    ? 'Version portable : une nouvelle version est signalée par un pop-up, à télécharger soi-même sur GitHub.'
+    : info.selfUpdate
+      ? 'Version installée : une nouvelle version peut être téléchargée et installée depuis DLSGM.'
+      : 'Version de développement : une nouvelle version est seulement signalée.';
+
+  return (
+    <SettingRow
+      label={info ? `DLSGM ${info.version}` : 'DLSGM'}
+      description={<>{mode}{error && <span className="mt-1 block text-danger">{error}</span>}</>}
+    >
+      <button type="button" onClick={check} disabled={checking} className="btn">
+        {checking ? 'Vérification…' : 'Rechercher une mise à jour'}
+      </button>
+    </SettingRow>
+  );
+}
+
 function BulkMetadataUpdate({ onDone }: { onDone: () => void }) {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<BulkUpdateResult | null>(null);
@@ -131,7 +172,7 @@ function nearestPreset(minutes: number): number {
   , REFRESH_PRESETS[0].value);
 }
 
-export type SettingsSection = 'library' | 'network' | 'display' | 'launch' | 'clicker' | 'collections' | 'genres' | 'storage';
+export type SettingsSection = 'library' | 'network' | 'display' | 'launch' | 'clicker' | 'collections' | 'genres' | 'storage' | 'updates';
 
 const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
   { id: 'library', label: 'Bibliothèque', Icon: Library },
@@ -141,7 +182,8 @@ const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
   { id: 'clicker', label: 'Outils en jeu', Icon: MousePointerClick },
   { id: 'collections', label: 'Collections', Icon: Layers },
   { id: 'genres', label: 'Traduction des tags', Icon: Languages },
-  { id: 'storage', label: 'Stockage', Icon: HardDrive }
+  { id: 'storage', label: 'Stockage', Icon: HardDrive },
+  { id: 'updates', label: 'Mises à jour', Icon: RefreshCw }
 ];
 
 /** Ligne de réglage SteamOS : libellé et description à gauche, contrôle à droite. */
@@ -220,6 +262,7 @@ export default function SettingsScreen({
   const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
   const [closeToTray, setCloseToTray] = useState(settings.closeToTray);
+  const [checkUpdatesOnStartup, setCheckUpdatesOnStartup] = useState(settings.checkUpdatesOnStartup !== false);
   const [piaRetry, setPiaRetry] = useState(settings.piaRetry);
   const [piaRegion, setPiaRegion] = useState(settings.piaRegion);
   const [workspaceFolder, setWorkspaceFolder] = useState(settings.workspaceFolder ?? '');
@@ -254,6 +297,7 @@ export default function SettingsScreen({
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
+    setCheckUpdatesOnStartup(settings.checkUpdatesOnStartup !== false);
     setPiaRetry(settings.piaRetry);
     setPiaRegion(settings.piaRegion);
     setWorkspaceFolder(settings.workspaceFolder ?? '');
@@ -324,6 +368,7 @@ export default function SettingsScreen({
     proxyDirty ||
     autoBackupSaves !== settings.autoBackupSaves ||
     closeToTray !== settings.closeToTray ||
+    checkUpdatesOnStartup !== (settings.checkUpdatesOnStartup !== false) ||
     piaRetry !== settings.piaRetry ||
     piaRegion !== settings.piaRegion ||
     workspaceFolder !== (settings.workspaceFolder ?? '') ||
@@ -374,6 +419,7 @@ export default function SettingsScreen({
       overlayEnabled,
       autoBackupSaves,
       closeToTray,
+      checkUpdatesOnStartup,
       piaRetry,
       piaRegion,
       workspaceFolder
@@ -849,6 +895,24 @@ export default function SettingsScreen({
             <button type="button" onClick={handleResetImages} disabled={isResettingImages} className="btn">
               {isResettingImages ? 'Réinitialisation en cours…' : 'Réinitialiser'}
             </button>
+          </SettingRow>
+          </>
+        )}
+
+        {section === 'updates' && (
+          <>
+          <UpdateCheck />
+          <SettingRow
+            label="Rechercher une mise à jour au démarrage"
+            description="Quelques secondes après le lancement, DLSGM regarde sur GitHub si une nouvelle version existe et propose de l'installer (version installée) ou la signale (version portable). Rien n'est téléchargé sans votre accord."
+          >
+            <input
+              type="checkbox"
+              className="toggle"
+              aria-label="Rechercher une mise à jour au démarrage"
+              checked={checkUpdatesOnStartup}
+              onChange={e => setCheckUpdatesOnStartup(e.target.checked)}
+            />
           </SettingRow>
           </>
         )}

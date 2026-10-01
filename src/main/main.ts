@@ -2,8 +2,7 @@ import { app, BrowserWindow, globalShortcut, Menu, net, protocol, screen } from 
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
-import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic, captureFilePath } from './ipc-handlers';
-import { initAutoUpdater } from './updater';
+import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic, captureFilePath, runStartupUpdateCheck } from './ipc-handlers';
 import { applyDlsiteProxy } from './dlsite-net';
 import { hideInsteadOfClose, setTrayEnabled } from './tray';
 
@@ -146,9 +145,13 @@ app.whenReady().then(async () => {
   createWindow();
 
   // Vérification des mises à jour (build packagée uniquement — en dev, il
-  // n'y a pas d'installation existante à mettre à jour).
+  // n'y a pas d'installation existante à mettre à jour ; le bouton des
+  // Paramètres reste utilisable). Après le chargement, pour que le pop-up
+  // s'ouvre sur la fenêtre affichée.
   if (app.isPackaged) {
-    initAutoUpdater();
+    setTimeout(() => {
+      runStartupUpdateCheck(getWindow).catch(error => console.error('Vérification des mises à jour :', error));
+    }, 5000);
   }
 
   // Enregistrement du raccourci Panic Button (Alt+Space)

@@ -57,7 +57,7 @@ Application de bureau (Electron) pour organiser une bibliothèque locale d'œuvr
 - Bouton panique (Alt+Espace) qui masque immédiatement l'application.
 - Réduction dans la zone de notification.
 - Proxy DLsite (HTTP/SOCKS5, avec authentification) pour les œuvres restreintes par région.
-- Mises à jour automatiques de l'application.
+- Recherche de mise à jour au démarrage ou à la demande, installation sur accord.
 
 ---
 
@@ -67,8 +67,13 @@ Les versions compilées sont publiées sur la page [Releases](https://github.com
 
 | Plateforme | Fichier | Mises à jour |
 |---|---|---|
-| Windows | `DLSGM-Setup-<version>-AutoUpdate.exe` (installeur) | Automatiques au démarrage |
-| macOS | `.dmg` ou `.zip` | Automatiques une fois l'application placée dans `/Applications` |
+| Windows | `DLSGM-<version>-Windows-Installeur.exe` | Proposées puis installées depuis DLSGM |
+| Windows | `DLSGM-<version>-Windows-Portable.exe` (sans installation) | Signalées par un pop-up, à retélécharger |
+| macOS | `DLSGM-<version>-macOS-arm64.dmg` | Proposées puis installées depuis DLSGM, une fois l'application placée dans `/Applications` |
+
+Les fichiers `.blockmap`, `latest*.yml` et `-maj-auto.zip` d'une release servent aux mises à jour automatiques et n'ont pas à être téléchargés.
+
+La recherche de mise à jour au démarrage se désactive dans Paramètres › Mises à jour, où une vérification manuelle est aussi possible. Rien n'est téléchargé sans accord.
 
 La plupart des outils en jeu (overlay, OCR, auto-clicker, Sandboxie, Locale Emulator, Textractor) ne sont disponibles que sous Windows. La traduction OCR du japonais nécessite le module OCR japonais de Windows (`Language.OCR~~~ja-JP`).
 

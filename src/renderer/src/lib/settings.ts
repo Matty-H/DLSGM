@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS: Settings = {
   overlayEnabled: true,
   autoBackupSaves: true,
   closeToTray: false,
+  checkUpdatesOnStartup: true,
   workspaceFolder: '',
   piaRetry: false,
   piaRegion: 'jp-tokyo',

@@ -37,6 +37,7 @@ import { GameWindowTracker } from './game-window';
 import { ClickerHud, MACRO_HUD_OFFSET_X, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSET_X } from './clicker-hud';
 import { DEFAULT_MACRO_RECORDER, MAX_MACROS_PER_GAME, MacroRecorder, acceleratorVks, sanitizeMacroSettings, sanitizeMacros } from './macro-recorder';
 import { TriggerZonesWindow } from './trigger-zones';
+import { checkForUpdates, getAppUpdateInfo } from './updater';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
 import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
@@ -92,7 +93,8 @@ const settingsStore = new Store('settings.db', {
   rpgMakerExtractor: false,
   ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'dictionary', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
   localeEmulatorPath: '',
-  screenshot: { enabled: true, hotkey: 'Ctrl+F8' }
+  screenshot: { enabled: true, hotkey: 'Ctrl+F8' },
+  checkUpdatesOnStartup: true
 }, 'settings.json');
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
@@ -138,6 +140,23 @@ function assertGameId(gameId: unknown): asserts gameId is string {
 export function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/**
+ * Vérification des mises à jour au démarrage, si l'option est active. Le
+ * bouton « Ne plus vérifier au démarrage » du pop-up décoche l'option et
+ * prévient la fenêtre principale (sinon sa copie des paramètres la recocherait).
+ */
+export async function runStartupUpdateCheck(getWindow: () => BrowserWindow | null): Promise<void> {
+  if ((await getSettings()).checkUpdatesOnStartup === false) return;
+  await checkForUpdates({
+    manual: false,
+    getWindow,
+    disableStartupCheck: async () => {
+      await settingsStore.set('checkUpdatesOnStartup', false);
+      notifySettingsChanged?.();
+    }
+  });
 }
 
 /** Paramètres persistés (lus par main.ts au démarrage, ex: plein écran). */
@@ -1503,6 +1522,10 @@ export function setupIpcHandlers(
   ipcMain.handle('discover-lan-peers', () => share.discoverPeers());
   ipcMain.handle('send-games-over-lan', (event: IpcMainInvokeEvent, request: LanSendRequest) => share.sendGames(request, getGameDir));
   ipcMain.handle('cancel-lan-send', () => share.cancelSend());
+
+  // --- Mises à jour ---
+  ipcMain.handle('get-app-update-info', () => getAppUpdateInfo());
+  ipcMain.handle('check-for-updates', () => checkForUpdates({ manual: true, getWindow }));
 
   // --- Gestion des Paramètres ---
   ipcMain.handle('get-settings', () => {
