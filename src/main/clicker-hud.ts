@@ -1,8 +1,9 @@
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, screen, type Rectangle } from 'electron';
 
 /**
  * Témoin de l'auto-clicker : petite fenêtre toujours au premier plan en bas
- * à gauche de l'écran principal, tant que l'auto-clicker est activé
+ * à gauche de la fenêtre du jeu (qu'il suit si elle bouge ; à défaut, de
+ * l'écran principal), tant que l'auto-clicker est activé
  * (pastille verte en marche, orange en pause, rouge à l'arrêt, et le
  * rythme). Elle ne prend jamais le focus au jeu (`focusable: false`, même
  * dépliée : un jeu qui perd le focus se réduit souvent), d'où des réglages
@@ -22,17 +23,25 @@ export interface ClickerHudOptions {
   offsetX?: number;
   /** Taille dépliée (réglages rapides), HUD_EXPANDED par défaut. */
   expandedSize?: { width: number; height: number };
+  /** Zone client de la fenêtre du jeu en DIP (null : inconnue, zone de travail de l'écran principal). */
+  area?: () => Rectangle | null;
 }
 
-/** Coin bas gauche de la zone de travail (au-dessus de la barre des tâches). */
+/**
+ * Coin bas gauche de la zone donnée (fenêtre du jeu, ou zone de travail
+ * au-dessus de la barre des tâches), sans en déborder quand elle est petite
+ * (sinon calé sur son bord haut / gauche).
+ */
 export function hudBounds(
-  workArea: { x: number; y: number; width: number; height: number },
+  area: { x: number; y: number; width: number; height: number },
   expanded: boolean,
   offsetX = 0,
   expandedSize = HUD_EXPANDED
 ) {
   const size = expanded ? expandedSize : HUD_COLLAPSED;
-  return { x: workArea.x + MARGIN + offsetX, y: workArea.y + workArea.height - size.height - MARGIN, ...size };
+  const x = Math.max(area.x, Math.min(area.x + MARGIN + offsetX, area.x + area.width - size.width));
+  const y = Math.max(area.y, area.y + area.height - size.height - MARGIN);
+  return { x, y, ...size };
 }
 
 /** Témoin du détecteur de rythme : à droite de celui de l'auto-clicker, même déplié. */
@@ -46,9 +55,14 @@ export class ClickerHud {
 
   constructor(private readonly options: ClickerHudOptions) {}
 
+  private bounds(expanded: boolean) {
+    const area = this.options.area?.() ?? screen.getPrimaryDisplay().workArea;
+    return hudBounds(area, expanded, this.options.offsetX, this.options.expandedSize);
+  }
+
   private create(): BrowserWindow {
     const window = new BrowserWindow({
-      ...hudBounds(screen.getPrimaryDisplay().workArea, false, this.options.offsetX),
+      ...this.bounds(false),
       show: false,
       frame: false,
       transparent: true,
@@ -85,7 +99,7 @@ export class ClickerHud {
       return;
     }
     const window = this.window && !this.window.isDestroyed() ? this.window : (this.window = this.create());
-    window.setBounds(hudBounds(screen.getPrimaryDisplay().workArea, this.expanded, this.options.offsetX, this.options.expandedSize));
+    window.setBounds(this.bounds(this.expanded));
     // showInactive : le jeu garde le focus.
     if (window.webContents.isLoading()) window.webContents.once('did-finish-load', () => window.showInactive());
     else if (!window.isVisible()) window.showInactive();
@@ -96,8 +110,13 @@ export class ClickerHud {
     const window = this.window;
     if (!window || window.isDestroyed() || this.expanded === expanded) return;
     this.expanded = expanded;
-    window.setBounds(hudBounds(screen.getPrimaryDisplay().workArea, expanded, this.options.offsetX, this.options.expandedSize));
+    window.setBounds(this.bounds(expanded));
     window.webContents.send('clicker-hud-expanded', expanded);
+  }
+
+  /** La fenêtre du jeu a bougé : le témoin affiché la suit. */
+  followGame(): void {
+    if (this.window && !this.window.isDestroyed() && this.window.isVisible()) this.window.setBounds(this.bounds(this.expanded));
   }
 
   send(channel: string, ...args: unknown[]): void {

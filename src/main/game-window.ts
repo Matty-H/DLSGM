@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { FOREGROUND_GUARD_CS, dirsCommand } from './auto-clicker';
+import { DPI_AWARE_CS, FOREGROUND_GUARD_CS, dirsCommand } from './auto-clicker';
 
 /**
  * Position de la fenêtre du jeu en cours (Windows), pour poser l'overlay
@@ -44,22 +44,15 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 ${FOREGROUND_GUARD_CS}
+${DPI_AWARE_CS}
 public static class DlsgmGameWindow {
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern bool IsIconic(IntPtr window);
   [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr window, out Rect rect);
   [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr window, ref Point point);
-  [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr context);
-  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
 
   [StructLayout(LayoutKind.Sequential)] struct Rect { public int Left, Top, Right, Bottom; }
   [StructLayout(LayoutKind.Sequential)] struct Point { public int X, Y; }
-
-  // Coordonnées physiques : sans cela, Windows les virtualise selon la mise à l'échelle.
-  public static void DpiAware() {
-    try { if (SetProcessDpiAwarenessContext(new IntPtr(-4))) return; } catch {} // PER_MONITOR_AWARE_V2
-    try { SetProcessDPIAware(); } catch {}
-  }
 
   static volatile string last = "";
 
@@ -95,7 +88,7 @@ public static class DlsgmGameWindow {
   }
 }
 '@
-[DlsgmGameWindow]::DpiAware()
+[DlsgmDpi]::Enable()
 [DlsgmGameWindow]::Start()
 [Console]::Out.WriteLine('ready')
 [Console]::Out.Flush()

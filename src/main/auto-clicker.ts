@@ -122,6 +122,26 @@ public static class DlsgmForeground {
 }
 `;
 
+/**
+ * Classe C# commune aux workers : coordonnées en pixels physiques. Sans
+ * cela, Windows virtualise celles d'un processus non « DPI aware » selon la
+ * mise à l'échelle (SetCursorPos, captures d'écran, position des fenêtres
+ * décalées, voire sur un autre écran quand les écrans n'ont pas la même
+ * échelle), alors que DLSGM leur envoie des pixels physiques
+ * (screen.dipToScreenPoint).
+ */
+export const DPI_AWARE_CS = String.raw`
+public static class DlsgmDpi {
+  [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+
+  public static void Enable() {
+    try { if (SetProcessDpiAwarenessContext(new IntPtr(-4))) return; } catch {} // PER_MONITOR_AWARE_V2
+    try { SetProcessDPIAware(); } catch {}
+  }
+}
+`;
+
 export const WORKER_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -129,6 +149,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 ${FOREGROUND_GUARD_CS}
+${DPI_AWARE_CS}
 public static class DlsgmClicker {
   [DllImport("user32.dll")] static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
   [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
@@ -206,6 +227,7 @@ public static class DlsgmClicker {
   }
 }
 '@
+[DlsgmDpi]::Enable()
 [DlsgmClicker]::DisableThrottling()
 try { [Diagnostics.Process]::GetCurrentProcess().PriorityClass = 'AboveNormal' } catch { }
 [Console]::Out.WriteLine('ready')

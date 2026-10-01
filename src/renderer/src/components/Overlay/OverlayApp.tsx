@@ -137,7 +137,7 @@ export default function OverlayApp() {
                       <span className="mt-0.5 block text-[12px] leading-relaxed text-text-muted">
                         {clickerSettings.enabled ? (
                           <>
-                            Un témoin s'affichera en bas à gauche de l'écran : <span className="kbd">{clickerSettings.hotkey}</span>{' '}
+                            Un témoin s'affichera en bas à gauche de la fenêtre du jeu : <span className="kbd">{clickerSettings.hotkey}</span>{' '}
                             démarre / arrête les clics, un clic sur le témoin (à l'arrêt) règle l'intervalle et le raccourci.
                           </>
                         ) : (

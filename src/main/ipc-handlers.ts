@@ -399,7 +399,7 @@ let autoClicker: AutoClicker | null = null;
 let overlay: GameOverlay | null = null;
 // Position de la fenêtre du jeu en cours : l'overlay se pose dessus.
 let gameWindow: GameWindowTracker | null = null;
-// Témoin en bas à gauche de l'écran pendant la partie (auto-clicker activé).
+// Témoin en bas à gauche de la fenêtre du jeu pendant la partie (auto-clicker activé).
 let clickerHud: ClickerHud | null = null;
 // Mode panique (Alt+Espace, bascule) : le témoin se cache avec l'application.
 let panicActive = false;
@@ -640,24 +640,31 @@ export function setupIpcHandlers(
     }
   });
   autoClicker = clicker;
+  // Overlay, témoins et contours des zones se posent sur la fenêtre du jeu et la suivent.
   const tracker = new GameWindowTracker({
     scriptDir: app.getPath('userData'),
-    onChange: () => overlay?.followGame()
+    onChange: () => {
+      overlay?.followGame();
+      clickerHud?.followGame();
+      triggerHud?.followGame();
+      triggerZones?.followGame();
+    }
   });
   gameWindow = tracker;
+  const gameBounds = () => {
+    const rect = tracker.current();
+    // Pixels physiques → DIP (mise à l'échelle de l'écran où se trouve le jeu).
+    return rect ? screen.screenToDipRect(null, rect) : null;
+  };
   const gameOverlay = new GameOverlay({
     preloadPath: pages.preloadPath,
     loadPage: window => pages.loadPage(window, 'overlay'),
-    gameBounds: () => {
-      const rect = tracker.current();
-      // Pixels physiques → DIP (mise à l'échelle de l'écran où se trouve le jeu).
-      return rect ? screen.screenToDipRect(null, rect) : null;
-    },
+    gameBounds,
     isEnabled: async () => (await getSettings()).overlayEnabled !== false,
     onGamesChanged: () => overlay?.send('overlay-state-changed')
   });
   overlay = gameOverlay;
-  const hud = new ClickerHud({ preloadPath: pages.preloadPath, loadPage: window => pages.loadPage(window, 'clicker-hud') });
+  const hud = new ClickerHud({ preloadPath: pages.preloadPath, loadPage: window => pages.loadPage(window, 'clicker-hud'), area: gameBounds });
   clickerHud = hud;
   notifySettingsChanged = () => getWindow()?.webContents.send('settings-changed');
   applyAutoClickerSettings().catch(error => console.error('Auto-clicker au démarrage :', error));
@@ -679,9 +686,14 @@ export function setupIpcHandlers(
     preloadPath: pages.preloadPath,
     loadPage: window => pages.loadPage(window, 'trigger-hud'),
     offsetX: TRIGGER_HUD_OFFSET_X,
-    expandedSize: TRIGGER_HUD_EXPANDED
+    expandedSize: TRIGGER_HUD_EXPANDED,
+    area: gameBounds
   });
-  triggerZones = new TriggerZonesWindow({ preloadPath: pages.preloadPath, loadPage: window => pages.loadPage(window, 'trigger-zones') });
+  triggerZones = new TriggerZonesWindow({
+    preloadPath: pages.preloadPath,
+    loadPage: window => pages.loadPage(window, 'trigger-zones'),
+    area: gameBounds
+  });
   applyPixelTriggerSettings().catch(error => console.error('Détecteur de rythme au démarrage :', error));
 
   ipcMain.handle('get-pixel-trigger-state', () => ({ status: detector.getStatus(), settings: triggerConfig }));
@@ -930,8 +942,8 @@ export function setupIpcHandlers(
       pixelTriggerEnabled: entry.pixelTriggerEnabled === true
     });
     runningGameDirs.set(gameId, gamePath);
-    // Suivi de la fenêtre du jeu (un worker PowerShell) seulement si l'overlay peut servir.
-    if ((await getSettings()).overlayEnabled !== false) gameWindow?.setGameDirs([...runningGameDirs.values()]);
+    // Suivi de la fenêtre du jeu (un worker PowerShell) : overlay, témoins et zones s'y posent.
+    gameWindow?.setGameDirs([...runningGameDirs.values()]);
     if (entry.autoClickerEnabled === true) clickerEnabledGames.add(gameId);
     else clickerEnabledGames.delete(gameId);
     runningGameTriggers.set(gameId, sanitizePixelTriggers(entry.pixelTriggers));

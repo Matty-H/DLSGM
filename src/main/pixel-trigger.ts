@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { FOREGROUND_GUARD_CS, dirsCommand } from './auto-clicker';
+import { DPI_AWARE_CS, FOREGROUND_GUARD_CS, dirsCommand } from './auto-clicker';
 import type { ClickerButton, PixelTarget, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus } from '../shared/ipc-types';
 
 /**
@@ -193,6 +193,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 ${FOREGROUND_GUARD_CS}
+${DPI_AWARE_CS}
 public static class DlsgmTrigger {
   [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr window);
   [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr window, IntPtr dc);
@@ -438,6 +439,7 @@ public static class DlsgmTrigger {
   }
 }
 '@
+[DlsgmDpi]::Enable()
 [DlsgmTrigger]::DisableThrottling()
 try { [Diagnostics.Process]::GetCurrentProcess().PriorityClass = 'AboveNormal' } catch { }
 [Console]::Out.WriteLine('ready')
