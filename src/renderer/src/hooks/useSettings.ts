@@ -28,6 +28,7 @@ export interface AppSettings {
   textractorOutput: 'clipboard' | 'file' | 'both';
   rpgMakerExtractor: boolean;
   ocrTranslate: OcrTranslateSettings;
+  localeEmulatorPath: string;
   selectedSort: string;
 
 

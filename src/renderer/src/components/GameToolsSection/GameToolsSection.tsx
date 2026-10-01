@@ -29,6 +29,8 @@ export interface GameToolsSectionProps {
   /** Lancer avec Textractor (entrée de cache `textractorEnabled`). */
   textractorEnabled: boolean;
   onTextractorEnabledChange: (enabled: boolean) => void;
+  localeEmulator: boolean;
+  onLocaleEmulatorChange: (enabled: boolean) => void;
 }
 
 const LABEL_CLASS = 'text-[12px] text-text-muted';
@@ -46,7 +48,9 @@ export default function GameToolsSection({
   onSandboxDisabledChange,
   lastPlayed,
   textractorEnabled,
-  onTextractorEnabledChange
+  onTextractorEnabledChange,
+  localeEmulator,
+  onLocaleEmulatorChange
 }: GameToolsSectionProps) {
   const [info, setInfo] = useState<GameToolsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +141,15 @@ export default function GameToolsSection({
 
       {info && info.saveLocations.length > 0 && <SaveBackups gameId={gameId} lastPlayed={lastPlayed} />}
 
-      <TextTools gameId={gameId} info={info} textractorEnabled={textractorEnabled} onTextractorEnabledChange={onTextractorEnabledChange} />
+      <TextTools
+        gameId={gameId}
+        info={info}
+        textractorEnabled={textractorEnabled}
+        onTextractorEnabledChange={onTextractorEnabledChange}
+        localeEmulator={localeEmulator}
+        onLocaleEmulatorChange={onLocaleEmulatorChange}
+        sandboxed={sandboxed}
+      />
 
       {info?.sandbox.globallyEnabled && (
 

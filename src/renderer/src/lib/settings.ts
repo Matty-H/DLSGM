@@ -40,6 +40,7 @@ const DEFAULT_SETTINGS: Settings = {
   textractorOutput: 'both',
   rpgMakerExtractor: false,
   ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'none', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
+  localeEmulatorPath: '',
   selectedSort: 'name_asc'
 
 

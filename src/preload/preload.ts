@@ -167,6 +167,7 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.removeListener('rpgmaker-extract-progress', listener);
     };
   },
+  checkLocaleEmulator: dir => ipcRenderer.invoke('check-locale-emulator', dir),
   getOcrView: () => ipcRenderer.invoke('get-ocr-view'),
   onOcrView: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, view: OcrView) => callback(view);

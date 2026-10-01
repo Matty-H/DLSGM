@@ -7,6 +7,11 @@ export interface TextToolsProps {
   info: GameToolsInfo | null;
   textractorEnabled: boolean;
   onTextractorEnabledChange: (enabled: boolean) => void;
+  /** Lancer en locale japonaise (Locale Emulator), entrée `localeEmulator`. */
+  localeEmulator: boolean;
+  onLocaleEmulatorChange: (enabled: boolean) => void;
+  /** Ce jeu est lancé dans Sandboxie (incompatible pour l'instant). */
+  sandboxed: boolean;
 }
 
 const LABEL_CLASS = 'text-[12px] text-text-muted';
@@ -16,15 +21,20 @@ const LABEL_CLASS = 'text-[12px] text-text-muted';
  * Unity) et extraction des images / sons chiffrés d'un RPG Maker MV/MZ dans
  * le dossier de travaux (si l'extracteur est activé dans les paramètres).
  */
-export default function TextTools({ gameId, info, textractorEnabled, onTextractorEnabledChange }: TextToolsProps) {
+export default function TextTools({ gameId, info, textractorEnabled, onTextractorEnabledChange, localeEmulator, onLocaleEmulatorChange, sandboxed }: TextToolsProps) {
   const [extractorEnabled, setExtractorEnabled] = useState(false);
   const [textractorFound, setTextractorFound] = useState<boolean | null>(null);
+  const [leReady, setLeReady] = useState<boolean | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<RpgMakerExtractResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     window.electronAPI.getSettings().then(s => setExtractorEnabled(Boolean(s.rpgMakerExtractor))).catch(() => undefined);
+    window.electronAPI
+      .checkLocaleEmulator()
+      .then(status => setLeReady(status.found))
+      .catch(() => setLeReady(false));
     window.electronAPI
       .checkTextractor()
       .then(found => setTextractorFound(found.x86 || found.x64))
@@ -58,6 +68,26 @@ export default function TextTools({ gameId, info, textractorEnabled, onTextracto
     <>
       <div>
         <div className={`${LABEL_CLASS} mb-1`}>Texte du jeu</div>
+        <label className="flex cursor-pointer items-center justify-between gap-3">
+          Lancer en japonais (Locale Emulator)
+          <input type="checkbox" className="toggle" checked={localeEmulator} onChange={e => onLocaleEmulatorChange(e.target.checked)} />
+        </label>
+        <p className="mt-1 text-text-secondary">
+          Pour un jeu aux textes illisibles, qui plante au démarrage ou ne trouve pas ses fichiers sur un Windows non
+          japonais. Le temps de jeu reste suivi.
+        </p>
+        {localeEmulator && leReady === false && (
+          <p className="mt-1 text-danger">Locale Emulator introuvable (Paramètres › Lancement) : le jeu ne pourra pas être lancé.</p>
+        )}
+        {localeEmulator && info?.engine.arch === 'x64' && (
+          <p className="mt-1 text-danger">Jeu 64 bits : Locale Emulator ne gère que les jeux 32 bits, le lancement sera refusé.</p>
+        )}
+        {localeEmulator && sandboxed && (
+          <p className="mt-1 text-danger">Ce jeu est lancé dans Sandboxie : pas encore combinable avec Locale Emulator.</p>
+        )}
+      </div>
+
+      <div>
         <label className="flex cursor-pointer items-center justify-between gap-3">
           Lancer avec Textractor
           <input type="checkbox" className="toggle" checked={textractorEnabled} onChange={e => onTextractorEnabledChange(e.target.checked)} />
