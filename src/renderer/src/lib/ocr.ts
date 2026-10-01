@@ -14,8 +14,9 @@ export const OCR_TARGET_LANGUAGES = [
 ];
 
 export const OCR_ENGINES = [
+  { value: 'dictionary', label: 'Dictionnaire (hors ligne)' },
   { value: 'none', label: 'Aucune (texte lu)' },
-  { value: 'local', label: 'Locale (serveur sur ce PC)' },
+  { value: 'local', label: 'Serveur LLM local (avancé)' },
   { value: 'deepl', label: 'DeepL (en ligne)' },
   { value: 'google', label: 'Google (en ligne)' }
 ];
@@ -33,4 +34,11 @@ export function ocrLanguageInstalled(installed: string[], wanted: string): boole
     if (l !== lang) return false;
     return lang !== 'zh' || !script || s === script;
   });
+}
+
+/** Sens affiché sous un mot : la première traduction de ses deux premiers sens (« lire », « aujourd'hui · ce jour »). */
+export function shortGloss(word: { senses: string[][]; kanji: { meanings: string[] }[] }): string {
+  if (word.senses.length > 0) return [...new Set(word.senses.slice(0, 2).map(s => s[0]).filter(Boolean))].join(' · ');
+  // Kanji isolé inconnu comme mot : son sens de kanji.
+  return word.kanji.map(k => k.meanings[0]).filter(Boolean).join(' · ');
 }

@@ -153,6 +153,39 @@ export interface OcrLine {
 /** Bloc de texte (lignes regroupées : une bulle, un menu). */
 export type OcrBlock = OcrLine;
 
+/** Kanji d'un mot, avec son sens (KANJIDIC). */
+export interface DictKanji {
+  char: string;
+  meanings: string[];
+  /** Sens en français (sinon en anglais). */
+  french: boolean;
+  on: string[];
+  kun: string[];
+}
+
+/** Mot du texte lu, avec son sens (dictionnaire hors ligne, voir src/main/dictionary.ts). */
+export interface DictToken {
+  /** Texte tel qu'à l'écran. */
+  text: string;
+  /** Forme du dictionnaire quand le mot est conjugué (食べました → 食べる). */
+  base: string | null;
+  /** Lecture en kana (null : le mot est déjà en kana, ou inconnu). */
+  reading: string | null;
+  /** Sens, chacun en quelques traductions ; vide = pas un mot du dictionnaire (ponctuation, inconnu). */
+  senses: string[][];
+  french: boolean;
+  kanji: DictKanji[];
+}
+
+/** Dictionnaire hors ligne : installé (version) ou non, et téléchargement en cours. */
+export interface DictionaryStatus {
+  installed: boolean;
+  version: string | null;
+  /** Étape en cours : téléchargement (octets reçus / total) ou préparation de l'index. */
+  progress: { step: 'download' | 'build'; received: number; total: number } | null;
+  error: string | null;
+}
+
 /** Traduction à l'écran (voir src/main/ocr.ts et translator.ts). */
 export interface OcrTranslateSettings {
   enabled: boolean;
@@ -161,8 +194,12 @@ export interface OcrTranslateSettings {
   source: string;
   /** Langue de traduction (code court : fr, en...). */
   target: string;
-  /** none : texte reconnu seul ; local : serveur compatible OpenAI sur ce PC ; deepl / google : service en ligne (clé). */
-  engine: 'none' | 'local' | 'deepl' | 'google';
+  /**
+   * none : texte reconnu seul ; dictionary : sens de chaque mot et kanji, hors
+   * ligne (JMdict / KANJIDIC) ; local : serveur LLM compatible OpenAI sur ce
+   * PC ; deepl / google : service en ligne (clé).
+   */
+  engine: 'none' | 'dictionary' | 'local' | 'deepl' | 'google';
   /** Adresse du serveur local (Ollama, LM Studio, llama.cpp...), ex: http://127.0.0.1:11434/v1. */
   localUrl: string;
   localModel: string;
@@ -174,7 +211,7 @@ export interface OcrView {
   /** Origine de la capture en DIP (coin de la zone client du jeu) et sa taille. */
   area: { x: number; y: number; width: number; height: number } | null;
   /** Blocs en DIP relatifs à `area`, avec leur traduction (null : pas encore, ou pas de traduction). */
-  blocks: (OcrBlock & { translation: string | null })[];
+  blocks: (OcrBlock & { translation: string | null; words?: DictToken[] })[];
   error: string | null;
   engine: OcrTranslateSettings['engine'];
 }
@@ -1058,6 +1095,13 @@ export interface ElectronAPI {
   getOcrLanguages(): Promise<string[]>;
   /** Overlay : lit et traduit la fenêtre du jeu (comme le raccourci). */
   ocrTranslateNow(): Promise<void>;
+  /** Dictionnaire hors ligne (moteur « dictionary ») : état, installation (≈14 Mo), suppression. */
+  getDictionaryStatus(): Promise<DictionaryStatus>;
+  installDictionary(): Promise<DictionaryStatus>;
+  removeDictionary(): Promise<DictionaryStatus>;
+  onDictionaryStatus(callback: (status: DictionaryStatus) => void): () => void;
+  /** Mots et sens d'un texte japonais (dictionnaire hors ligne). */
+  lookupJapanese(text: string): Promise<DictToken[]>;
   /** Clés enregistrées (jamais renvoyées en clair). */
   getTranslationKeys(): Promise<{ deepl: boolean; google: boolean }>;
   /** Enregistre (chiffrée) ou efface (null) la clé d'un service. */

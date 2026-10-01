@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Select from '../Select/Select';
+import DictionaryInstall from './DictionaryInstall';
 import { HOTKEY_OPTIONS } from '../../lib/autoClicker.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import { OCR_ENGINES, OCR_SOURCE_LANGUAGES, OCR_TARGET_LANGUAGES, ocrLanguageInstalled } from '../../lib/ocr.js';
@@ -119,16 +120,35 @@ export default function OcrSettings({ value, onChange, takenHotkeys, isDirty }: 
       <Row
         label="Traduction"
         description={
-          value.engine === 'none'
+          value.engine === 'dictionary'
+            ? 'Le sens de chaque mot et de chaque kanji (pas une phrase traduite), lecture en furigana ; fiche détaillée au survol d’un mot. Hors ligne : rien ne quitte ce PC. Japonais seulement ; sens en français quand JMdict en a, sinon en anglais.'
+            : value.engine === 'none'
             ? 'Texte reconnu seulement, sans traduction (rien ne quitte ce PC).'
             : value.engine === 'local'
-              ? 'Serveur local compatible OpenAI (Ollama, LM Studio, llama.cpp…) : le texte ne quitte pas ce PC.'
+              ? 'Serveur LLM local compatible OpenAI (Ollama, LM Studio, llama.cpp…) : phrases traduites, le texte ne quitte pas ce PC.'
               : `Le texte reconnu (jamais l'image) est envoyé à ${value.engine === 'deepl' ? 'DeepL' : 'Google'} à chaque lecture.`
         }
       >
         <Select value={value.engine} options={OCR_ENGINES} onChange={engine => set({ engine: engine as OcrTranslateSettings['engine'] })} aria-label="Moteur de traduction" className="w-[190px]" />
         <Select value={value.target} options={OCR_TARGET_LANGUAGES} onChange={target => set({ target })} aria-label="Langue de traduction" className="w-[130px]" />
       </Row>
+      {value.engine === 'dictionary' && (
+        <Row
+          label="Dictionnaire hors ligne"
+          description={
+            <>
+              Téléchargé une fois, puis utilisé sans connexion. Données{' '}
+              <button type="button" className="text-accent hover:underline" onClick={() => window.electronAPI.openExternal('https://www.edrdg.org/edrdg/licence.html')}>
+                JMdict et KANJIDIC de l'EDRDG
+              </button>{' '}
+              (CC BY-SA 4.0), via jmdict-simplified.
+              {!value.source.startsWith('ja') && <span className="mt-1 block text-danger">Le dictionnaire ne sert que pour le japonais.</span>}
+            </>
+          }
+        >
+          <DictionaryInstall />
+        </Row>
+      )}
       {value.engine === 'local' && (
         <Row label="Serveur local" description="Adresse de l'API compatible OpenAI (Ollama : http://127.0.0.1:11434/v1, LM Studio : http://127.0.0.1:1234/v1) et nom du modèle.">
           <input type="text" className="input w-[230px]" value={value.localUrl} onChange={e => set({ localUrl: e.target.value })} aria-label="Adresse du serveur local" spellCheck={false} />

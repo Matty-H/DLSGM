@@ -41,7 +41,8 @@ describe('OCR : texte et blocs', () => {
       engine: 'deepl',
       hotkey: 'F9'
     });
-    expect(sanitizeOcrSettings({ source: 'ja; rm -rf', target: 'français', engine: 'autre' as never })).toMatchObject({ source: 'ja', target: 'fr', engine: 'none' });
+    expect(sanitizeOcrSettings({ source: 'ja; rm -rf', target: 'français', engine: 'autre' as never })).toMatchObject({ source: 'ja', target: 'fr', engine: 'dictionary' });
+    expect(sanitizeOcrSettings({ engine: 'none' }).engine).toBe('none');
   });
 });
 

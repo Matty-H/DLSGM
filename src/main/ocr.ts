@@ -253,7 +253,7 @@ export const DEFAULT_OCR: OcrTranslateSettings = {
   hotkey: 'F10',
   source: 'ja',
   target: 'fr',
-  engine: 'none',
+  engine: 'dictionary',
   localUrl: 'http://127.0.0.1:11434/v1',
   localModel: ''
 };
@@ -267,7 +267,7 @@ export function sanitizeOcrSettings(value: Partial<OcrTranslateSettings> | undef
     hotkey: text(v.hotkey, DEFAULT_OCR.hotkey, 40),
     source: /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(String(v.source)) ? String(v.source) : DEFAULT_OCR.source,
     target: /^[a-z]{2}$/.test(String(v.target)) ? String(v.target) : DEFAULT_OCR.target,
-    engine: v.engine === 'local' || v.engine === 'deepl' || v.engine === 'google' ? v.engine : 'none',
+    engine: v.engine === 'none' || v.engine === 'local' || v.engine === 'deepl' || v.engine === 'google' ? v.engine : 'dictionary',
     localUrl: text(v.localUrl, DEFAULT_OCR.localUrl),
     localModel: typeof v.localModel === 'string' ? v.localModel.trim().slice(0, 200) : ''
   };
