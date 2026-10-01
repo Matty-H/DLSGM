@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadSettings, saveSettings as persistSettings } from '../lib/settings.js';
-import type { AutoClickerSettings, GameCollection, HomeShelfPrefs, PixelTriggerSettings } from '../../../shared/ipc-types';
+import type { AutoClickerSettings, GameCollection, HomeShelfPrefs, MacroRecorderSettings, PixelTriggerSettings } from '../../../shared/ipc-types';
 
 export interface AppSettings {
   destinationFolder: string;
@@ -23,6 +23,7 @@ export interface AppSettings {
   workspaceFolder: string;
   piaRetry: boolean;
   piaRegion: string;
+  macroRecorder: MacroRecorderSettings;
   selectedSort: string;
 
 

@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS: Settings = {
   workspaceFolder: '',
   piaRetry: false,
   piaRegion: 'jp-tokyo',
+  macroRecorder: { enabled: false, recordHotkey: 'F8', playHotkey: 'F9' },
   selectedSort: 'name_asc'
 
 

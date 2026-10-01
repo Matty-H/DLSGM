@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Clock, MousePointerClick, ScanEye, X } from 'lucide-react';
+import { Clapperboard, Clock, MousePointerClick, ScanEye, X } from 'lucide-react';
 import { formatClock } from '../../lib/autoClicker.js';
 import { formatLastPlayed, formatPlayTime } from '../../lib/timeFormatter.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import OverlayPixelTriggers from './OverlayPixelTriggers';
+import OverlayMacros from './OverlayMacros';
 import type { OverlayState } from '../../../../shared/ipc-types';
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -44,10 +45,16 @@ export default function OverlayApp() {
       refresh();
     });
     const offTrigger = window.electronAPI.onPixelTriggerStatus(trigger => setState(prev => (prev ? { ...prev, trigger } : prev)));
+    const offMacro = window.electronAPI.onMacroStatus(macro => {
+      setState(prev => (prev ? { ...prev, macro } : prev));
+      // Fin d'un enregistrement : la nouvelle macro arrive par l'état complet.
+      if (!macro.recording) refresh();
+    });
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       offState();
       offTrigger();
+      offMacro();
       offShown();
       clearInterval(timer);
     };
@@ -69,6 +76,16 @@ export default function OverlayApp() {
     setError(null);
     try {
       await window.electronAPI.setGamePixelTrigger(gameId, enabled);
+      refresh();
+    } catch (err) {
+      setError(ipcErrorMessage(err));
+    }
+  };
+
+  const setGameMacro = async (gameId: string, enabled: boolean) => {
+    setError(null);
+    try {
+      await window.electronAPI.setGameMacroEnabled(gameId, enabled);
       refresh();
     } catch (err) {
       setError(ipcErrorMessage(err));
@@ -187,6 +204,39 @@ export default function OverlayApp() {
                       settings={state.triggerSettings}
                       onSaved={refresh}
                     />
+                  )}
+                </div>
+              )}
+
+              {state.macro.available && (
+                <div className="flex flex-col gap-2.5 border-t border-divider pt-3">
+                  <label className={`flex items-start gap-2.5 text-[13px] ${state.macroSettings.enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 flex-shrink-0 accent-accent"
+                      checked={game.macroEnabled}
+                      disabled={!state.macroSettings.enabled}
+                      onChange={e => setGameMacro(game.id, e.target.checked)}
+                    />
+                    <span>
+                      <span className="flex items-center gap-1.5 font-semibold">
+                        <Clapperboard size={14} strokeWidth={2.25} />
+                        Ajouter l'enregistreur de macros à ce jeu
+                      </span>
+                      <span className="mt-0.5 block text-[12px] leading-relaxed text-text-muted">
+                        {state.macroSettings.enabled ? (
+                          <>
+                            Enregistre tes clics et touches dans le jeu puis les rejoue : <span className="kbd">{state.macroSettings.recordHotkey}</span>{' '}
+                            enregistre, <span className="kbd">{state.macroSettings.playHotkey}</span> rejoue la macro choisie ci-dessous.
+                          </>
+                        ) : (
+                          "Active d'abord l'enregistreur de macros dans Paramètres › Outils en jeu."
+                        )}
+                      </span>
+                    </span>
+                  </label>
+                  {game.macroEnabled && state.macroSettings.enabled && (
+                    <OverlayMacros gameId={game.id} data={state.gameMacros[game.id]} status={state.macro} settings={state.macroSettings} onChanged={refresh} />
                   )}
                 </div>
               )}

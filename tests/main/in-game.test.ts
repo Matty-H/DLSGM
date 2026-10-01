@@ -75,7 +75,8 @@ describe('overlay en jeu', () => {
     sessionCount: 0,
     lastPlayed: null,
     autoClickerEnabled: true,
-    pixelTriggerEnabled: false
+    pixelTriggerEnabled: false,
+    macroEnabled: false
   });
   let enabled: boolean;
   let overlay: GameOverlay;
@@ -169,7 +170,7 @@ describe("fenêtre du jeu (position de l'overlay)", () => {
 describe("overlay sur la fenêtre du jeu", () => {
   const game: OverlayGame = {
     id: 'RJ01234567', name: 'RJ01234567', startedAt: new Date().toISOString(), previousPlayTime: 0,
-    sessionCount: 0, lastPlayed: null, autoClickerEnabled: false, pixelTriggerEnabled: false
+    sessionCount: 0, lastPlayed: null, autoClickerEnabled: false, pixelTriggerEnabled: false, macroEnabled: false
   };
   const lastBounds = async () => ((await import('electron')).BrowserWindow as unknown as { lastBounds: unknown }).lastBounds;
 
