@@ -87,6 +87,8 @@ export class ClickerHud {
       }
     });
     window.setAlwaysOnTop(true, 'screen-saver');
+    // Exclu des captures : ni sur les captures d'écran, ni lu par l'OCR.
+    window.setContentProtection(true);
     window.webContents.on('will-navigate', event => event.preventDefault());
     window.on('closed', () => {
       if (this.window === window) this.window = null;

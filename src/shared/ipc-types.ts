@@ -78,6 +78,21 @@ export interface AppSettings {
   ocrTranslate: OcrTranslateSettings;
   /** Dossier de Locale Emulator (LEProc.exe), pour « Lancer en japonais ». */
   localeEmulatorPath: string;
+  /** Captures d'écran du jeu (raccourci pendant une partie, overlay). */
+  screenshot: ScreenshotSettings;
+}
+
+export interface ScreenshotSettings {
+  enabled: boolean;
+  hotkey: string;
+}
+
+/** Capture d'un jeu (`<travaux>/<ID>/captures/<file>`), servie par `atom://capture/<ID>/<file>`. */
+export interface CaptureInfo {
+  file: string;
+  size: number;
+  /** Date ISO. */
+  date: string;
 }
 
 /** Fil de texte capté par Textractor (un hook dans un processus du jeu). */
@@ -421,6 +436,8 @@ export interface OverlayState {
   textractor: Record<string, TextractorView>;
   /** Traduction à l'écran activée, et son raccourci (bouton de l'overlay). */
   ocr: { enabled: boolean; hotkey: string };
+  /** Captures activées, et leur raccourci. */
+  screenshot: ScreenshotSettings;
 }
 
 /** Taille des jaquettes d'une étagère de l'accueil. */
@@ -1020,6 +1037,14 @@ export interface ElectronAPI {
   /** Déchiffre images et sons d'un jeu RPG Maker MV/MZ dans son dossier de travaux. */
   extractRpgMakerAssets(gameId: string): Promise<RpgMakerExtractResult>;
   onRpgMakerExtractProgress(callback: (progress: { gameId: string; done: number; total: number }) => void): () => void;
+  // Captures d'écran (src/main/screenshots.ts)
+  /** Overlay : capture la fenêtre du jeu en cours (le plus récent) ; null si aucun jeu. */
+  takeScreenshot(): Promise<CaptureInfo | null>;
+  listCaptures(gameId: string): Promise<CaptureInfo[]>;
+  /** Met une capture à la corbeille. */
+  deleteCapture(gameId: string, file: string): Promise<CaptureInfo[]>;
+  openCapturesFolder(gameId: string): Promise<void>;
+  onCapturesChanged(callback: (gameId: string) => void): () => void;
   /** Tailles connues des jeux donnés, et mesure en tâche de fond de celles qui manquent (`force` : toutes). */
   getDiskUsage(gameIds: string[], force?: boolean): Promise<DiskUsageReport>;
   onDiskUsageChanged(callback: (gameId: string, usage: GameDiskUsage, pending: number) => void): () => void;

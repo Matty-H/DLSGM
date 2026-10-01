@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Clapperboard, Clock, Languages, MousePointerClick, ScanEye, X } from 'lucide-react';
+import { Camera, Clapperboard, Clock, Languages, MousePointerClick, ScanEye, X } from 'lucide-react';
 import { formatClock } from '../../lib/autoClicker.js';
 import { formatLastPlayed, formatPlayTime } from '../../lib/timeFormatter.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import OverlayPixelTriggers from './OverlayPixelTriggers';
 import OverlayMacros from './OverlayMacros';
 import OverlayTextractor from './OverlayTextractor';
+import CaptureGallery from '../CaptureGallery/CaptureGallery';
 import type { OverlayState } from '../../../../shared/ipc-types';
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -210,6 +211,23 @@ export default function OverlayApp() {
                       onSaved={refresh}
                     />
                   )}
+                </div>
+              )}
+
+              {state.screenshot.enabled && (
+                <div className="flex flex-col gap-2 border-t border-divider pt-3">
+                  <div className="flex items-center gap-2 text-[13px] font-semibold">
+                    <Camera size={14} strokeWidth={2.25} />
+                    <span className="flex-1">Captures</span>
+                    <button
+                      type="button"
+                      className="btn py-1 text-[12px]"
+                      onClick={() => window.electronAPI.takeScreenshot().catch(err => setError(ipcErrorMessage(err)))}
+                    >
+                      Capturer <span className="kbd">{state.screenshot.hotkey}</span>
+                    </button>
+                  </div>
+                  <CaptureGallery gameId={game.id} limit={6} inOverlay />
                 </div>
               )}
 

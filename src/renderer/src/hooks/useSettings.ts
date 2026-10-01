@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadSettings, saveSettings as persistSettings } from '../lib/settings.js';
-import type { AutoClickerSettings, GameCollection, HomeShelfPrefs, MacroRecorderSettings, OcrTranslateSettings, PixelTriggerSettings } from '../../../shared/ipc-types';
+import type { AutoClickerSettings, GameCollection, HomeShelfPrefs, MacroRecorderSettings, OcrTranslateSettings, PixelTriggerSettings, ScreenshotSettings } from '../../../shared/ipc-types';
 
 export interface AppSettings {
   destinationFolder: string;
@@ -29,6 +29,7 @@ export interface AppSettings {
   rpgMakerExtractor: boolean;
   ocrTranslate: OcrTranslateSettings;
   localeEmulatorPath: string;
+  screenshot: ScreenshotSettings;
   selectedSort: string;
 
 

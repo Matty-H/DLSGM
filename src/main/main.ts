@@ -2,7 +2,7 @@ import { app, BrowserWindow, globalShortcut, Menu, net, protocol, screen } from 
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
-import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic } from './ipc-handlers';
+import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic, captureFilePath } from './ipc-handlers';
 import { initAutoUpdater } from './updater';
 import { applyDlsiteProxy } from './dlsite-net';
 import { hideInsteadOfClose, setTrayEnabled } from './tray';
@@ -116,7 +116,13 @@ app.whenReady().then(async () => {
   // (../, chemin absolu) est refusé, au lieu d'exposer tout le disque.
   protocol.handle('atom', (request) => {
     const imgCacheDir = getImgCacheDir();
-    const { pathname } = new URL(request.url);
+    const { host, pathname } = new URL(request.url);
+    // atom://capture/<ID>/<fichier> : captures du dossier de travaux, nom et ID validés.
+    if (host === 'capture') {
+      const [gameId = '', file = ''] = decodeURIComponent(pathname).split('/').filter(Boolean);
+      const capture = captureFilePath(gameId, file);
+      return capture ? net.fetch(pathToFileURL(capture).toString()) : new Response(null, { status: 404 });
+    }
     const filePath = path.join(imgCacheDir, decodeURIComponent(pathname));
 
     if (!isInside(imgCacheDir, filePath) || !fs.existsSync(filePath)) {
