@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, screen, type Rectangle } from 'electron';
 import type { PixelTrigger, TriggerZonesView } from '../shared/ipc-types';
 
 /**
@@ -11,14 +11,19 @@ import type { PixelTrigger, TriggerZonesView } from '../shared/ipc-types';
  * fenêtre est exclue des captures (`setContentProtection`). Elle ne prend
  * jamais le focus ni les clics (`setIgnoreMouseEvents`) : les clics
  * envoyés au centre des zones arrivent au jeu.
+ *
+ * Elle couvre la fenêtre du jeu (et la suit) ; à défaut, l'écran des zones.
+ * Une zone hors de la fenêtre du jeu n'est donc pas dessinée.
  */
 
 export interface TriggerZonesOptions {
   preloadPath: string;
   loadPage: (window: BrowserWindow) => void;
+  /** Zone client de la fenêtre du jeu en DIP (null : inconnue). */
+  area?: () => Rectangle | null;
 }
 
-/** Écran qui contient le centre du rectangle englobant les zones, et zones à afficher. */
+/** Origine de la fenêtre des contours (jeu, ou écran des zones) et zones à afficher. */
 export function zonesView(triggers: PixelTrigger[], display: { bounds: { x: number; y: number } }): TriggerZonesView {
   return {
     origin: { x: display.bounds.x, y: display.bounds.y },
@@ -29,6 +34,7 @@ export function zonesView(triggers: PixelTrigger[], display: { bounds: { x: numb
 export class TriggerZonesWindow {
   private window: BrowserWindow | null = null;
   private view: TriggerZonesView | null = null;
+  private triggers: PixelTrigger[] = [];
 
   constructor(private readonly options: TriggerZonesOptions) {}
 
@@ -76,20 +82,31 @@ export class TriggerZonesWindow {
   /** Zones à afficher ; vide = fenêtre cachée. */
   show(triggers: PixelTrigger[]): void {
     const aimed = triggers.filter(t => t.zone);
+    this.triggers = aimed;
     if (aimed.length === 0) {
       this.hide();
       return;
     }
-    const xs = aimed.flatMap(t => [t.zone!.x, t.zone!.x + t.zone!.width]);
-    const ys = aimed.flatMap(t => [t.zone!.y, t.zone!.y + t.zone!.height]);
-    const center = { x: Math.round((Math.min(...xs) + Math.max(...xs)) / 2), y: Math.round((Math.min(...ys) + Math.max(...ys)) / 2) };
-    const display = screen.getDisplayNearestPoint(center);
-    this.view = zonesView(aimed, display);
+    const bounds = this.options.area?.() ?? this.displayBounds(aimed);
+    this.view = zonesView(aimed, { bounds });
     const window = this.window && !this.window.isDestroyed() ? this.window : (this.window = this.create());
-    window.setBounds(display.bounds);
+    window.setBounds(bounds);
     window.webContents.send('trigger-zones', this.view);
     if (window.webContents.isLoading()) window.webContents.once('did-finish-load', () => window.showInactive());
     else if (!window.isVisible()) window.showInactive();
+  }
+
+  /** Écran qui contient le centre du rectangle englobant les zones. */
+  private displayBounds(aimed: PixelTrigger[]): Rectangle {
+    const xs = aimed.flatMap(t => [t.zone!.x, t.zone!.x + t.zone!.width]);
+    const ys = aimed.flatMap(t => [t.zone!.y, t.zone!.y + t.zone!.height]);
+    const center = { x: Math.round((Math.min(...xs) + Math.max(...xs)) / 2), y: Math.round((Math.min(...ys) + Math.max(...ys)) / 2) };
+    return screen.getDisplayNearestPoint(center).bounds;
+  }
+
+  /** La fenêtre du jeu a bougé : les contours affichés la suivent. */
+  followGame(): void {
+    if (this.window && !this.window.isDestroyed() && this.window.isVisible()) this.show(this.triggers);
   }
 
   hide(): void {

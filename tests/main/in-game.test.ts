@@ -122,6 +122,18 @@ describe('témoin de l’auto-clicker', () => {
     expect(expanded.y + expanded.height).toBe(collapsed.y + collapsed.height);
     expect(expanded.width).toBe(HUD_EXPANDED.width);
   });
+
+  it('posé dans la fenêtre du jeu sans en déborder, même petite (écran secondaire, coordonnées négatives)', () => {
+    const game = { x: -1600, y: 200, width: 640, height: 480 };
+    const inside = (b: { x: number; y: number; width: number; height: number }) =>
+      b.x >= game.x && b.y >= game.y && b.x + b.width <= game.x + game.width && b.y + b.height <= game.y + game.height;
+    expect(hudBounds(game, false)).toEqual({ x: -1588, y: 200 + 480 - HUD_COLLAPSED.height - 12, ...HUD_COLLAPSED });
+    expect(inside(hudBounds(game, true))).toBe(true);
+    // Le témoin du détecteur, décalé à droite, est ramené dans la fenêtre.
+    expect(inside(hudBounds(game, false, TRIGGER_HUD_OFFSET_X))).toBe(true);
+    // Plus haut que la fenêtre : calé sur son bord haut plutôt qu'au-dessus.
+    expect(hudBounds(game, true, TRIGGER_HUD_OFFSET_X, TRIGGER_HUD_EXPANDED).y).toBe(game.y);
+  });
 });
 
 describe('détecteur de rythme : témoin et zones', () => {

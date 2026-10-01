@@ -20,7 +20,7 @@ export default function AutoClickerHelp({ hotkey }: AutoClickerHelpProps) {
       </li>
       <li>
         En jeu, place la souris où cliquer et appuie sur {key} pour démarrer ; {key} à nouveau pour arrêter. Le témoin en
-        bas à gauche de l'écran montre l'état (vert en marche, orange en pause, rouge à l'arrêt) ; à l'arrêt, un clic dessus
+        bas à gauche de la fenêtre du jeu montre l'état (vert en marche, orange en pause, rouge à l'arrêt) ; à l'arrêt, un clic dessus
         règle l'intervalle et le raccourci.
       </li>
       <li>
