@@ -6,6 +6,8 @@ import CustomTagsEditor from '../CustomTagsEditor/CustomTagsEditor';
 import CollectionsEditor from '../CollectionsEditor/CollectionsEditor';
 import GameToolsSection from '../GameToolsSection/GameToolsSection';
 import WorkspaceSection from '../WorkspaceSection/WorkspaceSection';
+import { useDiskUsage } from '../../hooks/useDiskUsage';
+import { formatBytes } from '../../lib/diskUsage.js';
 import { categoryMap } from '../../lib/metadataManager.js';
 import { formatLastPlayed, formatPlayTime, formatSessionDuration } from '../../lib/timeFormatter.js';
 import type { GenreNames } from '../../lib/genreNames.js';
@@ -90,6 +92,9 @@ export default function GameInfoDetails({
   collections,
   onCreateCollection
 }: GameInfoDetailsProps) {
+  // Taille du dossier : en cache, sinon mesurée en tâche de fond.
+  const { report: diskReport } = useDiskUsage([gameId]);
+  const diskBytes = diskReport?.games[gameId]?.bytes;
   const sampleImages: any[] = gameData.sample_images || [];
   const rawGenres: string[] = Array.isArray(gameData.genre) ? gameData.genre : [];
   const genres: string[] = Array.from(new Set(rawGenres.map(genreNames.canonical)));
@@ -187,6 +192,7 @@ export default function GameInfoDetails({
         <PlayBarStat label="Temps de jeu">{formatPlayTime(gameData.totalPlayTime || 0) || '—'}</PlayBarStat>
         <PlayBarStat label="Dernière session">{formatLastPlayed(gameData.lastPlayed) || 'Jamais'}</PlayBarStat>
         <PlayBarStat label="Sortie">{formatDate(gameData.release_date)}</PlayBarStat>
+        <PlayBarStat label="Sur le disque">{diskBytes !== undefined ? formatBytes(diskBytes) : '…'}</PlayBarStat>
         <PlayBarStat label="Ma note">
           <RatingStars value={gameData.rating || 0} onChange={val => onUpdateGame(gameId, { rating: val })} size={17} />
         </PlayBarStat>

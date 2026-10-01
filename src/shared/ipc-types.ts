@@ -100,6 +100,32 @@ export interface TextractorView {
   selectedHook: string | null;
 }
 
+/** Taille d'un dossier de jeu (voir src/main/disk-usage.ts), mise en cache. */
+export interface GameDiskUsage {
+  bytes: number;
+  files: number;
+  computedAt: number;
+  /** Date de modification du dossier au moment du calcul (changée = à recalculer). */
+  folderMtimeMs: number;
+}
+
+export interface DiskInfo {
+  /** Racine du disque (`D:\`). */
+  root: string;
+  totalBytes: number | null;
+  freeBytes: number | null;
+}
+
+export interface DiskUsageReport {
+  /** Tailles connues des jeux demandés (les autres arrivent par `onDiskUsageChanged`). */
+  games: Record<string, GameDiskUsage>;
+  /** Disque de chaque jeu (racine). */
+  gameDisks: Record<string, string>;
+  disks: DiskInfo[];
+  /** Jeux encore à mesurer. */
+  pending: number;
+}
+
 /** Ligne reconnue par l'OCR, en pixels relatifs à la capture (voir src/main/ocr.ts). */
 export interface OcrLine {
   text: string;
@@ -994,6 +1020,9 @@ export interface ElectronAPI {
   /** Déchiffre images et sons d'un jeu RPG Maker MV/MZ dans son dossier de travaux. */
   extractRpgMakerAssets(gameId: string): Promise<RpgMakerExtractResult>;
   onRpgMakerExtractProgress(callback: (progress: { gameId: string; done: number; total: number }) => void): () => void;
+  /** Tailles connues des jeux donnés, et mesure en tâche de fond de celles qui manquent (`force` : toutes). */
+  getDiskUsage(gameIds: string[], force?: boolean): Promise<DiskUsageReport>;
+  onDiskUsageChanged(callback: (gameId: string, usage: GameDiskUsage, pending: number) => void): () => void;
   /** Locale Emulator dans ce dossier (ou celui des paramètres) : LEProc présent, et installé (LECommonLibrary.dll). */
   checkLocaleEmulator(dir?: string): Promise<{ found: boolean; installed: boolean }>;
   // Traduction à l'écran (src/main/ocr.ts, translator.ts, ocr-view.ts)

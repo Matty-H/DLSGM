@@ -5,6 +5,7 @@ import { formatSessionDuration } from '../../lib/timeFormatter.js';
 import PlayTimeChart from './PlayTimeChart';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 import type { GenreNames } from '../../lib/genreNames.js';
+import { collectionBytes, formatBytes, summarizeDisks, type DiskUsageReport } from '../../lib/diskUsage.js';
 
 export interface StatsScreenProps {
   cache: GameCache;
@@ -12,6 +13,9 @@ export interface StatsScreenProps {
   genreNames: GenreNames;
   /** Ouvre la page du jeu dans la bibliothèque. */
   onOpenGame: (gameId: string) => void;
+  /** Tailles sur le disque (null : pas encore reçues). */
+  diskUsage: DiskUsageReport | null;
+  onRecomputeSizes: () => void;
 }
 
 function StatTile({ kicker, value }: { kicker: string; value: string }) {
@@ -61,7 +65,7 @@ function BarRow({ label, count, width, labelWidthClass }: { label: string; count
   );
 }
 
-export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpenGame }: StatsScreenProps) {
+export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpenGame, diskUsage, onRecomputeSizes }: StatsScreenProps) {
   const stats = useMemo(() => computeLibraryStats(cache, genreNames), [cache, genreNames]);
   const totalHours = Math.round(stats.totalPlayTimeSeconds / 3600);
   const weeks = useMemo(() => computeWeeklyPlayTime(cache), [cache]);
@@ -71,14 +75,18 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
     entry ? Object.keys(cache).find(id => cache[id] === entry) ?? null : null;
   const topGameId = gameIdFor(stats.topGame);
   const lastAddedId = gameIdFor(stats.lastAdded);
+  const disks = useMemo(() => (diskUsage ? summarizeDisks(diskUsage) : []), [diskUsage]);
+  const measured = diskUsage ? Object.keys(diskUsage.games).length : 0;
+  const nameOf = (gameId: string) => cache[gameId]?.work_name || gameId;
 
   return (
     <div data-scroll-root className="animate-steam-in min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4">
       <h1 className="mb-5">Ma collection</h1>
 
-      <div className="mb-5 grid grid-cols-4 items-stretch gap-4">
+      <div className="mb-5 grid grid-cols-5 items-stretch gap-4">
         <StatTile kicker="Œuvres" value={String(stats.totalGames)} />
         <StatTile kicker="Temps de jeu cumulé" value={`${totalHours} h`} />
+        <StatTile kicker="Taille de la collection" value={diskUsage && measured > 0 ? formatBytes(collectionBytes(diskUsage)) : '…'} />
         {stats.topGame && topGameId ? (
           <StatCoverTile kicker="La plus jouée" title={stats.topGame.work_name} imageSrc={getWorkImageSrc(topGameId)} onClick={() => onOpenGame(topGameId)} />
         ) : (
@@ -122,6 +130,57 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
             ))
           )}
         </div>
+      </div>
+
+      <div className="panel mb-4 p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="section-title flex-1">Place sur le disque</div>
+          {diskUsage && diskUsage.pending > 0 && (
+            <span className="text-[12px] text-text-muted">
+              Calcul en cours… ({measured}/{measured + diskUsage.pending})
+            </span>
+          )}
+          <button type="button" onClick={onRecomputeSizes} className="btn btn-ghost py-1 text-[12px]" title="Remesurer tous les jeux">
+            Recalculer
+          </button>
+        </div>
+        {disks.length === 0 ? (
+          <p className="text-sm text-text-muted">{diskUsage ? 'Mesure des dossiers en cours…' : 'Chargement…'}</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-6">
+            {disks.map(disk => {
+              const used = disk.totalBytes !== null && disk.freeBytes !== null ? disk.totalBytes - disk.freeBytes : null;
+              return (
+                <div key={disk.root}>
+                  <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]">
+                    <span className="font-bold">Disque {disk.root.replace(/[\\/]$/, '')}</span>
+                    <span className="text-text-secondary">
+                      Jeux : <span className="font-semibold text-text">{formatBytes(disk.gamesBytes)}</span> ({disk.games})
+                      {disk.freeBytes !== null && <> · libre : {formatBytes(disk.freeBytes)}</>}
+                    </span>
+                  </div>
+                  {disk.totalBytes !== null && used !== null && (
+                    <div className="relative mb-3 h-2 overflow-hidden rounded-full bg-bg-deep" title={`${formatBytes(used)} utilisés sur ${formatBytes(disk.totalBytes)}`}>
+                      <div className="absolute inset-y-0 left-0 bg-white/20" style={{ width: `${(used / disk.totalBytes) * 100}%` }} />
+                      <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent to-accent-hover" style={{ width: `${(disk.gamesBytes / disk.totalBytes) * 100}%` }} />
+                    </div>
+                  )}
+                  {disk.biggest.map(game => (
+                    <button
+                      key={game.gameId}
+                      type="button"
+                      onClick={() => onOpenGame(game.gameId)}
+                      className="flex w-full items-baseline gap-3 border-b border-divider py-1.5 text-left text-[13px] last:border-0 hover:text-accent"
+                    >
+                      <span className="min-w-0 flex-1 truncate">{nameOf(game.gameId)}</span>
+                      <span className="flex-shrink-0 font-semibold tabular-nums">{formatBytes(game.bytes)}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-[1.4fr_1fr] items-start gap-4">

@@ -19,6 +19,7 @@ import { readInstallInfo } from './release-names';
 import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
 import { findLeProc, leInstalled, runWithLocaleEmulator } from './locale-emulator';
+import { DiskUsageScanner, diskInfo } from './disk-usage';
 import { DEFAULT_OCR, OcrReader, groupOcrLines, sanitizeOcrSettings } from './ocr';
 import { OcrViewWindow } from './ocr-view';
 import { translateTexts } from './translator';
@@ -35,7 +36,7 @@ import { ClickerHud, MACRO_HUD_OFFSET_X, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSE
 import { DEFAULT_MACRO_RECORDER, MAX_MACROS_PER_GAME, MacroRecorder, acceleratorVks, sanitizeMacroSettings, sanitizeMacros } from './macro-recorder';
 import { TriggerZonesWindow } from './trigger-zones';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -1180,6 +1181,32 @@ export function setupIpcHandlers(
     textractorSessions.get(gameId)?.setSelectedHook(hookcode);
     getWindow()?.webContents.send('cache-entry-changed', gameId, { textractorHook: hookcode ?? '' });
   });
+  // --- Taille des jeux sur le disque (calcul en tâche de fond, mis en cache) ---
+  const diskUsageStore = new Store('disk-usage.db', {});
+  const diskScanner = new DiskUsageScanner(
+    {
+      get: async gameId => (await diskUsageStore.get(gameId)) as GameDiskUsage | undefined,
+      set: (gameId, usage) => diskUsageStore.set(gameId, usage)
+    },
+    (gameId, usage, pending) => getWindow()?.webContents.send('disk-usage-changed', gameId, usage, pending)
+  );
+  ipcMain.handle('get-disk-usage', async (event: IpcMainInvokeEvent, gameIds: string[], force: boolean): Promise<DiskUsageReport> => {
+    const ids = (Array.isArray(gameIds) ? gameIds : []).filter(id => typeof id === 'string' && GAME_ID_REGEX.test(id));
+    const games = await Promise.all(ids.map(async gameId => ({ gameId, dir: await getGameDir(gameId) })));
+    await diskScanner.refresh(games, Boolean(force));
+    const known: Record<string, GameDiskUsage> = {};
+    for (const { gameId } of games) {
+      const usage = (await diskUsageStore.get(gameId)) as GameDiskUsage | undefined;
+      if (usage) known[gameId] = usage;
+    }
+    return {
+      games: known,
+      gameDisks: Object.fromEntries(games.map(g => [g.gameId, path.parse(path.resolve(g.dir)).root])),
+      disks: await diskInfo(games.map(g => g.dir)),
+      pending: diskScanner.pending()
+    };
+  });
+
   ipcMain.handle('check-locale-emulator', async (event: IpcMainInvokeEvent, dir?: string) => {
     const target = typeof dir === 'string' ? dir : (await getSettings()).localeEmulatorPath ?? '';
     return { found: findLeProc(target) !== null, installed: leInstalled(target) };

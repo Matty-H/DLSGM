@@ -90,7 +90,8 @@ export function matchesFilters(game: GameCacheEntry, filters: GameFilters): bool
 /**
  * Compare deux jeux selon le critère de tri sélectionné.
  */
-export function compareGames(a: GameListItem, b: GameListItem, selectedSort: string): number {
+/** `sizes` : taille sur le disque par ID (tri `size_desc` ; un jeu pas encore mesuré va à la fin). */
+export function compareGames(a: GameListItem, b: GameListItem, selectedSort: string, sizes: Record<string, number> = {}): number {
   const nameA = (a.data.work_name || a.id).toLowerCase();
   const nameB = (b.data.work_name || b.id).toLowerCase();
 
@@ -109,6 +110,8 @@ export function compareGames(a: GameListItem, b: GameListItem, selectedSort: str
       const adB = b.data.addedDate ? new Date(b.data.addedDate) : new Date(0);
       return adB.getTime() - adA.getTime();
     }
+    case 'size_desc':
+      return (sizes[b.id] ?? -1) - (sizes[a.id] ?? -1) || nameA.localeCompare(nameB);
     case 'playtime_desc': {
       const ptA = (a.data.totalPlayTime as number) || 0;
       const ptB = (b.data.totalPlayTime as number) || 0;
