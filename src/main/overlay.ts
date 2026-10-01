@@ -142,6 +142,10 @@ export class GameOverlay {
     if (this.window && !this.window.isDestroyed() && this.window.isVisible()) this.window.setBounds(this.bounds());
   }
 
+  isVisible(): boolean {
+    return Boolean(this.window && !this.window.isDestroyed() && this.window.isVisible());
+  }
+
   hide(): void {
     if (globalShortcut.isRegistered(CLOSE_HOTKEY)) globalShortcut.unregister(CLOSE_HOTKEY);
     if (this.window && !this.window.isDestroyed() && this.window.isVisible()) this.window.hide();

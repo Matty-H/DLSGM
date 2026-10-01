@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Clapperboard, Clock, MousePointerClick, ScanEye, X } from 'lucide-react';
+import { Clapperboard, Clock, Languages, MousePointerClick, ScanEye, X } from 'lucide-react';
 import { formatClock } from '../../lib/autoClicker.js';
 import { formatLastPlayed, formatPlayTime } from '../../lib/timeFormatter.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
@@ -250,6 +250,17 @@ export default function OverlayApp() {
             </section>
           );
         })}
+
+        {state?.ocr.enabled && state.games.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-primary self-start"
+            onClick={() => window.electronAPI.ocrTranslateNow().catch(err => setError(ipcErrorMessage(err)))}
+          >
+            <Languages size={16} strokeWidth={2.25} />
+            Traduire l'écran du jeu <span className="kbd">{state.ocr.hotkey}</span>
+          </button>
+        )}
 
         {error && <p className="m-0 text-[13px] text-danger">{error}</p>}
       </div>

@@ -6,6 +6,7 @@ import ClickerHudApp from './components/ClickerHud/ClickerHudApp';
 import TriggerHudApp from './components/ClickerHud/TriggerHudApp';
 import TriggerZonesApp from './components/ClickerHud/TriggerZonesApp';
 import MacroHudApp from './components/ClickerHud/MacroHudApp';
+import OcrViewApp from './components/OcrView/OcrViewApp';
 import './index.css';
 
 const container = document.getElementById('root');
@@ -17,7 +18,7 @@ if (!container) {
 // #overlay, src/main/overlay.ts) et le témoin de l'auto-clicker (route
 // #clicker-hud, src/main/clicker-hud.ts) celui du détecteur de rythme (#trigger-hud) et ses zones (#trigger-zones).
 const route = window.location.hash;
-const Root = route === '#overlay' ? OverlayApp : route === '#clicker-hud' ? ClickerHudApp : route === '#trigger-hud' ? TriggerHudApp : route === '#trigger-zones' ? TriggerZonesApp : route === '#macro-hud' ? MacroHudApp : App;
+const Root = route === '#overlay' ? OverlayApp : route === '#clicker-hud' ? ClickerHudApp : route === '#trigger-hud' ? TriggerHudApp : route === '#trigger-zones' ? TriggerZonesApp : route === '#macro-hud' ? MacroHudApp : route === '#ocr-view' ? OcrViewApp : App;
 
 createRoot(container).render(
   <StrictMode>

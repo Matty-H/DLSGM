@@ -19,6 +19,8 @@ import ProxyForm from '../ProxyForm/ProxyForm';
 import AutoClickerSettings from '../AutoClickerSettings/AutoClickerSettings';
 import PixelTriggerSettings from '../PixelTriggerSettings/PixelTriggerSettings';
 import MacroSettings from '../MacroSettings/MacroSettings';
+import OcrSettings from '../OcrSettings/OcrSettings';
+import type { OcrTranslateSettings } from '../../../../shared/ipc-types';
 import type { MacroRecorderSettings } from '../../lib/macros.js';
 import type { PixelTriggerSettings as TriggerSettings } from '../../lib/pixelTrigger.js';
 import type { AutoClickerSettings as ClickerSettings } from '../../lib/autoClicker.js';
@@ -209,6 +211,7 @@ export default function SettingsScreen({
   const [textractorPath, setTextractorPath] = useState(settings.textractorPath ?? '');
   const [textractorOutput, setTextractorOutput] = useState(settings.textractorOutput ?? 'both');
   const [rpgMakerExtractor, setRpgMakerExtractor] = useState(Boolean(settings.rpgMakerExtractor));
+  const [ocrTranslate, setOcrTranslate] = useState<OcrTranslateSettings>(settings.ocrTranslate);
   const [textractorFound, setTextractorFound] = useState<{ x86: boolean; x64: boolean } | null>(null);
   const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
@@ -241,6 +244,7 @@ export default function SettingsScreen({
     setTextractorPath(settings.textractorPath ?? '');
     setTextractorOutput(settings.textractorOutput ?? 'both');
     setRpgMakerExtractor(Boolean(settings.rpgMakerExtractor));
+    setOcrTranslate(settings.ocrTranslate);
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
@@ -288,6 +292,7 @@ export default function SettingsScreen({
   const clickerDirty = JSON.stringify(autoClicker) !== JSON.stringify(settings.autoClicker);
   const triggerDirty = JSON.stringify(pixelTrigger) !== JSON.stringify(settings.pixelTrigger);
   const macroDirty = JSON.stringify(macroRecorder) !== JSON.stringify(settings.macroRecorder);
+  const ocrDirty = JSON.stringify(ocrTranslate) !== JSON.stringify(settings.ocrTranslate);
 
   const isDirty =
     destinationFolder !== settings.destinationFolder ||
@@ -310,6 +315,7 @@ export default function SettingsScreen({
     textractorPath !== (settings.textractorPath ?? '') ||
     textractorOutput !== (settings.textractorOutput ?? 'both') ||
     rpgMakerExtractor !== Boolean(settings.rpgMakerExtractor) ||
+    ocrDirty ||
     overlayEnabled !== settings.overlayEnabled;
 
   const handleBrowse = async () => {
@@ -340,6 +346,7 @@ export default function SettingsScreen({
       textractorPath,
       textractorOutput,
       rpgMakerExtractor,
+      ocrTranslate,
       overlayEnabled,
       autoBackupSaves,
       closeToTray,
@@ -716,6 +723,15 @@ export default function SettingsScreen({
 
             <ToolGroup Icon={Clapperboard} title="Enregistreur de macros" summary={<>Enregistre clics et touches dans le jeu, puis les rejoue — {macroRecorder.recordHotkey} enregistre, {macroRecorder.playHotkey} rejoue.</>}>
               <MacroSettings value={macroRecorder} onChange={setMacroRecorder} takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey]} isDirty={macroDirty} />
+            </ToolGroup>
+
+            <ToolGroup Icon={Languages} title="Traduction à l'écran" summary={<>Lit le texte du jeu (OCR de Windows) et affiche sa traduction par-dessus — raccourci {ocrTranslate.hotkey}.</>}>
+              <OcrSettings
+                value={ocrTranslate}
+                onChange={setOcrTranslate}
+                takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey, macroRecorder.recordHotkey, macroRecorder.playHotkey]}
+                isDirty={ocrDirty}
+              />
             </ToolGroup>
           </>
         )}
