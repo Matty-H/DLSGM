@@ -5,6 +5,7 @@ import { formatLastPlayed, formatPlayTime } from '../../lib/timeFormatter.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import OverlayPixelTriggers from './OverlayPixelTriggers';
 import OverlayMacros from './OverlayMacros';
+import OverlayTextractor from './OverlayTextractor';
 import type { OverlayState } from '../../../../shared/ipc-types';
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -45,6 +46,9 @@ export default function OverlayApp() {
       refresh();
     });
     const offTrigger = window.electronAPI.onPixelTriggerStatus(trigger => setState(prev => (prev ? { ...prev, trigger } : prev)));
+    const offTextractor = window.electronAPI.onTextractorChanged((gameId, view) =>
+      setState(prev => (prev ? { ...prev, textractor: { ...prev.textractor, [gameId]: view } } : prev))
+    );
     const offMacro = window.electronAPI.onMacroStatus(macro => {
       setState(prev => (prev ? { ...prev, macro } : prev));
       // Fin d'un enregistrement : la nouvelle macro arrive par l'état complet.
@@ -55,6 +59,7 @@ export default function OverlayApp() {
       offState();
       offTrigger();
       offMacro();
+      offTextractor();
       offShown();
       clearInterval(timer);
     };
@@ -207,6 +212,8 @@ export default function OverlayApp() {
                   )}
                 </div>
               )}
+
+              {state.textractor[game.id] && <OverlayTextractor gameId={game.id} view={state.textractor[game.id]} />}
 
               {state.macro.available && (
                 <div className="flex flex-col gap-2.5 border-t border-divider pt-3">

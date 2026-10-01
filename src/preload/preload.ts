@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, MacroRecorderStatus, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
+import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, MacroRecorderStatus, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -150,6 +150,23 @@ const electronAPI: ElectronAPI = {
     };
   },
   getPixelTriggerState: () => ipcRenderer.invoke('get-pixel-trigger-state'),
+  setTextractorHook: (gameId, hookcode) => ipcRenderer.invoke('set-textractor-hook', gameId, hookcode),
+  checkTextractor: dir => ipcRenderer.invoke('check-textractor', dir),
+  onTextractorChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, gameId: string, view: TextractorView) => callback(gameId, view);
+    ipcRenderer.on('textractor-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('textractor-changed', listener);
+    };
+  },
+  extractRpgMakerAssets: gameId => ipcRenderer.invoke('extract-rpgmaker-assets', gameId),
+  onRpgMakerExtractProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: { gameId: string; done: number; total: number }) => callback(progress);
+    ipcRenderer.on('rpgmaker-extract-progress', listener);
+    return () => {
+      ipcRenderer.removeListener('rpgmaker-extract-progress', listener);
+    };
+  },
   setGameMacroEnabled: (gameId, enabled) => ipcRenderer.invoke('set-game-macro-enabled', gameId, enabled),
   setActiveMacro: (gameId, macroId) => ipcRenderer.invoke('set-active-macro', gameId, macroId),
   updateMacro: (gameId, macroId, patch) => ipcRenderer.invoke('update-macro', gameId, macroId, patch),

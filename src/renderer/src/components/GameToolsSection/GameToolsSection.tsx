@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Select from '../Select/Select';
 import SaveBackups from '../SaveBackups/SaveBackups';
+import TextTools from './TextTools';
 import {
   TRANSLATION_LANGUAGES,
   applyUserPatch,
@@ -25,6 +26,9 @@ export interface GameToolsSectionProps {
   onSandboxDisabledChange: (disabled: boolean) => void;
   /** Dernière session : rafraîchit la liste des copies des sauvegardes après une partie. */
   lastPlayed?: string;
+  /** Lancer avec Textractor (entrée de cache `textractorEnabled`). */
+  textractorEnabled: boolean;
+  onTextractorEnabledChange: (enabled: boolean) => void;
 }
 
 const LABEL_CLASS = 'text-[12px] text-text-muted';
@@ -35,7 +39,15 @@ const LABEL_CLASS = 'text-[12px] text-text-muted';
  * dossier fournis par l'utilisateur — décensure, traduction...), et sandbox
  * Sandboxie quand le lancement en sandbox est activé dans les paramètres.
  */
-export default function GameToolsSection({ gameId, executablePath, sandboxDisabled, onSandboxDisabledChange, lastPlayed }: GameToolsSectionProps) {
+export default function GameToolsSection({
+  gameId,
+  executablePath,
+  sandboxDisabled,
+  onSandboxDisabledChange,
+  lastPlayed,
+  textractorEnabled,
+  onTextractorEnabledChange
+}: GameToolsSectionProps) {
   const [info, setInfo] = useState<GameToolsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -124,6 +136,8 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
       )}
 
       {info && info.saveLocations.length > 0 && <SaveBackups gameId={gameId} lastPlayed={lastPlayed} />}
+
+      <TextTools gameId={gameId} info={info} textractorEnabled={textractorEnabled} onTextractorEnabledChange={onTextractorEnabledChange} />
 
       {info?.sandbox.globallyEnabled && (
 

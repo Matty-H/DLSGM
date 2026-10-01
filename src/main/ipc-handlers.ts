@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog, globalShortcut, net, screen, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
+import { app, clipboard, ipcMain, dialog, globalShortcut, net, screen, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
 
 import path from 'path';
 import fs from 'fs';
@@ -10,12 +10,14 @@ import Store from './store';
 import { fetchWork } from './dlsite-fetcher';
 import { GenreTranslations, KNOWN_GENRE_TRANSLATIONS, pairsFromAliasGroups } from './genre-translations';
 import { applyDlsiteProxy, dlsiteFetch, protectProxySettings, testDlsiteConnection } from './dlsite-net';
-import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
+import { detectEngine, findRpgMakerWebRoot, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
 import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand, sandboxedPathFor } from './sandboxie';
 import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup } from './save-backups';
 import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
 import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { readInstallInfo } from './release-names';
+import { TextractorSession, findTextractorCli } from './textractor';
+import { extractRpgMakerAssets } from './rpgmaker-assets';
 import { Wishlist } from './wishlist';
 import { describeWorkspace, workspaceRoot } from './workspace';
 import { snapshotDatabase } from './db-backup';
@@ -29,7 +31,7 @@ import { ClickerHud, MACRO_HUD_OFFSET_X, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSE
 import { DEFAULT_MACRO_RECORDER, MAX_MACROS_PER_GAME, MacroRecorder, acceleratorVks, sanitizeMacroSettings, sanitizeMacros } from './macro-recorder';
 import { TriggerZonesWindow } from './trigger-zones';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -77,7 +79,10 @@ const settingsStore = new Store('settings.db', {
   workspaceFolder: '',
   piaRetry: false,
   piaRegion: 'jp-tokyo',
-  macroRecorder: { enabled: false, recordHotkey: 'F8', playHotkey: 'F9' }
+  macroRecorder: { enabled: false, recordHotkey: 'F8', playHotkey: 'F9' },
+  textractorPath: '',
+  textractorOutput: 'both',
+  rpgMakerExtractor: false
 }, 'settings.json');
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
@@ -668,6 +673,82 @@ function saveRecordedMacro(steps: MacroStep[], durationMs: number): void {
   }).catch(error => console.error('Macro non enregistrée :', error));
 }
 
+// --- Textractor (lancement avec extraction du texte) ---
+const textractorSessions = new Map<string, TextractorSession>();
+// Écritures du fichier de texte, une à la fois par jeu (dans l'ordre d'arrivée).
+const textractorWrites = new Map<string, Promise<unknown>>();
+let notifyTextractor: ((gameId: string, view: TextractorView) => void) | null = null;
+
+interface TextractorLaunch {
+  dir: string;
+  output: AppSettings['textractorOutput'];
+  selectedHook: string | null;
+  workspace: string;
+}
+
+/** Réglages du lancement avec Textractor, ou null si ce jeu ne le demande pas. Lève si Textractor manque. */
+async function textractorLaunch(gameId: string): Promise<TextractorLaunch | null> {
+  const entry = ((await cacheStore.get(gameId)) ?? {}) as Partial<GameMetadata>;
+  if (entry.textractorEnabled !== true) return null;
+  if (process.platform !== 'win32') throw new Error("Textractor n'existe que sous Windows : décoche « Lancer avec Textractor » sur la page du jeu.");
+  const settings = await getSettings();
+  const dir = settings.textractorPath ?? '';
+  if (!findTextractorCli(dir, 'x86') && !findTextractorCli(dir, 'x64')) {
+    throw new Error(
+      dir
+        ? `TextractorCLI.exe introuvable dans ${dir} : vérifie le dossier de Textractor (Paramètres › Lancement), ou décoche « Lancer avec Textractor ».`
+        : 'Dossier de Textractor non configuré (Paramètres › Lancement) : le jeu ne peut pas être lancé avec Textractor.'
+    );
+  }
+  return {
+    dir,
+    output: settings.textractorOutput ?? 'both',
+    selectedHook: typeof entry.textractorHook === 'string' && entry.textractorHook ? entry.textractorHook : null,
+    workspace: path.join(workspaceRoot(settings.workspaceFolder, app.getPath('documents')), gameId)
+  };
+}
+
+/**
+ * Texte d'un fil : le fil choisi va au presse-papiers et/ou au fichier du
+ * jour (`<travaux>/<ID>/textractor/AAAA-MM-JJ.txt`) ; tant qu'aucun fil
+ * n'est choisi, tous vont au fichier, préfixés de leur nom.
+ */
+function handleTextractorText(gameId: string, launch: TextractorLaunch, session: TextractorSession, thread: TextractorThread, text: string): void {
+  const selected = session.view().selectedHook;
+  const isSelected = selected !== null && thread.hookcode === selected;
+  if (isSelected && launch.output !== 'file') clipboard.writeText(text);
+  if (launch.output === 'clipboard' || (selected !== null && !isSelected)) return;
+  const line = isSelected ? text : `[${thread.name} ${thread.hookcode}] ${text}`;
+  const day = new Date().toISOString().slice(0, 10);
+  const file = path.join(launch.workspace, 'textractor', `${day}.txt`);
+  const previous = textractorWrites.get(gameId) ?? Promise.resolve();
+  const next = previous
+    .then(async () => {
+      await fs.promises.mkdir(path.dirname(file), { recursive: true });
+      await fs.promises.appendFile(file, `${line}\n`, 'utf8');
+    })
+    .catch(error => console.error('Textractor : écriture du texte impossible', error));
+  textractorWrites.set(gameId, next);
+}
+
+function startTextractor(gameId: string, gamePath: string, launch: TextractorLaunch): void {
+  const session: TextractorSession = new TextractorSession({
+    textractorDir: launch.dir,
+    gameDir: gamePath,
+    selectedHook: launch.selectedHook,
+    onText: (thread, text) => handleTextractorText(gameId, launch, session, thread, text),
+    onChange: view => notifyTextractor?.(gameId, view)
+  });
+  textractorSessions.set(gameId, session);
+  session.start();
+}
+
+function stopTextractor(gameId: string): void {
+  textractorSessions.get(gameId)?.stop();
+  textractorSessions.delete(gameId);
+  textractorWrites.delete(gameId);
+}
+
 async function clickerSettings() {
   return sanitizeClickerSettings((await getSettings()).autoClicker);
 }
@@ -907,6 +988,37 @@ export function setupIpcHandlers(
     if (macroRecorder?.getStatus().playingMacroId === macroId) macroRecorder.stop();
     return changeGameMacros(gameId, current => ({ ...current, macros: current.macros.filter(m => m.id !== macroId) }));
   });
+  notifyTextractor = (gameId, view) => {
+    getWindow()?.webContents.send('textractor-changed', gameId, view);
+    overlay?.send('textractor-changed', gameId, view);
+  };
+  ipcMain.handle('set-textractor-hook', async (event: IpcMainInvokeEvent, gameId: string, hookcode: string | null) => {
+    assertGameId(gameId);
+    if (hookcode !== null && (typeof hookcode !== 'string' || hookcode.length > 300)) throw new Error('Fil invalide.');
+    // '' = aucun fil choisi (Store.update fusionne : on ne retire pas la clé).
+    await cacheStore.update(gameId, () => ({ textractorHook: hookcode ?? '' }));
+    textractorSessions.get(gameId)?.setSelectedHook(hookcode);
+    getWindow()?.webContents.send('cache-entry-changed', gameId, { textractorHook: hookcode ?? '' });
+  });
+  ipcMain.handle('check-textractor', async (event: IpcMainInvokeEvent, dir?: string) => {
+    const target = typeof dir === 'string' ? dir : (await getSettings()).textractorPath ?? '';
+    return { x86: findTextractorCli(target, 'x86') !== null, x64: findTextractorCli(target, 'x64') !== null };
+  });
+
+  ipcMain.handle('extract-rpgmaker-assets', async (event: IpcMainInvokeEvent, gameId: string): Promise<RpgMakerExtractResult> => {
+    assertGameId(gameId);
+    if (!(await getSettings()).rpgMakerExtractor) throw new Error("L'extracteur RPG Maker est désactivé (Paramètres › Lancement).");
+    const { installRootAbs } = await getGameToolsInfo(gameId);
+    const web = findRpgMakerWebRoot(installRootAbs);
+    if (!web) throw new Error("Ce jeu n'est pas un RPG Maker MV / MZ.");
+    const folder = 'rpgmaker-assets';
+    const outDir = path.join(await gameWorkspaceDir(gameId), folder);
+    const result = await extractRpgMakerAssets(web.webDir, outDir, (done, total) =>
+      getWindow()?.webContents.send('rpgmaker-extract-progress', { gameId, done, total })
+    );
+    return { ...result, folder };
+  });
+
   ipcMain.handle('toggle-macro-recording', () => toggleMacroRecordingNow());
   ipcMain.handle('toggle-macro-playback', () => toggleMacroPlaybackNow());
 
@@ -968,7 +1080,8 @@ export function setupIpcHandlers(
     gameTriggers: Object.fromEntries(runningGameTriggers),
     macro: macroRecorder?.getStatus() ?? { available: false, recording: false, playing: false, paused: false, inGame: false, hotkeysActive: false, stepCount: 0, loops: 0, playingMacroId: null, error: null },
     macroSettings: macroConfig,
-    gameMacros: Object.fromEntries(runningGameMacros)
+    gameMacros: Object.fromEntries(runningGameMacros),
+    textractor: Object.fromEntries([...textractorSessions].map(([id, session]) => [id, session.view()]))
   }));
   ipcMain.handle('hide-overlay', () => gameOverlay.hide());
   // Témoin : réglages rapides (déplié seulement à l'arrêt, sinon les clics tomberaient dessus).
@@ -1144,6 +1257,9 @@ export function setupIpcHandlers(
 
     const executablePath = await resolveExecutable(gameId, gamePath);
     if (!executablePath) throw new Error('Aucun exécutable trouvé pour ce jeu.');
+    // Lancement avec Textractor demandé : sans Textractor, le lancement échoue
+    // plutôt que de se faire sans (l'option a été choisie pour ce jeu).
+    const textractor = await textractorLaunch(gameId);
 
     let result: TrackedLaunchResult;
     runningGames.add(gameId);
@@ -1177,9 +1293,11 @@ export function setupIpcHandlers(
     refreshAutoClicker();
     refreshPixelTrigger();
     refreshMacroRecorder();
+    if (textractor) startTextractor(gameId, gamePath, textractor);
     try {
       result = await startGameProcess(gameId, gamePath, executablePath);
     } finally {
+      stopTextractor(gameId);
       runningGames.delete(gameId);
       await overlay?.gameEnded(gameId);
       // Plus de jeu : plus d'auto-clicker (ni raccourci, ni témoin).

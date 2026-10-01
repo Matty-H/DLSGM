@@ -24,6 +24,9 @@ export interface AppSettings {
   piaRetry: boolean;
   piaRegion: string;
   macroRecorder: MacroRecorderSettings;
+  textractorPath: string;
+  textractorOutput: 'clipboard' | 'file' | 'both';
+  rpgMakerExtractor: boolean;
   selectedSort: string;
 
 
