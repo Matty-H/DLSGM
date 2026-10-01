@@ -36,6 +36,9 @@ const DEFAULT_SETTINGS: Settings = {
   piaRetry: false,
   piaRegion: 'jp-tokyo',
   macroRecorder: { enabled: false, recordHotkey: 'F8', playHotkey: 'F9' },
+  textractorPath: '',
+  textractorOutput: 'both',
+  rpgMakerExtractor: false,
   selectedSort: 'name_asc'
 
 

@@ -68,6 +68,41 @@ export interface AppSettings {
   piaRegion: string;
   /** Enregistreur de macros (Paramètres › Outils en jeu ; macros par jeu dans macros.db). */
   macroRecorder: MacroRecorderSettings;
+  /** Dossier d'installation de Textractor (sous-dossiers x86 / x64 avec TextractorCLI.exe). */
+  textractorPath: string;
+  /** Où va le texte du fil choisi : presse-papiers, fichier du dossier de travaux, ou les deux. */
+  textractorOutput: 'clipboard' | 'file' | 'both';
+  /** Bouton « Extraire images et sons » sur la page des jeux RPG Maker MV/MZ chiffrés. */
+  rpgMakerExtractor: boolean;
+}
+
+/** Fil de texte capté par Textractor (un hook dans un processus du jeu). */
+export interface TextractorThread {
+  key: string;
+  name: string;
+  hookcode: string;
+  lastText: string;
+  count: number;
+}
+
+/** Session Textractor d'une partie (voir src/main/textractor.ts). */
+export interface TextractorView {
+  running: boolean;
+  error: string | null;
+  attachedPids: number[];
+  /** Les plus bavards d'abord. */
+  threads: TextractorThread[];
+  /** Hookcode du fil envoyé au presse-papiers / au fichier (null : tous au fichier, rien au presse-papiers). */
+  selectedHook: string | null;
+}
+
+/** Résultat de l'extraction des ressources RPG Maker (voir src/main/rpgmaker-assets.ts). */
+export interface RpgMakerExtractResult {
+  files: number;
+  keySource: 'system' | 'image';
+  failed: string[];
+  /** Dossier de sortie, relatif au dossier de travaux du jeu. */
+  folder: string;
 }
 
 /** Enregistreur de macros (voir src/main/macro-recorder.ts). */
@@ -314,6 +349,8 @@ export interface OverlayState {
   macroSettings: MacroRecorderSettings;
   /** Macros de chaque jeu en cours où l'enregistreur a été ajouté, par ID. */
   gameMacros: Record<string, GameMacros>;
+  /** Sessions Textractor des jeux en cours lancés avec Textractor, par ID. */
+  textractor: Record<string, TextractorView>;
 }
 
 /** Taille des jaquettes d'une étagère de l'accueil. */
@@ -631,6 +668,10 @@ export interface GameMetadata {
   pixelTriggerEnabled?: boolean;
   /** Enregistreur de macros ajouté à ce jeu (case de l'overlay, opt-in ; macros dans macros.db). Donnée personnelle, jamais partagée en LAN. */
   macroEnabled?: boolean;
+  /** Lancer ce jeu avec Textractor (page du jeu). Donnée personnelle, jamais partagée en LAN. */
+  textractorEnabled?: boolean;
+  /** Hookcode du fil Textractor choisi pour ce jeu (retrouvé aux lancements suivants). */
+  textractorHook?: string;
   /** Zones du détecteur de rythme pour ce jeu. Donnée personnelle, jamais partagée en LAN. */
   pixelTriggers?: PixelTrigger[];
   /** IDs des collections (AppSettings.collections) du jeu. Donnée personnelle, jamais partagée en LAN. */
@@ -898,6 +939,15 @@ export interface ElectronAPI {
   setTriggerHudExpanded(expanded: boolean): Promise<void>;
   /** Témoin du détecteur : raccourci, enregistré tout de suite. */
   saveTriggerQuickSettings(patch: { hotkey?: string }): Promise<PixelTriggerStatus>;
+  // Textractor (src/main/textractor.ts) et ressources RPG Maker (src/main/rpgmaker-assets.ts)
+  /** Fil Textractor envoyé au presse-papiers / au fichier pour ce jeu (null : aucun). */
+  setTextractorHook(gameId: string, hookcode: string | null): Promise<void>;
+  /** Textractor trouvé (TextractorCLI x86 / x64) dans ce dossier, ou celui des paramètres. */
+  checkTextractor(dir?: string): Promise<{ x86: boolean; x64: boolean }>;
+  onTextractorChanged(callback: (gameId: string, view: TextractorView) => void): () => void;
+  /** Déchiffre images et sons d'un jeu RPG Maker MV/MZ dans son dossier de travaux. */
+  extractRpgMakerAssets(gameId: string): Promise<RpgMakerExtractResult>;
+  onRpgMakerExtractProgress(callback: (progress: { gameId: string; done: number; total: number }) => void): () => void;
   // Enregistreur de macros (src/main/macro-recorder.ts)
   /** Overlay : ajoute ou retire l'enregistreur de macros d'un jeu en cours (enregistré dans sa fiche). */
   setGameMacroEnabled(gameId: string, enabled: boolean): Promise<void>;

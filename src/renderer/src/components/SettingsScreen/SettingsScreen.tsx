@@ -206,6 +206,10 @@ export default function SettingsScreen({
   const [autoClicker, setAutoClicker] = useState<ClickerSettings>(settings.autoClicker);
   const [pixelTrigger, setPixelTrigger] = useState<TriggerSettings>(settings.pixelTrigger);
   const [macroRecorder, setMacroRecorder] = useState<MacroRecorderSettings>(settings.macroRecorder);
+  const [textractorPath, setTextractorPath] = useState(settings.textractorPath ?? '');
+  const [textractorOutput, setTextractorOutput] = useState(settings.textractorOutput ?? 'both');
+  const [rpgMakerExtractor, setRpgMakerExtractor] = useState(Boolean(settings.rpgMakerExtractor));
+  const [textractorFound, setTextractorFound] = useState<{ x86: boolean; x64: boolean } | null>(null);
   const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
   const [closeToTray, setCloseToTray] = useState(settings.closeToTray);
@@ -234,6 +238,9 @@ export default function SettingsScreen({
     setAutoClicker(settings.autoClicker);
     setPixelTrigger(settings.pixelTrigger);
     setMacroRecorder(settings.macroRecorder);
+    setTextractorPath(settings.textractorPath ?? '');
+    setTextractorOutput(settings.textractorOutput ?? 'both');
+    setRpgMakerExtractor(Boolean(settings.rpgMakerExtractor));
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
@@ -241,6 +248,20 @@ export default function SettingsScreen({
     setPiaRegion(settings.piaRegion);
     setWorkspaceFolder(settings.workspaceFolder ?? '');
   }, [settings]);
+
+  // TextractorCLI présent (x86 / x64) dans le dossier choisi.
+  useEffect(() => {
+    let cancelled = false;
+    setTextractorFound(null);
+    if (!textractorPath) return;
+    window.electronAPI
+      .checkTextractor(textractorPath)
+      .then(found => !cancelled && setTextractorFound(found))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [textractorPath]);
 
   // Racine effective quand le champ est vide (Documents/DLSGM/Travaux), pour l'afficher.
   useEffect(() => {
@@ -286,6 +307,9 @@ export default function SettingsScreen({
     clickerDirty ||
     triggerDirty ||
     macroDirty ||
+    textractorPath !== (settings.textractorPath ?? '') ||
+    textractorOutput !== (settings.textractorOutput ?? 'both') ||
+    rpgMakerExtractor !== Boolean(settings.rpgMakerExtractor) ||
     overlayEnabled !== settings.overlayEnabled;
 
   const handleBrowse = async () => {
@@ -313,6 +337,9 @@ export default function SettingsScreen({
       autoClicker,
       pixelTrigger,
       macroRecorder,
+      textractorPath,
+      textractorOutput,
+      rpgMakerExtractor,
       overlayEnabled,
       autoBackupSaves,
       closeToTray,
@@ -602,6 +629,68 @@ export default function SettingsScreen({
               checked={sandboxLaunch}
               onChange={e => setSandboxLaunch(e.target.checked)}
             />
+          </SettingRow>
+          <SettingRow
+            label="Dossier de Textractor"
+            description={
+              <>
+                Pour « Lancer avec Textractor » (page du jeu) : le dossier de Textractor, avec ses sous-dossiers
+                <span className="font-mono"> x86</span> et <span className="font-mono">x64</span> (TextractorCLI.exe).
+                <span className={`mt-1 block ${textractorPath && textractorFound && !textractorFound.x86 && !textractorFound.x64 ? 'text-danger' : 'text-text-secondary'}`}>
+                  {!textractorPath
+                    ? 'Aucun dossier choisi.'
+                    : !textractorFound
+                      ? textractorPath
+                      : textractorFound.x86 || textractorFound.x64
+                        ? `${textractorPath} — ${[textractorFound.x86 && '32 bits', textractorFound.x64 && '64 bits'].filter(Boolean).join(' et ')}`
+                        : `${textractorPath} — TextractorCLI.exe introuvable`}
+                </span>
+                {!textractorPath && (
+                  <button
+                    type="button"
+                    className="mt-1 inline-flex items-center gap-1 font-semibold text-accent hover:underline"
+                    onClick={() => window.electronAPI.openExternal('https://github.com/Artikash/Textractor/releases')}
+                  >
+                    <Download size={13} strokeWidth={2.5} />
+                    Télécharger Textractor
+                  </button>
+                )}
+              </>
+            }
+          >
+            <button
+              type="button"
+              onClick={async () => {
+                const folder = await window.electronAPI.openFolderDialog();
+                if (folder) setTextractorPath(folder);
+              }}
+              className="btn"
+            >
+              <FolderOpen size={16} strokeWidth={2.25} />
+              Parcourir
+            </button>
+          </SettingRow>
+          <SettingRow label="Texte extrait par Textractor" description="Le fil choisi dans l'overlay (Maj+Tab) part au presse-papiers (pour un dictionnaire ou un traducteur), dans un fichier du jour du dossier de travaux, ou les deux.">
+            <div className="seg">
+              {(
+                [
+                  ['clipboard', 'Presse-papiers'],
+                  ['file', 'Fichier'],
+                  ['both', 'Les deux']
+                ] as const
+              ).map(([value, label]) => (
+                <label key={value} className="seg-opt">
+                  <input type="radio" name="textractorOutput" checked={textractorOutput === value} onChange={() => setTextractorOutput(value)} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </SettingRow>
+          <SettingRow
+            label="Extracteur d'images RPG Maker"
+            description="Ajoute « Extraire images et sons » sur la page des jeux RPG Maker MV / MZ chiffrés (.rpgmvp, .png_, .ogg_…) : les fichiers sont déchiffrés dans le dossier de travaux du jeu, jamais dans le dossier du jeu."
+          >
+            <input type="checkbox" className="toggle" aria-label="Extracteur d'images RPG Maker" checked={rpgMakerExtractor} onChange={e => setRpgMakerExtractor(e.target.checked)} />
           </SettingRow>
           </>
         )}

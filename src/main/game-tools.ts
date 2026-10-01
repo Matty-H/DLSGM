@@ -90,7 +90,7 @@ function readHead(p: string, bytes: number): Buffer | null {
 }
 
 /** Architecture d'un exécutable Windows, lue dans l'en-tête PE. */
-function readPeArch(exePath: string): 'x64' | 'x86' | null {
+export function readPeArch(exePath: string): 'x64' | 'x86' | null {
   const head = readHead(exePath, 4096);
   if (!head || head.length < 0x40 || head.toString('ascii', 0, 2) !== 'MZ') return null;
   const peOffset = head.readUInt32LE(0x3c);
@@ -157,7 +157,7 @@ function readUnityAppInfo(dataDir: string): { company: string; product: string }
  * direct (certains jeux lancent via un exe "lanceur" le vrai NW.js rangé
  * dans `data/`). `saveDir` = dossier des sauvegardes associé.
  */
-function findRpgMakerWebRoot(root: string): { kind: 'rpgmaker-mz' | 'rpgmaker-mv'; saveDir: string } | null {
+export function findRpgMakerWebRoot(root: string): { kind: 'rpgmaker-mz' | 'rpgmaker-mv'; webDir: string; saveDir: string } | null {
   const subdirs = listDir(root)
     .filter(name => !name.startsWith('.'))
     .map(name => path.join(root, name))
@@ -165,8 +165,8 @@ function findRpgMakerWebRoot(root: string): { kind: 'rpgmaker-mz' | 'rpgmaker-mv
   for (const dir of [root, ...subdirs]) {
     for (const webDir of [path.join(dir, 'www'), dir]) {
       const saveDir = path.join(webDir, 'save');
-      if (exists(path.join(webDir, 'js', 'rmmz_core.js'))) return { kind: 'rpgmaker-mz', saveDir };
-      if (exists(path.join(webDir, 'js', 'rpg_core.js'))) return { kind: 'rpgmaker-mv', saveDir };
+      if (exists(path.join(webDir, 'js', 'rmmz_core.js'))) return { kind: 'rpgmaker-mz', webDir, saveDir };
+      if (exists(path.join(webDir, 'js', 'rpg_core.js'))) return { kind: 'rpgmaker-mv', webDir, saveDir };
     }
   }
   return null;

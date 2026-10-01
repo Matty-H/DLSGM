@@ -339,6 +339,8 @@ export default function GameInfoDetails({
               lastPlayed={gameData.lastPlayed}
 
               onSandboxDisabledChange={disabled => onUpdateGame(gameId, { sandboxDisabled: disabled })}
+              textractorEnabled={Boolean(gameData.textractorEnabled)}
+              onTextractorEnabledChange={enabled => onUpdateGame(gameId, { textractorEnabled: enabled })}
             />
           </Section>
         </div>
