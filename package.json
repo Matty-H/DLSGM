@@ -39,9 +39,6 @@
       "repo": "DLSGM",
       "releaseType": "release"
     },
-    "releaseInfo": {
-      "releaseNotes": "## Quel fichier télécharger ?\n\n| Système | Fichier | Mises à jour |\n|---|---|---|\n| Windows | `DLSGM-<version>-Windows-Installeur.exe` | Proposées et installées depuis DLSGM |\n| Windows | `DLSGM-<version>-Windows-Portable.exe` | Signalées par un pop-up, à retélécharger ici |\n| macOS (Apple Silicon) | `DLSGM-<version>-macOS-arm64.dmg` | Proposées et installées depuis DLSGM |\n\nLes autres fichiers (`.blockmap`, `latest*.yml`, `-maj-auto.zip`) servent aux mises à jour automatiques : inutile de les télécharger."
-    },
     "win": {
       "target": [
         "nsis",
