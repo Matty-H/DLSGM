@@ -38,7 +38,7 @@ export function listTree(root: string): string[] {
 export interface ZipEntry {
   /** Nom brut (octets) ou texte (encodé en UTF-8). */
   name: string | Buffer;
-  data?: string;
+  data?: string | Buffer;
   /** Pose le bit 11 (noms en UTF-8), comme les outils modernes. */
   utf8Flag?: boolean;
 }
@@ -54,7 +54,7 @@ export function makeZip(entries: ZipEntry[]): Buffer {
   let offset = 0;
   for (const entry of entries) {
     const name = typeof entry.name === 'string' ? Buffer.from(entry.name, 'utf8') : entry.name;
-    const data = Buffer.from(entry.data ?? '', 'utf8');
+    const data = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(entry.data ?? '', 'utf8');
     const crc = zlib.crc32(data);
     const flags = entry.utf8Flag ? 0x800 : 0;
 

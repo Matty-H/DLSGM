@@ -371,6 +371,41 @@ export interface ArchiveImportResult {
   error?: string;
   /** Import réussi : identifiant permettant de mettre son archive à la corbeille. */
   importId?: string;
+  /** Version et DLC lus dans les noms (archive, archive interne, dossiers). */
+  version?: string | null;
+  dlc?: boolean;
+  /**
+   * Échec faute de mot de passe (aucun des mots de passe connus ou trouvés
+   * n'a marché) : identifiant à passer à `retryArchiveImport` avec un mot de
+   * passe — le renderer ne désigne jamais l'archive par son chemin.
+   */
+  retryId?: string;
+}
+
+/** Origine des fichiers d'un jeu (`<jeu>/.dlsgm/install.json`) : archive importée ou ancien nom du dossier. */
+export interface InstallInfo {
+  /** Nom de l'archive ou ancien nom du dossier. */
+  source: string;
+  version: string | null;
+  dlc: boolean;
+  /** Date ISO de l'import ou du renommage. */
+  date: string;
+}
+
+/** Dossier du dossier de jeux qui contient un ID sans porter exactement ce nom (voir folder-rename.ts). */
+export interface MisnamedFolder {
+  folder: string;
+  gameId: string;
+  version: string | null;
+  dlc: boolean;
+  /** Renommage impossible : `exists` = un dossier porte déjà cet ID, `duplicate` = plusieurs dossiers pour le même ID. */
+  conflict?: 'exists' | 'duplicate';
+}
+
+export interface FolderRenameResult {
+  folder: string;
+  gameId?: string;
+  error?: string;
 }
 
 /** Mise à la corbeille des archives importées (toutes leurs parties). */
@@ -624,6 +659,8 @@ export interface GameToolsInfo {
   /** Patchs installés par DLSGM, du plus ancien au plus récent. */
   patches: InstalledPatch[];
   sandbox: GameSandboxInfo;
+  /** D'où viennent les fichiers (import d'archive, renommage) ; null si DLSGM ne le sait pas. */
+  install: InstallInfo | null;
 }
 
 export interface ElectronAPI {
@@ -697,6 +734,16 @@ export interface ElectronAPI {
   onArchiveImportProgress(callback: (progress: ArchiveImportProgress) => void): () => void;
   /** Met à la corbeille les archives (et leurs parties) des imports réussis donnés. */
   trashImportedArchives(importIds: string[]): Promise<TrashArchivesResult>;
+  /** Réessaie un import en échec faute de mot de passe ; `remember` l'ajoute aux mots de passe essayés d'office. */
+  retryArchiveImport(retryId: string, password: string, remember: boolean): Promise<ArchiveImportResult>;
+  /** Mots de passe d'archives mémorisés (essayés automatiquement à chaque import). */
+  listArchivePasswords(): Promise<string[]>;
+  removeArchivePassword(password: string): Promise<string[]>;
+
+  /** Dossiers qui contiennent un ID DLsite sans être nommés exactement d'après lui. */
+  findMisnamedFolders(): Promise<MisnamedFolder[]>;
+  /** Renomme ces dossiers d'après leur ID (jamais par-dessus un dossier existant). */
+  renameMisnamedFolders(folders: string[]): Promise<FolderRenameResult[]>;
 
   /** Copie cache.db dans userData/db_backups (5 dernières gardées) ; renvoie le chemin de la copie. */
   snapshotCache(): Promise<string>;
