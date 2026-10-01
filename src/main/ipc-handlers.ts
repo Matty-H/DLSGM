@@ -13,7 +13,9 @@ import { applyDlsiteProxy, dlsiteFetch, protectProxySettings, testDlsiteConnecti
 import { detectEngine, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
 import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand, sandboxedPathFor } from './sandboxie';
 import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup } from './save-backups';
-import { ARCHIVE_EXTENSIONS, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
+import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
+import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
+import { readInstallInfo } from './release-names';
 import { Wishlist } from './wishlist';
 import { describeWorkspace, workspaceRoot } from './workspace';
 import { snapshotDatabase } from './db-backup';
@@ -26,7 +28,7 @@ import { GameWindowTracker } from './game-window';
 import { ClickerHud, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSET_X } from './clicker-hud';
 import { TriggerZonesWindow } from './trigger-zones';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, FolderRenameResult, MisnamedFolder, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -92,6 +94,14 @@ const cacheStore = new Store('cache.db', {}, 'cache.json');
 
 // Liste de souhaits : store séparé, jamais mêlé au cache des jeux.
 const wishlistStore = new Store('wishlist.db', {});
+
+// Mots de passe d'archives mémorisés (clé `passwords`), essayés à chaque import.
+const archivePasswordStore = new Store('archive-passwords.db', { passwords: [] });
+
+async function archivePasswords(): Promise<string[]> {
+  const list = await archivePasswordStore.get('passwords');
+  return Array.isArray(list) ? list.filter((p): p is string => typeof p === 'string') : [];
+}
 
 // Dictionnaire des tags JP → EN.
 const genreTranslations = new GenreTranslations(new Store('translations.db', {}));
@@ -284,7 +294,8 @@ async function getGameToolsInfo(gameId: string): Promise<Omit<GameToolsInfo, 'sa
     installRoot: path.relative(gamePath, installRootAbs),
     saveLocations: [...saveLocations, ...await sandboxedSaveLocations(gameId, gamePath, saveLocations)],
     patches: readPatches(gamePath),
-    sandbox: await getGameSandboxInfo(gameId)
+    sandbox: await getGameSandboxInfo(gameId),
+    install: readInstallInfo(gamePath)
   };
 }
 
@@ -1055,6 +1066,23 @@ export function setupIpcHandlers(
   // leurs parties) peuvent être mis à la corbeille par le renderer, qui ne
   // fournit jamais de chemin lui-même.
   const importedArchives = new Map<string, string[]>();
+  // Imports en échec faute de mot de passe, par retryId (même principe : pas de chemin venant du renderer).
+  const passwordRetries = new Map<string, string>();
+  const importOne = async (file: string, destinationFolder: string, passwords: string[]): Promise<ArchiveImportResult> => {
+    try {
+      const { gameId, version, dlc } = await importArchive(file, destinationFolder, { passwords });
+      const importId = crypto.randomUUID();
+      importedArchives.set(importId, archiveVolumes(file));
+      return { file: path.basename(file), gameId, importId, version, dlc };
+    } catch (error) {
+      const result: ArchiveImportResult = { file: path.basename(file), error: error instanceof Error ? error.message : String(error) };
+      if (error instanceof ArchivePasswordError) {
+        result.retryId = crypto.randomUUID();
+        passwordRetries.set(result.retryId, file);
+      }
+      return result;
+    }
+  };
   ipcMain.handle('import-game-archives', async (): Promise<ArchiveImportResult[]> => {
     if (importing) throw new Error('Un import est déjà en cours.');
     importing = true;
@@ -1069,22 +1097,61 @@ export function setupIpcHandlers(
       if (result.canceled) return [];
       await removeStaleImports(destinationFolder);
 
+      const passwords = await archivePasswords();
       const results: ArchiveImportResult[] = [];
       for (const [i, file] of result.filePaths.entries()) {
         getWindow()?.webContents.send('archive-import-progress', { file: path.basename(file), index: i + 1, total: result.filePaths.length });
-        try {
-          const { gameId } = await importArchive(file, destinationFolder);
-          const importId = crypto.randomUUID();
-          importedArchives.set(importId, archiveVolumes(file));
-          results.push({ file: path.basename(file), gameId, importId });
-        } catch (error) {
-          results.push({ file: path.basename(file), error: error instanceof Error ? error.message : String(error) });
-        }
+        results.push(await importOne(file, destinationFolder, passwords));
       }
       return results;
     } finally {
       importing = false;
     }
+  });
+
+  ipcMain.handle('retry-archive-import', async (event: IpcMainInvokeEvent, retryId: string, password: string, remember: boolean): Promise<ArchiveImportResult> => {
+    const file = typeof retryId === 'string' ? passwordRetries.get(retryId) : undefined;
+    if (!file) throw new Error('Import introuvable : relance-le depuis « Importer ».');
+    if (typeof password !== 'string' || !password || password.length > 256) throw new Error('Mot de passe invalide.');
+    if (importing) throw new Error('Un import est déjà en cours.');
+    importing = true;
+    try {
+      const { destinationFolder } = await getSettings();
+      if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error('Dossier de jeux non configuré ou introuvable.');
+      await removeStaleImports(destinationFolder);
+      getWindow()?.webContents.send('archive-import-progress', { file: path.basename(file), index: 1, total: 1 });
+      const result = await importOne(file, destinationFolder, [password, ...await archivePasswords()]);
+      passwordRetries.delete(retryId);
+      if (result.gameId && remember) {
+        const known = await archivePasswords();
+        if (!known.includes(password)) await archivePasswordStore.set('passwords', [...known, password]);
+      }
+      return result;
+    } finally {
+      importing = false;
+    }
+  });
+
+  ipcMain.handle('list-archive-passwords', () => archivePasswords());
+  ipcMain.handle('remove-archive-password', async (event: IpcMainInvokeEvent, password: string) => {
+    const next = (await archivePasswords()).filter(p => p !== password);
+    await archivePasswordStore.set('passwords', next);
+    return next;
+  });
+
+  // --- Assistant de renommage des dossiers ---
+  ipcMain.handle('find-misnamed-folders', async (): Promise<MisnamedFolder[]> => {
+    const { destinationFolder } = await getSettings();
+    if (!destinationFolder || !fs.existsSync(destinationFolder)) return [];
+    return findMisnamedFolders(destinationFolder);
+  });
+
+  ipcMain.handle('rename-misnamed-folders', async (event: IpcMainInvokeEvent, folders: string[]): Promise<FolderRenameResult[]> => {
+    const { destinationFolder } = await getSettings();
+    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error('Dossier de jeux non configuré ou introuvable.');
+    if (!Array.isArray(folders) || folders.some(f => typeof f !== 'string')) throw new Error('Liste de dossiers invalide.');
+    // Seuls des noms proposés par findMisnamedFolders sont renommés (revérifiés dans renameMisnamedFolders).
+    return renameMisnamedFolders(destinationFolder, folders);
   });
 
   // Corbeille plutôt que suppression définitive : récupérable en cas d'erreur.

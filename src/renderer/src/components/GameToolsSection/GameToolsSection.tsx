@@ -14,6 +14,7 @@ import {
   uninstallLastPatch,
   type GameToolsInfo
 } from '../../lib/gameTools.js';
+import { releaseLabel } from '../../lib/releaseInfo.js';
 
 export interface GameToolsSectionProps {
   gameId: string;
@@ -89,6 +90,19 @@ export default function GameToolsSection({ gameId, executablePath, sandboxDisabl
           !error && <div className="text-text-secondary">Analyse…</div>
         )}
       </div>
+
+      {info?.install && (
+        <div>
+          <div className={LABEL_CLASS}>Installé depuis</div>
+          <div className="min-w-0 truncate" title={info.install.source}>
+            {info.install.source}
+            {releaseLabel(info.install) && <span className="text-text-secondary"> · {releaseLabel(info.install)}</span>}
+          </div>
+          {info.install.date && (
+            <div className="text-text-secondary">le {new Date(info.install.date).toLocaleDateString('fr-FR')}</div>
+          )}
+        </div>
+      )}
 
       {info && info.saveLocations.length > 0 && (
         <div>

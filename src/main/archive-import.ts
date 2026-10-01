@@ -3,6 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import { pipeline } from 'stream/promises';
 import yauzl from 'yauzl';
+import { isPasswordFailure, type SevenZipRequest, type SevenZipResult } from './archive-7z';
+import { gameIdFromName, gameIdsIn, mergeReleaseNames, passwordsFromArchiveName, passwordsFromFolder, writeInstallInfo } from './release-names';
+
+export { gameIdFromName } from './release-names';
 
 /**
  * Import d'un jeu depuis son archive : extraction dans
@@ -15,15 +19,22 @@ import yauzl from 'yauzl';
  *   Shift-JIS quand l'archive ne les déclare pas en UTF-8 (cas courant des
  *   zips japonais) : 7-Zip/WASM les rendrait illisibles, et un jeu dont les
  *   fichiers sont mal nommés ne trouve plus ses ressources.
- * - le reste (.rar, .part1.exe auto-extractible + .partN.rar, .7z...) :
- *   7-Zip compilé en WASM, dans un processus séparé (archive-7z-worker.ts).
+ * - le reste (.rar, .part1.exe auto-extractible + .partN.rar, .7z, zip
+ *   chiffré...) : 7-Zip compilé en WASM, dans un processus séparé
+ *   (archive-7z-worker.ts).
+ *
+ * Archive dans l'archive (le jeu en `.rar` chiffré, avec un `password.txt`
+ * à côté) : l'archive interne est extraite à son tour. Mots de passe essayés :
+ * celui saisi, ceux mémorisés, ceux annoncés dans les fichiers texte voisins
+ * et le nom du site en tête du nom de l'archive. ID, version et DLC sont
+ * cherchés dans tous les noms rencontrés (archives, dossiers enveloppes),
+ * puis, pour l'ID, dans toute l'arborescence extraite.
  *
  * Dossier distinct de `.dlsgm-incoming` (réception LAN), que l'ouverture de
  * la réception vide entièrement.
  */
 
 const STAGING_DIR = '.dlsgm-import';
-const GAME_ID_IN_TEXT = /(?:^|[^A-Za-z0-9])([A-Za-z]{2}\d{6,9})(?![0-9])/;
 const GAME_ID_REGEX = /^[A-Z]{2}\d{6,9}$/;
 // Dossiers "enveloppes" (un seul dossier dans un dossier) retirés au plus.
 const MAX_UNWRAP_DEPTH = 3;
@@ -63,11 +74,6 @@ export function archiveVolumes(archivePath: string): string[] {
   return fs.readdirSync(dir)
     .filter(name => RAR_PART.exec(name)?.[1] === match[1])
     .map(name => path.join(dir, name));
-}
-
-export function gameIdFromName(name: string): string | null {
-  const match = GAME_ID_IN_TEXT.exec(name);
-  return match ? match[1].toUpperCase() : null;
 }
 
 // --- .zip -----------------------------------------------------------------
@@ -111,6 +117,9 @@ function openZip(file: string): Promise<yauzl.ZipFile> {
   });
 }
 
+/** Zip chiffré : yauzl ne sait pas le lire, 7-Zip prend le relais. */
+class EncryptedZipError extends Error {}
+
 async function extractZip(archive: string, destination: string): Promise<void> {
   const zip = await openZip(archive);
   await new Promise<void>((resolve, reject) => {
@@ -124,7 +133,7 @@ async function extractZip(archive: string, destination: string): Promise<void> {
       (async () => {
         const rawName = entry.fileName as unknown as Buffer;
         const name = decodeZipName(rawName, (entry.generalPurposeBitFlag & 0x800) !== 0);
-        if ((entry.generalPurposeBitFlag & 0x1) !== 0) throw new Error('Archive protégée par mot de passe : extrais-la à la main.');
+        if ((entry.generalPurposeBitFlag & 0x1) !== 0) throw new EncryptedZipError();
         const segments = safeEntrySegments(name);
         if (!segments) throw new Error(`Chemin refusé dans l'archive : ${name}`);
         const target = path.join(destination, ...segments);
@@ -146,23 +155,63 @@ async function extractZip(archive: string, destination: string): Promise<void> {
 
 // --- 7-Zip (WASM) -----------------------------------------------------------
 
-function extractWith7z(archive: string, destination: string): Promise<void> {
+/** Extraction 7-Zip/WASM dans un processus utilitaire (voir archive-7z-worker.ts). */
+export function extractWith7z(request: SevenZipRequest): Promise<SevenZipResult> {
   return new Promise((resolve, reject) => {
     const child = utilityProcess.fork(path.join(__dirname, 'archive-7z-worker.js'), [], { serviceName: 'DLSGM extraction' });
     let answered = false;
-    child.on('message', ({ code, errors }: { code: number; errors: string[] }) => {
+    child.on('message', (result: SevenZipResult) => {
       answered = true;
       child.kill();
-      const text = errors.join(' ');
-      if (/wrong password|encrypted/i.test(text)) reject(new Error('Archive protégée par mot de passe : extrais-la à la main.'));
-      else if (code >= 2) reject(new Error(`Extraction impossible (7-Zip, code ${code})${text ? ` : ${text}` : ''}`));
-      else resolve();
+      resolve(result);
     });
     child.on('exit', code => {
       if (!answered) reject(new Error(`Le processus d'extraction s'est arrêté (code ${code}).`));
     });
-    child.postMessage({ archive, destination });
+    child.postMessage(request);
   });
+}
+
+/** Aucun des mots de passe essayés n'ouvre l'archive (ou elle est illisible). */
+export class ArchivePasswordError extends Error {
+  /** `inner` : nom de l'archive interne en cause (l'archive choisie est déjà nommée dans le bilan). */
+  constructor(inner?: string) {
+    super(`${inner ? `Archive interne ${inner} protégée` : 'Archive protégée'} par mot de passe (aucun mot de passe connu ne l'ouvre) ou illisible : saisis son mot de passe.`);
+    this.name = 'ArchivePasswordError';
+  }
+}
+
+async function emptyDir(dir: string): Promise<void> {
+  await fs.promises.rm(dir, { recursive: true, force: true });
+  await fs.promises.mkdir(dir, { recursive: true });
+}
+
+type Extract7z = (request: SevenZipRequest) => Promise<SevenZipResult>;
+
+/**
+ * Extrait `archive` dans `destination` (vide). Zip non chiffré : yauzl.
+ * Sinon 7-Zip, sans mot de passe puis avec chaque candidat, tant que
+ * l'échec ressemble à un mauvais mot de passe.
+ */
+async function extractArchive(archive: string, destination: string, passwords: string[], extract7z: Extract7z, inner = false): Promise<void> {
+  if (archive.toLowerCase().endsWith('.zip')) {
+    try {
+      await extractZip(archive, destination);
+      return;
+    } catch (error) {
+      if (!(error instanceof EncryptedZipError)) throw error;
+    }
+  }
+  for (const password of [undefined, ...new Set(passwords.filter(Boolean))]) {
+    await emptyDir(destination);
+    const result = await extract7z({ archive, destination, password });
+    if (result.code < 2) return;
+    if (!isPasswordFailure(result)) {
+      const text = result.errors.join(' ');
+      throw new Error(`Extraction impossible (7-Zip, code ${result.code})${text ? ` : ${text}` : ''}`);
+    }
+  }
+  throw new ArchivePasswordError(inner ? path.basename(archive) : undefined);
 }
 
 // --- Import -----------------------------------------------------------------
@@ -179,18 +228,49 @@ async function assertRegularTree(dir: string): Promise<void> {
 /**
  * Descend dans les dossiers enveloppes (un unique dossier, sans rien
  * d'autre) : `RJ01234567/`, ou le titre du jeu, contenant le vrai contenu.
- * Renvoie aussi l'ID trouvé dans le nom d'un de ces dossiers.
+ * Renvoie aussi leurs noms (indices d'ID et de version).
  */
-async function unwrap(dir: string): Promise<{ root: string; idFromFolder: string | null }> {
+async function unwrap(dir: string): Promise<{ root: string; wrappers: string[] }> {
   let root = dir;
-  let idFromFolder: string | null = null;
+  const wrappers: string[] = [];
   for (let depth = 0; depth < MAX_UNWRAP_DEPTH; depth++) {
     const entries = await fs.promises.readdir(root, { withFileTypes: true });
     if (entries.length !== 1 || !entries[0].isDirectory()) break;
-    idFromFolder = idFromFolder ?? gameIdFromName(entries[0].name);
+    wrappers.push(entries[0].name);
     root = path.join(root, entries[0].name);
   }
-  return { root, idFromFolder };
+  return { root, wrappers };
+}
+
+// Archives dans l'archive extraites au plus (zip → rar → ...).
+const MAX_NESTING = 2;
+const INNER_ARCHIVE = /\.(zip|rar|7z)$|\.part\d+\.exe$/i;
+// Ce qui peut accompagner une archive interne sans être le jeu (notice, mot de passe, lien, aperçu).
+const ACCESSORY = /\.(txt|url|nfo|md|html?|jpe?g|png|gif|webp|bmp)$/i;
+
+/**
+ * Archive interne à extraire : le dossier ne contient qu'une archive (ou les
+ * parties d'une seule) et des fichiers annexes. Un `Game.exe` à côté, ou un
+ * sous-dossier, et c'est le jeu lui-même : rien à extraire.
+ */
+export function nestedArchive(dir: string): string | null {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  const archives = entries.filter(e => e.isFile() && INNER_ARCHIVE.test(e.name));
+  if (archives.length === 0) return null;
+  if (entries.some(e => !archives.includes(e) && !(e.isFile() && ACCESSORY.test(e.name)))) return null;
+  const sets = new Set(archives.map(e => RAR_PART.exec(e.name)?.[1] ?? e.name));
+  if (sets.size !== 1) return null;
+  return firstVolume(path.join(dir, archives[0].name));
+}
+
+/** IDs présents dans les noms de l'arborescence (3 niveaux). */
+function idsInTree(dir: string, depth = 0): Set<string> {
+  const ids = new Set<string>();
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    for (const id of gameIdsIn(entry.name)) ids.add(id);
+    if (entry.isDirectory() && depth < 2) for (const id of idsInTree(path.join(dir, entry.name), depth + 1)) ids.add(id);
+  }
+  return ids;
 }
 
 /** Restes d'un import interrompu (arrêt brutal). À n'appeler que sans import en cours. */
@@ -200,14 +280,25 @@ export async function removeStaleImports(destinationFolder: string): Promise<voi
 
 export interface ImportedGame {
   gameId: string;
+  version: string | null;
+  dlc: boolean;
+}
+
+export interface ImportOptions {
+  /** Mots de passe essayés en premier (saisi, puis mémorisés). */
+  passwords?: string[];
+  /** Extraction 7-Zip (par défaut dans un processus utilitaire ; directe en test). */
+  extract7z?: Extract7z;
 }
 
 /**
  * Extrait `archivePath` et le range dans `<destinationFolder>/<ID>/`. L'ID
- * vient du nom de l'archive, sinon d'un dossier enveloppe de son contenu.
+ * vient du nom de l'archive, sinon d'une archive interne ou d'un dossier
+ * enveloppe, sinon du seul ID présent dans l'arborescence.
  */
-export async function importArchive(archivePath: string, destinationFolder: string): Promise<ImportedGame> {
+export async function importArchive(archivePath: string, destinationFolder: string, options: ImportOptions = {}): Promise<ImportedGame> {
   if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error('Dossier de jeux non configuré ou introuvable.');
+  const extract7z = options.extract7z ?? extractWith7z;
   const archive = firstVolume(archivePath);
   const idFromArchive = gameIdFromName(path.basename(archive));
   if (idFromArchive && fs.existsSync(path.join(destinationFolder, idFromArchive))) {
@@ -218,21 +309,49 @@ export async function importArchive(archivePath: string, destinationFolder: stri
   const staging = path.join(stagingRoot, `${Date.now()}`);
   await fs.promises.mkdir(staging, { recursive: true });
   try {
-    if (archive.toLowerCase().endsWith('.zip')) await extractZip(archive, staging);
-    else await extractWith7z(archive, staging);
+    // Noms rencontrés, du plus extérieur au plus intérieur : ID, version, DLC.
+    const names = [path.basename(archive)];
+    const passwords = [...(options.passwords ?? []), ...passwordsFromArchiveName(path.basename(archive))];
+    let current = path.join(staging, '0');
+    await fs.promises.mkdir(current);
+    await extractArchive(archive, current, passwords, extract7z);
 
-    await assertRegularTree(staging);
-    const { root, idFromFolder } = await unwrap(staging);
+    let root: string;
+    for (let level = 1; ; level++) {
+      await assertRegularTree(current);
+      const unwrapped = await unwrap(current);
+      root = unwrapped.root;
+      names.push(...unwrapped.wrappers);
+      const inner = level <= MAX_NESTING ? nestedArchive(root) : null;
+      if (!inner) break;
+      names.push(path.basename(inner));
+      passwords.push(...passwordsFromFolder(root), ...passwordsFromArchiveName(path.basename(inner)));
+      const next = path.join(staging, String(level));
+      await fs.promises.mkdir(next);
+      await extractArchive(inner, next, passwords, extract7z, true);
+      await fs.promises.rm(current, { recursive: true, force: true });
+      current = next;
+    }
     if ((await fs.promises.readdir(root)).length === 0) throw new Error("L'archive est vide.");
 
-    const gameId = idFromArchive ?? idFromFolder;
+    const treeIds = idsInTree(root);
+    const gameId = idFromArchive
+      ?? names.map(gameIdFromName).find(id => id !== null)
+      ?? (treeIds.size === 1 ? [...treeIds][0] : null);
     if (!gameId || !GAME_ID_REGEX.test(gameId)) {
-      throw new Error("ID DLsite introuvable (ni dans le nom de l'archive, ni dans son dossier) : renomme l'archive avec l'ID, ex: RJ01234567.zip.");
+      throw new Error("ID DLsite introuvable (ni dans le nom de l'archive, ni dans son contenu) : renomme l'archive avec l'ID, ex: RJ01234567.zip.");
     }
     const target = path.join(destinationFolder, gameId);
     if (fs.existsSync(target)) throw new Error(`${gameId} est déjà dans la bibliothèque : rien n'a été importé.`);
     await fs.promises.rename(root, target);
-    return { gameId };
+    const release = mergeReleaseNames(names);
+    try {
+      writeInstallInfo(target, { source: path.basename(archivePath), ...release, date: new Date().toISOString() });
+    } catch (error) {
+      // Le jeu est importé : l'origine n'est qu'un plus.
+      console.error(`Origine de ${gameId} non enregistrée :`, error);
+    }
+    return { gameId, ...release };
   } finally {
     await fs.promises.rm(staging, { recursive: true, force: true }).catch(() => undefined);
     // Dossier temporaire racine retiré s'il est vide (pas de reste visible dans la bibliothèque).

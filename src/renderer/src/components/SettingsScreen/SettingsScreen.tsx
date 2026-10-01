@@ -7,6 +7,7 @@ import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslation
 import PiaSettings from '../PiaSettings/PiaSettings';
 import WipBadge from '../WipBadge/WipBadge';
 import IpChecker from '../IpChecker/IpChecker';
+import ArchivePasswords from '../ArchivePasswords/ArchivePasswords';
 import type { GenreNames, GenreTranslations } from '../../lib/genreNames.js';
 import { getSandboxieStatus, type SandboxieStatus } from '../../lib/gameTools.js';
 import type { AppSettings } from '../../hooks/useSettings';
@@ -391,6 +392,13 @@ export default function SettingsScreen({
                 <FolderOpen size={16} strokeWidth={2.25} />
                 Parcourir
               </button>
+            </SettingRow>
+
+            <SettingRow
+              label="Mots de passe d'archives"
+              description="Essayés automatiquement à chaque import (en plus de ceux trouvés dans les fichiers texte de l'archive et du nom du site en tête de son nom). Ajoutés depuis le bilan d'un import ; supprimés ici immédiatement."
+            >
+              <ArchivePasswords />
             </SettingRow>
 
             <SettingRow label="Rafraîchissement du cache"

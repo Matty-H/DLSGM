@@ -13,6 +13,8 @@ import WishlistScreen from './components/WishlistScreen/WishlistScreen';
 import ImportResults from './components/ImportResults/ImportResults';
 import ArchiveCleanupToast from './components/ArchiveCleanupToast/ArchiveCleanupToast';
 import { useArchiveImport } from './hooks/useArchiveImport';
+import FolderRenameAssistant from './components/FolderRenameAssistant/FolderRenameAssistant';
+import { useFolderRename } from './hooks/useFolderRename';
 import PanicOverlay from './components/PanicOverlay/PanicOverlay';
 import FooterHints, { type FooterHint } from './components/FooterHints/FooterHints';
 import { useSettings } from './hooks/useSettings';
@@ -44,6 +46,8 @@ export default function App() {
   const lanShare = useLanShare({ onGameReceived: () => library.rescan() });
   // Même principe pour un jeu extrait de son archive.
   const archiveImport = useArchiveImport(library.rescan);
+  // Dossiers mal nommés (« [RJ…] Titre v1.2 ») : revus à chaque scan, renommés sur confirmation.
+  const folderRename = useFolderRename(`${library.status}:${library.gameFolders.join('|')}`, library.rescan);
   // PIA installé : proposé sur les fiches en échec (restriction régionale).
   const [vpnAvailable, setVpnAvailable] = useState(false);
   useEffect(() => {
@@ -403,8 +407,23 @@ export default function App() {
           />
 
           {archiveImport.results && (
-            <ImportResults results={archiveImport.results} onDismiss={archiveImport.dismiss} onOpenGame={handleOpenGame} />
+            <ImportResults
+              results={archiveImport.results}
+              onDismiss={archiveImport.dismiss}
+              onOpenGame={handleOpenGame}
+              onRetry={archiveImport.retry}
+              busy={archiveImport.running}
+            />
           )}
+
+          <FolderRenameAssistant
+            folders={folderRename.folders}
+            results={folderRename.results}
+            busy={folderRename.busy}
+            onRename={folderRename.rename}
+            onDismiss={folderRename.dismiss}
+            onDismissResults={folderRename.dismissResults}
+          />
 
 
           <AdvancedFilterPanel

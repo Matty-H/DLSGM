@@ -41,6 +41,28 @@ export function useArchiveImport(onImported: () => void) {
     }
   }, [onImported]);
 
+  /** Nouvel essai d'un import refusé faute de mot de passe ; remplace son résultat. */
+  const retry = useCallback(async (retryId: string, password: string, remember: boolean) => {
+    setRunning(true);
+    try {
+      let result: ArchiveImportResult;
+      try {
+        result = await window.electronAPI.retryArchiveImport(retryId, password, remember);
+      } catch (error) {
+        result = { file: 'Import', error: ipcErrorMessage(error) };
+      }
+      setResults(prev => (prev ?? []).map(r => (r.retryId === retryId ? { ...result, file: r.file } : r)));
+      if (result.importId) {
+        const importId = result.importId;
+        setCleanup(prev => ({ importIds: [...(prev && !prev.outcome ? prev.importIds : []), importId], outcome: null, busy: false }));
+      }
+      if (result.gameId) onImported();
+    } finally {
+      setRunning(false);
+      setProgress(null);
+    }
+  }, [onImported]);
+
   const trashArchives = useCallback(async () => {
     if (!cleanup || cleanup.busy || cleanup.outcome) return;
     setCleanup({ ...cleanup, busy: true });
@@ -58,6 +80,7 @@ export function useArchiveImport(onImported: () => void) {
     progress,
     results,
     dismiss: () => setResults(null),
+    retry,
     cleanup,
     trashArchives,
     dismissCleanup: () => setCleanup(null)
