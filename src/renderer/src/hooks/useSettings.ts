@@ -30,6 +30,7 @@ export interface AppSettings {
   ocrTranslate: OcrTranslateSettings;
   localeEmulatorPath: string;
   screenshot: ScreenshotSettings;
+  checkUpdatesOnStartup: boolean;
   selectedSort: string;
 
 
@@ -52,7 +53,7 @@ export function useSettings() {
     // un enregistrement ici remettrait les anciennes valeurs.
     const off = window.electronAPI.onSettingsChanged(() => {
       loadSettings().then((loaded: AppSettings) => {
-        if (!cancelled) setSettings(prev => (prev ? { ...prev, autoClicker: loaded.autoClicker, pixelTrigger: loaded.pixelTrigger } : loaded));
+        if (!cancelled) setSettings(prev => (prev ? { ...prev, autoClicker: loaded.autoClicker, pixelTrigger: loaded.pixelTrigger, checkUpdatesOnStartup: loaded.checkUpdatesOnStartup } : loaded));
       });
     });
     return () => {

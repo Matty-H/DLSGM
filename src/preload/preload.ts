@@ -257,6 +257,8 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.removeListener('settings-changed', listener);
     };
   },
+  getAppUpdateInfo: () => ipcRenderer.invoke('get-app-update-info'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
 
   onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', () => callback()),
   onLanTransferProgress: (callback) => {

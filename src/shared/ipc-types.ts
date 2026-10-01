@@ -80,7 +80,23 @@ export interface AppSettings {
   localeEmulatorPath: string;
   /** Captures d'écran du jeu (raccourci pendant une partie, overlay). */
   screenshot: ScreenshotSettings;
+  /** Chercher une nouvelle version au démarrage (Paramètres › Mises à jour). */
+  checkUpdatesOnStartup: boolean;
 }
+
+/** Version de l'application et mode d'installation (src/main/updater.ts). */
+export interface AppUpdateInfo {
+  version: string;
+  /** Exécutable portable : pas de mise à jour automatique, seulement un pop-up. */
+  portable: boolean;
+  /** electron-updater peut télécharger et installer (installeur Windows, macOS). */
+  selfUpdate: boolean;
+}
+
+export type UpdateCheckResult =
+  | { status: 'up-to-date' | 'available'; version: string }
+  | { status: 'error'; message: string }
+  | { status: 'busy' };
 
 export interface ScreenshotSettings {
   enabled: boolean;
@@ -1129,6 +1145,9 @@ export interface ElectronAPI {
   onCacheEntryChanged(callback: (gameId: string, patch: Record<string, unknown>) => void): () => void;
   /** Paramètres modifiés hors de la fenêtre principale (témoin) : à relire. */
   onSettingsChanged(callback: () => void): () => void;
+  // Mises à jour (src/main/updater.ts) : les pop-ups sont affichés par main.
+  getAppUpdateInfo(): Promise<AppUpdateInfo>;
+  checkForUpdates(): Promise<UpdateCheckResult>;
 
   // Événements (du Main vers le Renderer)
   onPanicTriggered(callback: () => void): void;
