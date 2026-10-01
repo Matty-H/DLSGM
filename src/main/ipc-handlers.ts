@@ -1,4 +1,4 @@
-import { app, clipboard, ipcMain, dialog, globalShortcut, net, screen, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
+import { app, clipboard, ipcMain, dialog, globalShortcut, net, safeStorage, screen, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions, type Rectangle } from 'electron';
 
 import path from 'path';
 import fs from 'fs';
@@ -18,6 +18,9 @@ import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { readInstallInfo } from './release-names';
 import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
+import { DEFAULT_OCR, OcrReader, groupOcrLines, sanitizeOcrSettings } from './ocr';
+import { OcrViewWindow } from './ocr-view';
+import { translateTexts } from './translator';
 import { Wishlist } from './wishlist';
 import { describeWorkspace, workspaceRoot } from './workspace';
 import { snapshotDatabase } from './db-backup';
@@ -31,7 +34,7 @@ import { ClickerHud, MACRO_HUD_OFFSET_X, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSE
 import { DEFAULT_MACRO_RECORDER, MAX_MACROS_PER_GAME, MacroRecorder, acceleratorVks, sanitizeMacroSettings, sanitizeMacros } from './macro-recorder';
 import { TriggerZonesWindow } from './trigger-zones';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -82,7 +85,8 @@ const settingsStore = new Store('settings.db', {
   macroRecorder: { enabled: false, recordHotkey: 'F8', playHotkey: 'F9' },
   textractorPath: '',
   textractorOutput: 'both',
-  rpgMakerExtractor: false
+  rpgMakerExtractor: false,
+  ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'none', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' }
 }, 'settings.json');
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
@@ -673,6 +677,117 @@ function saveRecordedMacro(steps: MacroStep[], durationMs: number): void {
   }).catch(error => console.error('Macro non enregistrée :', error));
 }
 
+// --- Traduction à l'écran (OCR) ---
+let ocrReader: OcrReader | null = null;
+let ocrView: OcrViewWindow | null = null;
+let ocrConfig: OcrTranslateSettings = DEFAULT_OCR;
+let ocrHotkey: string | null = null;
+// Échap pris par la vue (si l'overlay ne l'a pas déjà) le temps de l'affichage.
+let ocrEscape = false;
+// Lecture en cours : une nouvelle pression la remplace (son résultat est ignoré).
+let ocrRun = 0;
+let gameRectForOcr: (() => { physical: Rectangle; dip: Rectangle } | null) | null = null;
+// Clés DeepL / Google, chiffrées (safeStorage), jamais dans settings.db ni vers le renderer.
+const translationKeyStore = new Store('translation-keys.db', {});
+
+async function translationKey(engine: 'deepl' | 'google'): Promise<string | null> {
+  const stored = await translationKeyStore.get(engine);
+  if (typeof stored !== 'string' || !stored) return null;
+  try {
+    return safeStorage.decryptString(Buffer.from(stored, 'base64'));
+  } catch {
+    return null;
+  }
+}
+
+export async function applyOcrSettings(): Promise<void> {
+  ocrConfig = sanitizeOcrSettings((await getSettings()).ocrTranslate);
+  refreshOcr();
+}
+
+/** Raccourci pris (et worker préchauffé) seulement pendant une partie lancée depuis DLSGM, OCR activé. */
+function refreshOcr(): void {
+  const active = ocrConfig.enabled && process.platform === 'win32' && runningGameDirs.size > 0 && !panicActive;
+  if (ocrHotkey && (!active || ocrHotkey !== ocrConfig.hotkey)) {
+    globalShortcut.unregister(ocrHotkey);
+    ocrHotkey = null;
+  }
+  if (!active) {
+    hideOcrView();
+    ocrReader?.dispose();
+    return;
+  }
+  const taken = [...RESERVED_HOTKEYS, clickerHotkey, triggerHotkey, ...macroHotkeys].filter((k): k is string => Boolean(k));
+  if (!ocrHotkey && !taken.some(k => k.toLowerCase() === ocrConfig.hotkey.toLowerCase())) {
+    try {
+      if (globalShortcut.register(ocrConfig.hotkey, () => toggleOcr())) ocrHotkey = ocrConfig.hotkey;
+    } catch {
+      // accélérateur invalide
+    }
+  }
+  ocrReader?.warmUp();
+}
+
+function hideOcrView(): void {
+  ocrRun++;
+  ocrView?.hide();
+  if (ocrEscape) {
+    globalShortcut.unregister('Escape');
+    ocrEscape = false;
+  }
+}
+
+/**
+ * Raccourci (ou bouton de l'overlay) : lit la fenêtre du jeu et affiche la
+ * traduction par-dessus ; une seconde pression la cache. Synchrone jusqu'à
+ * l'envoi de la commande au worker OCR (voir AutoClicker.start).
+ */
+function toggleOcr(): void {
+  if (!ocrReader || !ocrView) return;
+  if (ocrView.isVisible()) {
+    hideOcrView();
+    return;
+  }
+  const area = gameRectForOcr?.();
+  if (!area) return;
+  const run = ++ocrRun;
+  const config = ocrConfig;
+  const base: OcrView = { status: 'reading', area: area.dip, blocks: [], error: null, engine: config.engine };
+  ocrView.show(base, area.dip);
+  if (!globalShortcut.isRegistered('Escape')) ocrEscape = globalShortcut.register('Escape', () => hideOcrView());
+  // Erreur (OCR ou traduction) : les blocs déjà lus restent affichés.
+  const fail = (error: unknown) => {
+    if (run === ocrRun && ocrView) ocrView.update({ ...ocrView.getView(), status: 'error', error: error instanceof Error ? error.message : String(error) });
+  };
+  ocrReader
+    .read(config.source, area.physical)
+    .then(async lines => {
+      if (run !== ocrRun) return;
+      // Pixels physiques de la capture → DIP de la fenêtre de la vue.
+      const scale = area.dip.width / area.physical.width;
+      const blocks = groupOcrLines(lines).map(b => ({
+        text: b.text,
+        x: Math.round(b.x * scale),
+        y: Math.round(b.y * scale),
+        width: Math.round(b.width * scale),
+        height: Math.round(b.height * scale),
+        translation: null as string | null
+      }));
+      const translating = config.engine !== 'none' && blocks.length > 0;
+      ocrView?.update({ ...base, status: translating ? 'translating' : 'done', blocks });
+      if (!translating) return;
+      const apiKey = config.engine === 'deepl' || config.engine === 'google' ? await translationKey(config.engine) : null;
+      const translations = await translateTexts(blocks.map(b => b.text), {
+        settings: config,
+        apiKey,
+        fetch: (url, init) => net.fetch(url, init)
+      });
+      if (run !== ocrRun) return;
+      ocrView?.update({ ...base, status: 'done', blocks: blocks.map((b, i) => ({ ...b, translation: translations[i] })) });
+    })
+    .catch(fail);
+}
+
 // --- Textractor (lancement avec extraction du texte) ---
 const textractorSessions = new Map<string, TextractorSession>();
 // Écritures du fichier de texte, une à la fois par jeu (dans l'ordre d'arrivée).
@@ -831,6 +946,7 @@ export function togglePanic(): void {
   refreshAutoClicker();
   refreshPixelTrigger();
   refreshMacroRecorder();
+  refreshOcr();
 }
 
 /** Fermeture de la fenêtre principale ou de l'application. */
@@ -844,6 +960,8 @@ export function shutdownInGameTools(): void {
   triggerHud?.destroy();
   triggerZones?.destroy();
   macroHud?.destroy();
+  ocrReader?.dispose();
+  ocrView?.destroy();
 }
 
 export interface PageLoader {
@@ -988,6 +1106,50 @@ export function setupIpcHandlers(
     if (macroRecorder?.getStatus().playingMacroId === macroId) macroRecorder.stop();
     return changeGameMacros(gameId, current => ({ ...current, macros: current.macros.filter(m => m.id !== macroId) }));
   });
+  // Traduction à l'écran : zone client du jeu (pixels physiques pour la capture, DIP pour la vue).
+  ocrReader = new OcrReader(app.getPath('userData'));
+  ocrView = new OcrViewWindow({ preloadPath: pages.preloadPath, loadPage: window => pages.loadPage(window, 'ocr-view') });
+  gameRectForOcr = () => {
+    const physical = tracker.current();
+    if (physical) return { physical, dip: screen.screenToDipRect(null, physical) };
+    // Fenêtre du jeu inconnue : l'écran principal entier.
+    const dip = screen.getPrimaryDisplay().bounds;
+    return { physical: screen.dipToScreenRect(null, dip), dip };
+  };
+  applyOcrSettings().catch(error => console.error('OCR au démarrage :', error));
+  ipcMain.handle('get-ocr-view', () => ocrView?.getView() ?? null);
+  ipcMain.handle('ocr-languages', async () => {
+    try {
+      return await (ocrReader?.languages() ?? Promise.resolve([]));
+    } catch {
+      return [];
+    }
+  });
+  // Bouton de l'overlay : l'overlay se cache d'abord, sinon il serait lu avec le jeu.
+  ipcMain.handle('ocr-translate-now', () => {
+    if (!ocrConfig.enabled) throw new Error("La traduction à l'écran est désactivée (Paramètres › Outils en jeu).");
+    if (overlay?.isVisible()) {
+      overlay.hide();
+      setTimeout(toggleOcr, 250);
+    } else {
+      toggleOcr();
+    }
+  });
+  ipcMain.handle('get-translation-keys', async () => ({
+    deepl: (await translationKey('deepl')) !== null,
+    google: (await translationKey('google')) !== null
+  }));
+  ipcMain.handle('set-translation-key', async (event: IpcMainInvokeEvent, engine: string, key: string | null) => {
+    if (engine !== 'deepl' && engine !== 'google') throw new Error('Service inconnu.');
+    if (key === null || key === '') {
+      await translationKeyStore.set(engine, '');
+      return;
+    }
+    if (typeof key !== 'string' || key.length > 300) throw new Error('Clé invalide.');
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('Chiffrement Windows indisponible : clé non enregistrée.');
+    await translationKeyStore.set(engine, safeStorage.encryptString(key.trim()).toString('base64'));
+  });
+
   notifyTextractor = (gameId, view) => {
     getWindow()?.webContents.send('textractor-changed', gameId, view);
     overlay?.send('textractor-changed', gameId, view);
@@ -1081,7 +1243,8 @@ export function setupIpcHandlers(
     macro: macroRecorder?.getStatus() ?? { available: false, recording: false, playing: false, paused: false, inGame: false, hotkeysActive: false, stepCount: 0, loops: 0, playingMacroId: null, error: null },
     macroSettings: macroConfig,
     gameMacros: Object.fromEntries(runningGameMacros),
-    textractor: Object.fromEntries([...textractorSessions].map(([id, session]) => [id, session.view()]))
+    textractor: Object.fromEntries([...textractorSessions].map(([id, session]) => [id, session.view()])),
+    ocr: { enabled: ocrConfig.enabled && process.platform === 'win32', hotkey: ocrConfig.hotkey }
   }));
   ipcMain.handle('hide-overlay', () => gameOverlay.hide());
   // Témoin : réglages rapides (déplié seulement à l'arrêt, sinon les clics tomberaient dessus).
@@ -1163,6 +1326,7 @@ export function setupIpcHandlers(
     await applyAutoClickerSettings();
     await applyPixelTriggerSettings();
     await applyMacroSettings();
+    await applyOcrSettings();
     await overlay?.refreshHotkey();
     onSettingsSaved?.(newSettings);
     return true;
@@ -1293,6 +1457,7 @@ export function setupIpcHandlers(
     refreshAutoClicker();
     refreshPixelTrigger();
     refreshMacroRecorder();
+    refreshOcr();
     if (textractor) startTextractor(gameId, gamePath, textractor);
     try {
       result = await startGameProcess(gameId, gamePath, executablePath);
@@ -1310,6 +1475,7 @@ export function setupIpcHandlers(
       refreshAutoClicker();
       refreshPixelTrigger();
       refreshMacroRecorder();
+      refreshOcr();
     }
 
     const { code: _code, exitCode: _exitCode, ...launchResult } = result;

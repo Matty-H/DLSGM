@@ -74,6 +74,8 @@ export interface AppSettings {
   textractorOutput: 'clipboard' | 'file' | 'both';
   /** Bouton « Extraire images et sons » sur la page des jeux RPG Maker MV/MZ chiffrés. */
   rpgMakerExtractor: boolean;
+  /** Traduction à l'écran (OCR de Windows + traducteur), raccourci pendant une partie. */
+  ocrTranslate: OcrTranslateSettings;
 }
 
 /** Fil de texte capté par Textractor (un hook dans un processus du jeu). */
@@ -94,6 +96,44 @@ export interface TextractorView {
   threads: TextractorThread[];
   /** Hookcode du fil envoyé au presse-papiers / au fichier (null : tous au fichier, rien au presse-papiers). */
   selectedHook: string | null;
+}
+
+/** Ligne reconnue par l'OCR, en pixels relatifs à la capture (voir src/main/ocr.ts). */
+export interface OcrLine {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Bloc de texte (lignes regroupées : une bulle, un menu). */
+export type OcrBlock = OcrLine;
+
+/** Traduction à l'écran (voir src/main/ocr.ts et translator.ts). */
+export interface OcrTranslateSettings {
+  enabled: boolean;
+  hotkey: string;
+  /** Langue OCR de Windows (balise : ja, en-US, zh-Hans...). */
+  source: string;
+  /** Langue de traduction (code court : fr, en...). */
+  target: string;
+  /** none : texte reconnu seul ; local : serveur compatible OpenAI sur ce PC ; deepl / google : service en ligne (clé). */
+  engine: 'none' | 'local' | 'deepl' | 'google';
+  /** Adresse du serveur local (Ollama, LM Studio, llama.cpp...), ex: http://127.0.0.1:11434/v1. */
+  localUrl: string;
+  localModel: string;
+}
+
+/** Ce qu'affiche la fenêtre de traduction posée sur le jeu (#ocr-view). */
+export interface OcrView {
+  status: 'idle' | 'reading' | 'translating' | 'done' | 'error';
+  /** Origine de la capture en DIP (coin de la zone client du jeu) et sa taille. */
+  area: { x: number; y: number; width: number; height: number } | null;
+  /** Blocs en DIP relatifs à `area`, avec leur traduction (null : pas encore, ou pas de traduction). */
+  blocks: (OcrBlock & { translation: string | null })[];
+  error: string | null;
+  engine: OcrTranslateSettings['engine'];
 }
 
 /** Résultat de l'extraction des ressources RPG Maker (voir src/main/rpgmaker-assets.ts). */
@@ -351,6 +391,8 @@ export interface OverlayState {
   gameMacros: Record<string, GameMacros>;
   /** Sessions Textractor des jeux en cours lancés avec Textractor, par ID. */
   textractor: Record<string, TextractorView>;
+  /** Traduction à l'écran activée, et son raccourci (bouton de l'overlay). */
+  ocr: { enabled: boolean; hotkey: string };
 }
 
 /** Taille des jaquettes d'une étagère de l'accueil. */
@@ -948,6 +990,18 @@ export interface ElectronAPI {
   /** Déchiffre images et sons d'un jeu RPG Maker MV/MZ dans son dossier de travaux. */
   extractRpgMakerAssets(gameId: string): Promise<RpgMakerExtractResult>;
   onRpgMakerExtractProgress(callback: (progress: { gameId: string; done: number; total: number }) => void): () => void;
+  // Traduction à l'écran (src/main/ocr.ts, translator.ts, ocr-view.ts)
+  /** Fenêtre #ocr-view : état affiché (au montage), puis mises à jour. */
+  getOcrView(): Promise<OcrView | null>;
+  onOcrView(callback: (view: OcrView) => void): () => void;
+  /** Langues OCR installées dans Windows (balises). */
+  getOcrLanguages(): Promise<string[]>;
+  /** Overlay : lit et traduit la fenêtre du jeu (comme le raccourci). */
+  ocrTranslateNow(): Promise<void>;
+  /** Clés enregistrées (jamais renvoyées en clair). */
+  getTranslationKeys(): Promise<{ deepl: boolean; google: boolean }>;
+  /** Enregistre (chiffrée) ou efface (null) la clé d'un service. */
+  setTranslationKey(engine: 'deepl' | 'google', key: string | null): Promise<void>;
   // Enregistreur de macros (src/main/macro-recorder.ts)
   /** Overlay : ajoute ou retire l'enregistreur de macros d'un jeu en cours (enregistré dans sa fiche). */
   setGameMacroEnabled(gameId: string, enabled: boolean): Promise<void>;

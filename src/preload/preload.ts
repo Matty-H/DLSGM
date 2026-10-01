@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, MacroRecorderStatus, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
+import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, MacroRecorderStatus, OcrView, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -167,6 +167,18 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.removeListener('rpgmaker-extract-progress', listener);
     };
   },
+  getOcrView: () => ipcRenderer.invoke('get-ocr-view'),
+  onOcrView: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, view: OcrView) => callback(view);
+    ipcRenderer.on('ocr-view', listener);
+    return () => {
+      ipcRenderer.removeListener('ocr-view', listener);
+    };
+  },
+  getOcrLanguages: () => ipcRenderer.invoke('ocr-languages'),
+  ocrTranslateNow: () => ipcRenderer.invoke('ocr-translate-now'),
+  getTranslationKeys: () => ipcRenderer.invoke('get-translation-keys'),
+  setTranslationKey: (engine, key) => ipcRenderer.invoke('set-translation-key', engine, key),
   setGameMacroEnabled: (gameId, enabled) => ipcRenderer.invoke('set-game-macro-enabled', gameId, enabled),
   setActiveMacro: (gameId, macroId) => ipcRenderer.invoke('set-active-macro', gameId, macroId),
   updateMacro: (gameId, macroId, patch) => ipcRenderer.invoke('update-macro', gameId, macroId, patch),
