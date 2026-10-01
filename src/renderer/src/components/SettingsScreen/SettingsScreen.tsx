@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, ScanEye, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, ScanEye, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
@@ -18,6 +18,8 @@ import CollectionsSettings from '../CollectionsSettings/CollectionsSettings';
 import ProxyForm from '../ProxyForm/ProxyForm';
 import AutoClickerSettings from '../AutoClickerSettings/AutoClickerSettings';
 import PixelTriggerSettings from '../PixelTriggerSettings/PixelTriggerSettings';
+import MacroSettings from '../MacroSettings/MacroSettings';
+import type { MacroRecorderSettings } from '../../lib/macros.js';
 import type { PixelTriggerSettings as TriggerSettings } from '../../lib/pixelTrigger.js';
 import type { AutoClickerSettings as ClickerSettings } from '../../lib/autoClicker.js';
 import Select from '../Select/Select';
@@ -203,6 +205,7 @@ export default function SettingsScreen({
   const [showWipNetwork, setShowWipNetwork] = useState(false);
   const [autoClicker, setAutoClicker] = useState<ClickerSettings>(settings.autoClicker);
   const [pixelTrigger, setPixelTrigger] = useState<TriggerSettings>(settings.pixelTrigger);
+  const [macroRecorder, setMacroRecorder] = useState<MacroRecorderSettings>(settings.macroRecorder);
   const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
   const [closeToTray, setCloseToTray] = useState(settings.closeToTray);
@@ -230,6 +233,7 @@ export default function SettingsScreen({
     setHomeShelves(settings.homeShelves ?? {});
     setAutoClicker(settings.autoClicker);
     setPixelTrigger(settings.pixelTrigger);
+    setMacroRecorder(settings.macroRecorder);
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
@@ -262,6 +266,7 @@ export default function SettingsScreen({
 
   const clickerDirty = JSON.stringify(autoClicker) !== JSON.stringify(settings.autoClicker);
   const triggerDirty = JSON.stringify(pixelTrigger) !== JSON.stringify(settings.pixelTrigger);
+  const macroDirty = JSON.stringify(macroRecorder) !== JSON.stringify(settings.macroRecorder);
 
   const isDirty =
     destinationFolder !== settings.destinationFolder ||
@@ -280,6 +285,7 @@ export default function SettingsScreen({
     JSON.stringify(homeShelves) !== JSON.stringify(settings.homeShelves ?? {}) ||
     clickerDirty ||
     triggerDirty ||
+    macroDirty ||
     overlayEnabled !== settings.overlayEnabled;
 
   const handleBrowse = async () => {
@@ -306,6 +312,7 @@ export default function SettingsScreen({
       homeShelves,
       autoClicker,
       pixelTrigger,
+      macroRecorder,
       overlayEnabled,
       autoBackupSaves,
       closeToTray,
@@ -616,6 +623,10 @@ export default function SettingsScreen({
 
             <ToolGroup Icon={ScanEye} title="Détecteur de rythme" summary={<>Clique (ou appuie sur une touche) quand une note passe dans une zone — raccourci {pixelTrigger.hotkey}.</>}>
               <PixelTriggerSettings value={pixelTrigger} onChange={setPixelTrigger} clickerHotkey={autoClicker.hotkey} isDirty={triggerDirty} />
+            </ToolGroup>
+
+            <ToolGroup Icon={Clapperboard} title="Enregistreur de macros" summary={<>Enregistre clics et touches dans le jeu, puis les rejoue — {macroRecorder.recordHotkey} enregistre, {macroRecorder.playHotkey} rejoue.</>}>
+              <MacroSettings value={macroRecorder} onChange={setMacroRecorder} takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey]} isDirty={macroDirty} />
             </ToolGroup>
           </>
         )}

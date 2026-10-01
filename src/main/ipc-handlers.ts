@@ -25,10 +25,11 @@ import { DEFAULT_LAN_PORT, LanShare } from './lan-share';
 import { AutoClicker, DEFAULT_AUTO_CLICKER, sanitizeClickerSettings } from './auto-clicker';
 import { GameOverlay, OVERLAY_HOTKEY } from './overlay';
 import { GameWindowTracker } from './game-window';
-import { ClickerHud, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSET_X } from './clicker-hud';
+import { ClickerHud, MACRO_HUD_OFFSET_X, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSET_X } from './clicker-hud';
+import { DEFAULT_MACRO_RECORDER, MAX_MACROS_PER_GAME, MacroRecorder, acceleratorVks, sanitizeMacroSettings, sanitizeMacros } from './macro-recorder';
 import { TriggerZonesWindow } from './trigger-zones';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, FolderRenameResult, MisnamedFolder, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -75,7 +76,8 @@ const settingsStore = new Store('settings.db', {
   closeToTray: false,
   workspaceFolder: '',
   piaRetry: false,
-  piaRegion: 'jp-tokyo'
+  piaRegion: 'jp-tokyo',
+  macroRecorder: { enabled: false, recordHotkey: 'F8', playHotkey: 'F9' }
 }, 'settings.json');
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
@@ -529,6 +531,143 @@ async function togglePixelTriggerNow(): Promise<PixelTriggerStatus> {
   return pixelTrigger.getStatus();
 }
 
+// --- Enregistreur de macros (même modèle que l'auto-clicker) ---
+let macroRecorder: MacroRecorder | null = null;
+let macroHud: ClickerHud | null = null;
+let macroConfig: MacroRecorderSettings = DEFAULT_MACRO_RECORDER;
+// Raccourcis enregistrement / lecture actuellement pris.
+let macroHotkeys: string[] = [];
+// Jeux où l'enregistreur a été ajouté (case de l'overlay, `macroEnabled` : opt-in par jeu)…
+const macroEnabledGames = new Set<string>();
+// … et leurs macros, gardées en mémoire pendant la partie : le raccourci de
+// lecture les envoie sans lire la base (voir AutoClicker.start).
+const runningGameMacros = new Map<string, GameMacros>();
+// Macros par jeu : base à part, jamais dans le cache des jeux ni en LAN.
+const macroStore = new Store('macros.db', {});
+let macroWrites: Promise<unknown> = Promise.resolve();
+
+async function readGameMacros(gameId: string): Promise<GameMacros> {
+  const raw = (await macroStore.get(gameId)) as Partial<GameMacros> | undefined;
+  const macros = sanitizeMacros(raw?.macros);
+  const activeId = typeof raw?.activeId === 'string' && macros.some(m => m.id === raw.activeId) ? raw.activeId : null;
+  return { macros, activeId };
+}
+
+/** Lecture-modification-écriture des macros d'un jeu, une à la fois. */
+function changeGameMacros(gameId: string, change: (current: GameMacros) => GameMacros): Promise<GameMacros> {
+  const next = macroWrites.then(async () => {
+    const updated = change(await readGameMacros(gameId));
+    const clean: GameMacros = { macros: sanitizeMacros(updated.macros), activeId: updated.activeId };
+    if (clean.activeId && !clean.macros.some(m => m.id === clean.activeId)) clean.activeId = null;
+    await macroStore.set(gameId, clean);
+    if (runningGameMacros.has(gameId)) runningGameMacros.set(gameId, clean);
+    macroHud?.send('overlay-state-changed');
+    overlay?.send('overlay-state-changed');
+    return clean;
+  });
+  macroWrites = next.catch(() => undefined);
+  return next;
+}
+
+/** Jeu des macros : le plus récemment lancé parmi ceux où l'enregistreur est ajouté. */
+function macroGame(): string | null {
+  const ids = [...runningGameDirs.keys()].filter(id => macroEnabledGames.has(id));
+  return ids.length > 0 ? ids[ids.length - 1] : null;
+}
+
+function activeMacro(): GameMacro | null {
+  const gameId = macroGame();
+  const data = gameId ? runningGameMacros.get(gameId) : undefined;
+  if (!data || data.macros.length === 0) return null;
+  return data.macros.find(m => m.id === data.activeId) ?? data.macros[data.macros.length - 1];
+}
+
+export async function applyMacroSettings(): Promise<void> {
+  macroConfig = sanitizeMacroSettings((await getSettings()).macroRecorder);
+  refreshMacroRecorder();
+}
+
+/**
+ * Comme l'auto-clicker : actif seulement si activé, sous Windows, avec un jeu
+ * lancé depuis DLSGM où l'enregistreur a été ajouté. Actif : raccourcis pris
+ * (sauf s'ils le sont déjà par DLSGM), worker préchauffé, témoin affiché.
+ */
+function refreshMacroRecorder(): void {
+  if (!macroRecorder) return;
+  const config = macroConfig;
+  const gameDirs = [...runningGameDirs].filter(([id]) => macroEnabledGames.has(id)).map(([, dir]) => dir);
+  const active = config.enabled && macroRecorder.getStatus().available && gameDirs.length > 0;
+  macroRecorder.setInGame(active);
+
+  for (const key of macroHotkeys) globalShortcut.unregister(key);
+  macroHotkeys = [];
+  if (!active) {
+    macroRecorder.dispose();
+    macroRecorder.setHotkeysActive(false);
+  } else {
+    const taken = [...RESERVED_HOTKEYS, ...(clickerHotkey ? [clickerHotkey] : []), ...(triggerHotkey ? [triggerHotkey] : [])];
+    const hotkeys: [string, () => Promise<MacroRecorderStatus>][] = [
+      [config.recordHotkey, toggleMacroRecordingNow],
+      [config.playHotkey, toggleMacroPlaybackNow]
+    ];
+    for (const [key, action] of hotkeys) {
+      if ([...taken, ...macroHotkeys].some(t => t.toLowerCase() === key.toLowerCase())) continue;
+      try {
+        // Rien d'asynchrone avant l'envoi de la commande (voir AutoClicker.start).
+        const onHotkey = () => {
+          action().catch(error => console.error('Macros :', error));
+        };
+        if (globalShortcut.register(key, onHotkey)) macroHotkeys.push(key);
+      } catch {
+        // accélérateur invalide : raccourci indiqué comme indisponible
+      }
+    }
+    macroRecorder.setHotkeysActive(macroHotkeys.length === hotkeys.length);
+    macroRecorder.warmUp().catch(error => console.error("Préparation de l'enregistreur de macros impossible:", error));
+    macroRecorder.setGameDirs(gameDirs);
+  }
+  macroHud?.setVisible(active && !panicActive);
+  macroHud?.send('overlay-state-changed');
+}
+
+/** Enregistrer / arrêter. Aucun await avant toggleRecord (raccourci global). */
+async function toggleMacroRecordingNow(): Promise<MacroRecorderStatus> {
+  if (!macroRecorder) throw new Error('Enregistreur de macros indisponible.');
+  const status = macroRecorder.getStatus();
+  if (!status.recording) {
+    if (!macroConfig.enabled) throw new Error("L'enregistreur de macros est désactivé (Paramètres › Outils en jeu).");
+    if (!status.inGame) throw new Error("L'enregistreur ne fonctionne que pendant un jeu lancé depuis DLSGM, où il a été ajouté (case de l'overlay Maj+Tab).");
+  }
+  const ignore = [macroConfig.recordHotkey, macroConfig.playHotkey].flatMap(acceleratorVks);
+  await macroRecorder.toggleRecord(ignore);
+  return macroRecorder.getStatus();
+}
+
+/** Lire / arrêter la macro active. Aucun await avant togglePlay. */
+async function toggleMacroPlaybackNow(): Promise<MacroRecorderStatus> {
+  if (!macroRecorder) throw new Error('Enregistreur de macros indisponible.');
+  const status = macroRecorder.getStatus();
+  if (!status.playing && !status.recording && !status.inGame) {
+    throw new Error("Les macros ne se jouent que pendant un jeu lancé depuis DLSGM, où l'enregistreur a été ajouté.");
+  }
+  await macroRecorder.togglePlay(activeMacro());
+  return macroRecorder.getStatus();
+}
+
+/** Nouvel enregistrement : rangé dans les macros du jeu, et devient la macro active. */
+function saveRecordedMacro(steps: MacroStep[], durationMs: number): void {
+  const gameId = macroGame();
+  if (!gameId) return;
+  changeGameMacros(gameId, current => {
+    const used = new Set(current.macros.map(m => m.name));
+    let n = current.macros.length + 1;
+    while (used.has(`Macro ${n}`)) n++;
+    const macro: GameMacro = { id: crypto.randomUUID(), name: `Macro ${n}`, createdAt: new Date().toISOString(), loop: false, durationMs, steps };
+    // Au-delà du maximum, la plus ancienne sort.
+    return { macros: [...current.macros, macro].slice(-MAX_MACROS_PER_GAME), activeId: macro.id };
+  }).catch(error => console.error('Macro non enregistrée :', error));
+}
+
 async function clickerSettings() {
   return sanitizeClickerSettings((await getSettings()).autoClicker);
 }
@@ -606,20 +745,24 @@ async function toggleAutoClicker(requestedAt = Date.now()): Promise<AutoClickerS
 export function togglePanic(): void {
   autoClicker?.stop();
   pixelTrigger?.stop();
+  macroRecorder?.stop(true);
   panicActive = !panicActive;
   refreshAutoClicker();
   refreshPixelTrigger();
+  refreshMacroRecorder();
 }
 
 /** Fermeture de la fenêtre principale ou de l'application. */
 export function shutdownInGameTools(): void {
   autoClicker?.dispose();
   pixelTrigger?.dispose();
+  macroRecorder?.dispose();
   overlay?.destroy();
   gameWindow?.dispose();
   clickerHud?.destroy();
   triggerHud?.destroy();
   triggerZones?.destroy();
+  macroHud?.destroy();
 }
 
 export interface PageLoader {
@@ -659,6 +802,7 @@ export function setupIpcHandlers(
       clickerHud?.followGame();
       triggerHud?.followGame();
       triggerZones?.followGame();
+      macroHud?.followGame();
     }
   });
   gameWindow = tracker;
@@ -706,6 +850,65 @@ export function setupIpcHandlers(
     area: gameBounds
   });
   applyPixelTriggerSettings().catch(error => console.error('Détecteur de rythme au démarrage :', error));
+
+  macroRecorder = new MacroRecorder({
+    scriptDir: app.getPath('userData'),
+    onStatus: status => {
+      getWindow()?.webContents.send('macro-status', status);
+      macroHud?.send('macro-status', status);
+      overlay?.send('macro-status', status);
+    },
+    onRecorded: saveRecordedMacro
+  });
+  macroHud = new ClickerHud({
+    preloadPath: pages.preloadPath,
+    loadPage: window => pages.loadPage(window, 'macro-hud'),
+    offsetX: MACRO_HUD_OFFSET_X,
+    area: gameBounds
+  });
+  applyMacroSettings().catch(error => console.error('Macros au démarrage :', error));
+
+  ipcMain.handle('set-game-macro-enabled', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
+    assertGameId(gameId);
+    await cacheStore.update(gameId, () => ({ macroEnabled: Boolean(enabled) }));
+    if (enabled) {
+      macroEnabledGames.add(gameId);
+      if (runningGameDirs.has(gameId)) runningGameMacros.set(gameId, await readGameMacros(gameId));
+    } else {
+      macroEnabledGames.delete(gameId);
+      runningGameMacros.delete(gameId);
+      if (macroGame() === null) macroRecorder?.stop();
+    }
+    overlay?.updateGame(gameId, { macroEnabled: Boolean(enabled) });
+    refreshMacroRecorder();
+    getWindow()?.webContents.send('cache-entry-changed', gameId, { macroEnabled: Boolean(enabled) });
+  });
+  ipcMain.handle('set-active-macro', (event: IpcMainInvokeEvent, gameId: string, macroId: string) => {
+    assertGameId(gameId);
+    return changeGameMacros(gameId, current => ({ ...current, activeId: String(macroId) }));
+  });
+  ipcMain.handle('update-macro', (event: IpcMainInvokeEvent, gameId: string, macroId: string, patch: { loop?: boolean; name?: string }) => {
+    assertGameId(gameId);
+    return changeGameMacros(gameId, current => ({
+      ...current,
+      macros: current.macros.map(m =>
+        m.id !== macroId
+          ? m
+          : {
+              ...m,
+              ...(typeof patch?.loop === 'boolean' && { loop: patch.loop }),
+              ...(typeof patch?.name === 'string' && patch.name.trim() && { name: patch.name.trim().slice(0, 80) })
+            }
+      )
+    }));
+  });
+  ipcMain.handle('delete-macro', (event: IpcMainInvokeEvent, gameId: string, macroId: string) => {
+    assertGameId(gameId);
+    if (macroRecorder?.getStatus().playingMacroId === macroId) macroRecorder.stop();
+    return changeGameMacros(gameId, current => ({ ...current, macros: current.macros.filter(m => m.id !== macroId) }));
+  });
+  ipcMain.handle('toggle-macro-recording', () => toggleMacroRecordingNow());
+  ipcMain.handle('toggle-macro-playback', () => toggleMacroPlaybackNow());
 
   ipcMain.handle('get-pixel-trigger-state', () => ({ status: detector.getStatus(), settings: triggerConfig }));
   // Témoin du détecteur : réglages rapides (déplié seulement à l'arrêt, comme celui de l'auto-clicker).
@@ -762,7 +965,10 @@ export function setupIpcHandlers(
     clickerSettings: clickerConfig,
     trigger: pixelTrigger?.getStatus() ?? { available: false, running: false, paused: false, inGame: false, hotkeyActive: false, zoneCount: 0, hits: {}, frameMs: null, error: null },
     triggerSettings: triggerConfig,
-    gameTriggers: Object.fromEntries(runningGameTriggers)
+    gameTriggers: Object.fromEntries(runningGameTriggers),
+    macro: macroRecorder?.getStatus() ?? { available: false, recording: false, playing: false, paused: false, inGame: false, hotkeysActive: false, stepCount: 0, loops: 0, playingMacroId: null, error: null },
+    macroSettings: macroConfig,
+    gameMacros: Object.fromEntries(runningGameMacros)
   }));
   ipcMain.handle('hide-overlay', () => gameOverlay.hide());
   // Témoin : réglages rapides (déplié seulement à l'arrêt, sinon les clics tomberaient dessus).
@@ -843,6 +1049,7 @@ export function setupIpcHandlers(
     await applyDlsiteProxy(proxy.dlsiteProxy, proxy.dlsiteProxySecret);
     await applyAutoClickerSettings();
     await applyPixelTriggerSettings();
+    await applyMacroSettings();
     await overlay?.refreshHotkey();
     onSettingsSaved?.(newSettings);
     return true;
@@ -950,7 +1157,8 @@ export function setupIpcHandlers(
       sessionCount: Array.isArray(entry.playSessions) ? entry.playSessions.length : 0,
       lastPlayed: typeof entry.lastPlayed === 'string' ? entry.lastPlayed : null,
       autoClickerEnabled: entry.autoClickerEnabled === true,
-      pixelTriggerEnabled: entry.pixelTriggerEnabled === true
+      pixelTriggerEnabled: entry.pixelTriggerEnabled === true,
+      macroEnabled: entry.macroEnabled === true
     });
     runningGameDirs.set(gameId, gamePath);
     // Suivi de la fenêtre du jeu (un worker PowerShell) : overlay, témoins et zones s'y posent.
@@ -960,8 +1168,15 @@ export function setupIpcHandlers(
     runningGameTriggers.set(gameId, sanitizePixelTriggers(entry.pixelTriggers));
     if (entry.pixelTriggerEnabled === true) triggerEnabledGames.add(gameId);
     else triggerEnabledGames.delete(gameId);
+    if (entry.macroEnabled === true) {
+      macroEnabledGames.add(gameId);
+      runningGameMacros.set(gameId, await readGameMacros(gameId));
+    } else {
+      macroEnabledGames.delete(gameId);
+    }
     refreshAutoClicker();
     refreshPixelTrigger();
+    refreshMacroRecorder();
     try {
       result = await startGameProcess(gameId, gamePath, executablePath);
     } finally {
@@ -971,8 +1186,12 @@ export function setupIpcHandlers(
       runningGameDirs.delete(gameId);
       gameWindow?.setGameDirs([...runningGameDirs.values()]);
       runningGameTriggers.delete(gameId);
+      runningGameMacros.delete(gameId);
+      // Plus de jeu où rejouer : la lecture et l'enregistrement s'arrêtent.
+      if (macroGame() === null) macroRecorder?.stop();
       refreshAutoClicker();
       refreshPixelTrigger();
+      refreshMacroRecorder();
     }
 
     const { code: _code, exitCode: _exitCode, ...launchResult } = result;

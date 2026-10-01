@@ -47,6 +47,9 @@ export function hudBounds(
 /** Témoin du détecteur de rythme : à droite de celui de l'auto-clicker, même déplié. */
 export const TRIGGER_HUD_OFFSET_X = HUD_EXPANDED.width + MARGIN;
 /** Témoin du détecteur déplié : ses zones et le raccourci (contenu défilant au-delà). */
+/** Témoin de l'enregistreur de macros : à droite de celui du détecteur (replié). */
+export const MACRO_HUD_OFFSET_X = TRIGGER_HUD_OFFSET_X + HUD_COLLAPSED.width + MARGIN;
+
 export const TRIGGER_HUD_EXPANDED = { width: 380, height: 560 };
 
 export class ClickerHud {

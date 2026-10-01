@@ -66,6 +66,61 @@ export interface AppSettings {
   piaRetry: boolean;
   /** Région PIA (identifiant de `piactl get regions`, ex: jp-tokyo). */
   piaRegion: string;
+  /** Enregistreur de macros (Paramètres › Outils en jeu ; macros par jeu dans macros.db). */
+  macroRecorder: MacroRecorderSettings;
+}
+
+/** Enregistreur de macros (voir src/main/macro-recorder.ts). */
+export interface MacroRecorderSettings {
+  enabled: boolean;
+  /** Raccourci global : démarre / arrête l'enregistrement. */
+  recordHotkey: string;
+  /** Raccourci global : lance / arrête la macro active du jeu. */
+  playHotkey: string;
+}
+
+/**
+ * Étape d'une macro : `[t, type, code, a, b]`, `t` en ms depuis le début.
+ * Types : 0 touche enfoncée / 1 relâchée (code = touche virtuelle, a = code
+ * de balayage, b = touche étendue 0|1) ; 2 bouton enfoncé / 3 relâché / 4
+ * déplacement bouton tenu (code = 0 gauche, 1 droit, 2 milieu ; a, b =
+ * position en pixels physiques relative à la zone client du jeu).
+ */
+export type MacroStep = [t: number, kind: number, code: number, a: number, b: number];
+
+export interface GameMacro {
+  id: string;
+  name: string;
+  createdAt: string;
+  /** Rejouée en boucle jusqu'à l'arrêt (sinon une fois). */
+  loop: boolean;
+  /** Durée d'un tour (jusqu'à l'arrêt de l'enregistrement) : l'attente avant de reboucler. */
+  durationMs: number;
+  steps: MacroStep[];
+}
+
+/** Macros d'un jeu (macros.db, une entrée par ID ; jamais dans le cache ni en LAN). */
+export interface GameMacros {
+  macros: GameMacro[];
+  /** Macro jouée par le raccourci de lecture (null : la plus récente). */
+  activeId: string | null;
+}
+
+export interface MacroRecorderStatus {
+  available: boolean;
+  recording: boolean;
+  playing: boolean;
+  /** Lecture suspendue : le jeu n'est plus au premier plan. */
+  paused: boolean;
+  /** Un jeu lancé depuis DLSGM où l'enregistreur a été ajouté tourne. */
+  inGame: boolean;
+  hotkeysActive: boolean;
+  /** Étapes enregistrées (en cours ou dernier enregistrement). */
+  stepCount: number;
+  /** Tours joués par la lecture en boucle. */
+  loops: number;
+  playingMacroId: string | null;
+  error: string | null;
 }
 
 export interface LanAddress {
@@ -237,6 +292,8 @@ export interface OverlayGame {
   autoClickerEnabled: boolean;
   /** Détecteur de rythme ajouté à ce jeu (case de l'overlay ; `pixelTriggerEnabled` dans la fiche, décoché par défaut). */
   pixelTriggerEnabled: boolean;
+  /** Enregistreur de macros ajouté à ce jeu (case de l'overlay ; `macroEnabled` dans la fiche, décoché par défaut). */
+  macroEnabled: boolean;
 }
 
 /** Zones dessinées par-dessus le jeu (src/main/trigger-zones.ts) : coordonnées DIP de l'écran, `origin` = coin de la fenêtre. */
@@ -253,6 +310,10 @@ export interface OverlayState {
   triggerSettings: PixelTriggerSettings;
   /** Zones du détecteur de rythme de chaque jeu en cours, par ID. */
   gameTriggers: Record<string, PixelTrigger[]>;
+  macro: MacroRecorderStatus;
+  macroSettings: MacroRecorderSettings;
+  /** Macros de chaque jeu en cours où l'enregistreur a été ajouté, par ID. */
+  gameMacros: Record<string, GameMacros>;
 }
 
 /** Taille des jaquettes d'une étagère de l'accueil. */
@@ -568,6 +629,8 @@ export interface GameMetadata {
   autoClickerEnabled?: boolean;
   /** Détecteur de rythme ajouté à ce jeu (case de l'overlay, opt-in). Donnée personnelle, jamais partagée en LAN. */
   pixelTriggerEnabled?: boolean;
+  /** Enregistreur de macros ajouté à ce jeu (case de l'overlay, opt-in ; macros dans macros.db). Donnée personnelle, jamais partagée en LAN. */
+  macroEnabled?: boolean;
   /** Zones du détecteur de rythme pour ce jeu. Donnée personnelle, jamais partagée en LAN. */
   pixelTriggers?: PixelTrigger[];
   /** IDs des collections (AppSettings.collections) du jeu. Donnée personnelle, jamais partagée en LAN. */
@@ -835,6 +898,17 @@ export interface ElectronAPI {
   setTriggerHudExpanded(expanded: boolean): Promise<void>;
   /** Témoin du détecteur : raccourci, enregistré tout de suite. */
   saveTriggerQuickSettings(patch: { hotkey?: string }): Promise<PixelTriggerStatus>;
+  // Enregistreur de macros (src/main/macro-recorder.ts)
+  /** Overlay : ajoute ou retire l'enregistreur de macros d'un jeu en cours (enregistré dans sa fiche). */
+  setGameMacroEnabled(gameId: string, enabled: boolean): Promise<void>;
+  /** Macro jouée par le raccourci de lecture. */
+  setActiveMacro(gameId: string, macroId: string): Promise<GameMacros>;
+  updateMacro(gameId: string, macroId: string, patch: { loop?: boolean; name?: string }): Promise<GameMacros>;
+  deleteMacro(gameId: string, macroId: string): Promise<GameMacros>;
+  /** Enregistrer / arrêter, lire / arrêter (comme les raccourcis). */
+  toggleMacroRecording(): Promise<MacroRecorderStatus>;
+  toggleMacroPlayback(): Promise<MacroRecorderStatus>;
+  onMacroStatus(callback: (status: MacroRecorderStatus) => void): () => void;
   /** Fenêtre des zones (#trigger-zones) : zones à dessiner (au montage, puis à chaque changement). */
   getTriggerZones(): Promise<TriggerZonesView | null>;
   onTriggerZones(callback: (view: TriggerZonesView) => void): () => void;

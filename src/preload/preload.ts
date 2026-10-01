@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
+import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, MacroRecorderStatus, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -150,6 +150,19 @@ const electronAPI: ElectronAPI = {
     };
   },
   getPixelTriggerState: () => ipcRenderer.invoke('get-pixel-trigger-state'),
+  setGameMacroEnabled: (gameId, enabled) => ipcRenderer.invoke('set-game-macro-enabled', gameId, enabled),
+  setActiveMacro: (gameId, macroId) => ipcRenderer.invoke('set-active-macro', gameId, macroId),
+  updateMacro: (gameId, macroId, patch) => ipcRenderer.invoke('update-macro', gameId, macroId, patch),
+  deleteMacro: (gameId, macroId) => ipcRenderer.invoke('delete-macro', gameId, macroId),
+  toggleMacroRecording: () => ipcRenderer.invoke('toggle-macro-recording'),
+  toggleMacroPlayback: () => ipcRenderer.invoke('toggle-macro-playback'),
+  onMacroStatus: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: MacroRecorderStatus) => callback(status);
+    ipcRenderer.on('macro-status', listener);
+    return () => {
+      ipcRenderer.removeListener('macro-status', listener);
+    };
+  },
   setGamePixelTrigger: (gameId, enabled) => ipcRenderer.invoke('set-game-pixel-trigger', gameId, enabled),
   getTriggerZones: () => ipcRenderer.invoke('get-trigger-zones'),
   setTriggerHudExpanded: (expanded) => ipcRenderer.invoke('set-trigger-hud-expanded', expanded),
