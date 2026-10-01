@@ -76,6 +76,8 @@ export interface AppSettings {
   rpgMakerExtractor: boolean;
   /** Traduction à l'écran (OCR de Windows + traducteur), raccourci pendant une partie. */
   ocrTranslate: OcrTranslateSettings;
+  /** Dossier de Locale Emulator (LEProc.exe), pour « Lancer en japonais ». */
+  localeEmulatorPath: string;
 }
 
 /** Fil de texte capté par Textractor (un hook dans un processus du jeu). */
@@ -710,6 +712,8 @@ export interface GameMetadata {
   pixelTriggerEnabled?: boolean;
   /** Enregistreur de macros ajouté à ce jeu (case de l'overlay, opt-in ; macros dans macros.db). Donnée personnelle, jamais partagée en LAN. */
   macroEnabled?: boolean;
+  /** Lancer ce jeu en locale japonaise via Locale Emulator (page du jeu). Donnée personnelle, jamais partagée en LAN. */
+  localeEmulator?: boolean;
   /** Lancer ce jeu avec Textractor (page du jeu). Donnée personnelle, jamais partagée en LAN. */
   textractorEnabled?: boolean;
   /** Hookcode du fil Textractor choisi pour ce jeu (retrouvé aux lancements suivants). */
@@ -990,6 +994,8 @@ export interface ElectronAPI {
   /** Déchiffre images et sons d'un jeu RPG Maker MV/MZ dans son dossier de travaux. */
   extractRpgMakerAssets(gameId: string): Promise<RpgMakerExtractResult>;
   onRpgMakerExtractProgress(callback: (progress: { gameId: string; done: number; total: number }) => void): () => void;
+  /** Locale Emulator dans ce dossier (ou celui des paramètres) : LEProc présent, et installé (LECommonLibrary.dll). */
+  checkLocaleEmulator(dir?: string): Promise<{ found: boolean; installed: boolean }>;
   // Traduction à l'écran (src/main/ocr.ts, translator.ts, ocr-view.ts)
   /** Fenêtre #ocr-view : état affiché (au montage), puis mises à jour. */
   getOcrView(): Promise<OcrView | null>;

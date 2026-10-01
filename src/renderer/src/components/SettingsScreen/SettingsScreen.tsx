@@ -212,6 +212,8 @@ export default function SettingsScreen({
   const [textractorOutput, setTextractorOutput] = useState(settings.textractorOutput ?? 'both');
   const [rpgMakerExtractor, setRpgMakerExtractor] = useState(Boolean(settings.rpgMakerExtractor));
   const [ocrTranslate, setOcrTranslate] = useState<OcrTranslateSettings>(settings.ocrTranslate);
+  const [localeEmulatorPath, setLocaleEmulatorPath] = useState(settings.localeEmulatorPath ?? '');
+  const [leStatus, setLeStatus] = useState<{ found: boolean; installed: boolean } | null>(null);
   const [textractorFound, setTextractorFound] = useState<{ x86: boolean; x64: boolean } | null>(null);
   const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
@@ -245,6 +247,7 @@ export default function SettingsScreen({
     setTextractorOutput(settings.textractorOutput ?? 'both');
     setRpgMakerExtractor(Boolean(settings.rpgMakerExtractor));
     setOcrTranslate(settings.ocrTranslate);
+    setLocaleEmulatorPath(settings.localeEmulatorPath ?? '');
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
@@ -252,6 +255,20 @@ export default function SettingsScreen({
     setPiaRegion(settings.piaRegion);
     setWorkspaceFolder(settings.workspaceFolder ?? '');
   }, [settings]);
+
+  // LEProc présent et LE installé dans le dossier choisi.
+  useEffect(() => {
+    let cancelled = false;
+    setLeStatus(null);
+    if (!localeEmulatorPath) return;
+    window.electronAPI
+      .checkLocaleEmulator(localeEmulatorPath)
+      .then(status => !cancelled && setLeStatus(status))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [localeEmulatorPath]);
 
   // TextractorCLI présent (x86 / x64) dans le dossier choisi.
   useEffect(() => {
@@ -316,6 +333,7 @@ export default function SettingsScreen({
     textractorOutput !== (settings.textractorOutput ?? 'both') ||
     rpgMakerExtractor !== Boolean(settings.rpgMakerExtractor) ||
     ocrDirty ||
+    localeEmulatorPath !== (settings.localeEmulatorPath ?? '') ||
     overlayEnabled !== settings.overlayEnabled;
 
   const handleBrowse = async () => {
@@ -347,6 +365,7 @@ export default function SettingsScreen({
       textractorOutput,
       rpgMakerExtractor,
       ocrTranslate,
+      localeEmulatorPath,
       overlayEnabled,
       autoBackupSaves,
       closeToTray,
@@ -636,6 +655,49 @@ export default function SettingsScreen({
               checked={sandboxLaunch}
               onChange={e => setSandboxLaunch(e.target.checked)}
             />
+          </SettingRow>
+          <SettingRow
+            label="Dossier de Locale Emulator"
+            description={
+              <>
+                Pour « Lancer en japonais » (page du jeu) : les jeux qui supposent un Windows japonais (textes illisibles,
+                plantage au démarrage, fichiers mal nommés) tournent en locale japonaise sans changer celle du PC. Jeux
+                32 bits seulement. Lance une fois <span className="font-mono">LEInstaller.exe</span> après l'avoir décompressé.
+                <span className={`mt-1 block ${localeEmulatorPath && leStatus && !leStatus.installed ? 'text-danger' : 'text-text-secondary'}`}>
+                  {!localeEmulatorPath
+                    ? 'Aucun dossier choisi.'
+                    : !leStatus
+                      ? localeEmulatorPath
+                      : !leStatus.found
+                        ? `${localeEmulatorPath} — LEProc.exe introuvable`
+                        : leStatus.installed
+                          ? `${localeEmulatorPath} — prêt`
+                          : `${localeEmulatorPath} — pas encore installé (lance LEInstaller.exe une fois)`}
+                </span>
+                {!localeEmulatorPath && (
+                  <button
+                    type="button"
+                    className="mt-1 inline-flex items-center gap-1 font-semibold text-accent hover:underline"
+                    onClick={() => window.electronAPI.openExternal('https://github.com/xupefei/Locale-Emulator/releases')}
+                  >
+                    <Download size={13} strokeWidth={2.5} />
+                    Télécharger Locale Emulator
+                  </button>
+                )}
+              </>
+            }
+          >
+            <button
+              type="button"
+              onClick={async () => {
+                const folder = await window.electronAPI.openFolderDialog();
+                if (folder) setLocaleEmulatorPath(folder);
+              }}
+              className="btn"
+            >
+              <FolderOpen size={16} strokeWidth={2.25} />
+              Parcourir
+            </button>
           </SettingRow>
           <SettingRow
             label="Dossier de Textractor"

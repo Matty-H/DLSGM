@@ -341,6 +341,8 @@ export default function GameInfoDetails({
               onSandboxDisabledChange={disabled => onUpdateGame(gameId, { sandboxDisabled: disabled })}
               textractorEnabled={Boolean(gameData.textractorEnabled)}
               onTextractorEnabledChange={enabled => onUpdateGame(gameId, { textractorEnabled: enabled })}
+              localeEmulator={Boolean(gameData.localeEmulator)}
+              onLocaleEmulatorChange={enabled => onUpdateGame(gameId, { localeEmulator: enabled })}
             />
           </Section>
         </div>

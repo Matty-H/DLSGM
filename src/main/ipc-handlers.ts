@@ -10,7 +10,7 @@ import Store from './store';
 import { fetchWork } from './dlsite-fetcher';
 import { GenreTranslations, KNOWN_GENRE_TRANSLATIONS, pairsFromAliasGroups } from './genre-translations';
 import { applyDlsiteProxy, dlsiteFetch, protectProxySettings, testDlsiteConnection } from './dlsite-net';
-import { detectEngine, findRpgMakerWebRoot, findSaveLocations, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
+import { detectEngine, findRpgMakerWebRoot, findSaveLocations, readPeArch, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
 import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand, sandboxedPathFor } from './sandboxie';
 import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup } from './save-backups';
 import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
@@ -18,6 +18,7 @@ import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { readInstallInfo } from './release-names';
 import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
+import { findLeProc, leInstalled, runWithLocaleEmulator } from './locale-emulator';
 import { DEFAULT_OCR, OcrReader, groupOcrLines, sanitizeOcrSettings } from './ocr';
 import { OcrViewWindow } from './ocr-view';
 import { translateTexts } from './translator';
@@ -86,7 +87,8 @@ const settingsStore = new Store('settings.db', {
   textractorPath: '',
   textractorOutput: 'both',
   rpgMakerExtractor: false,
-  ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'none', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' }
+  ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'none', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
+  localeEmulatorPath: ''
 }, 'settings.json');
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
@@ -247,8 +249,24 @@ function runAndTrack(command: string, args: string[], cwd: string | undefined): 
 async function startGameProcess(gameId: string, gamePath: string, executablePath: string): Promise<TrackedLaunchResult> {
   const settings = await settingsStore.getAll() as unknown as AppSettings;
   const entry = await cacheStore.get(gameId) as GameMetadata | undefined;
+  const sandboxed = process.platform === 'win32' && settings.sandboxLaunch && !entry?.sandboxDisabled;
 
-  if (process.platform === 'win32' && settings.sandboxLaunch && !entry?.sandboxDisabled) {
+  // Lancement en japonais demandé : jamais de repli sur un lancement normal.
+  if (process.platform === 'win32' && entry?.localeEmulator) {
+    if (sandboxed) {
+      throw new Error('« Lancer en japonais » et Sandboxie ne peuvent pas encore être combinés (les deux lancent le jeu) : exclus ce jeu de la sandbox, ou décoche « Lancer en japonais ».');
+    }
+    const leProc = findLeProc(settings.localeEmulatorPath ?? '');
+    if (!leProc) {
+      throw new Error('Locale Emulator introuvable (Paramètres › Lancement) : le jeu ne peut pas être lancé en japonais. Choisis son dossier, ou décoche « Lancer en japonais ».');
+    }
+    if (readPeArch(executablePath) === 'x64') {
+      throw new Error("Locale Emulator ne gère que les jeux 32 bits, et celui-ci est en 64 bits : décoche « Lancer en japonais ».");
+    }
+    return runWithLocaleEmulator({ leProc, executablePath, gameDir: gamePath });
+  }
+
+  if (sandboxed) {
     // Jamais de repli hors sandbox : l'utilisateur a demandé l'isolation.
     const sandboxieDir = await findSandboxieDir();
     if (!sandboxieDir) {
@@ -1161,6 +1179,10 @@ export function setupIpcHandlers(
     await cacheStore.update(gameId, () => ({ textractorHook: hookcode ?? '' }));
     textractorSessions.get(gameId)?.setSelectedHook(hookcode);
     getWindow()?.webContents.send('cache-entry-changed', gameId, { textractorHook: hookcode ?? '' });
+  });
+  ipcMain.handle('check-locale-emulator', async (event: IpcMainInvokeEvent, dir?: string) => {
+    const target = typeof dir === 'string' ? dir : (await getSettings()).localeEmulatorPath ?? '';
+    return { found: findLeProc(target) !== null, installed: leInstalled(target) };
   });
   ipcMain.handle('check-textractor', async (event: IpcMainInvokeEvent, dir?: string) => {
     const target = typeof dir === 'string' ? dir : (await getSettings()).textractorPath ?? '';
