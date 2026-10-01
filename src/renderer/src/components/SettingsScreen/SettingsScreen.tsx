@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, ScanEye, type LucideIcon } from 'lucide-react';
+import { Camera, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, ScanEye, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
@@ -20,7 +20,8 @@ import AutoClickerSettings from '../AutoClickerSettings/AutoClickerSettings';
 import PixelTriggerSettings from '../PixelTriggerSettings/PixelTriggerSettings';
 import MacroSettings from '../MacroSettings/MacroSettings';
 import OcrSettings from '../OcrSettings/OcrSettings';
-import type { OcrTranslateSettings } from '../../../../shared/ipc-types';
+import type { OcrTranslateSettings, ScreenshotSettings } from '../../../../shared/ipc-types';
+import { HOTKEY_OPTIONS } from '../../lib/autoClicker.js';
 import type { MacroRecorderSettings } from '../../lib/macros.js';
 import type { PixelTriggerSettings as TriggerSettings } from '../../lib/pixelTrigger.js';
 import type { AutoClickerSettings as ClickerSettings } from '../../lib/autoClicker.js';
@@ -213,6 +214,7 @@ export default function SettingsScreen({
   const [rpgMakerExtractor, setRpgMakerExtractor] = useState(Boolean(settings.rpgMakerExtractor));
   const [ocrTranslate, setOcrTranslate] = useState<OcrTranslateSettings>(settings.ocrTranslate);
   const [localeEmulatorPath, setLocaleEmulatorPath] = useState(settings.localeEmulatorPath ?? '');
+  const [screenshot, setScreenshot] = useState<ScreenshotSettings>(settings.screenshot);
   const [leStatus, setLeStatus] = useState<{ found: boolean; installed: boolean } | null>(null);
   const [textractorFound, setTextractorFound] = useState<{ x86: boolean; x64: boolean } | null>(null);
   const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
@@ -248,6 +250,7 @@ export default function SettingsScreen({
     setRpgMakerExtractor(Boolean(settings.rpgMakerExtractor));
     setOcrTranslate(settings.ocrTranslate);
     setLocaleEmulatorPath(settings.localeEmulatorPath ?? '');
+    setScreenshot(settings.screenshot);
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
@@ -334,6 +337,7 @@ export default function SettingsScreen({
     rpgMakerExtractor !== Boolean(settings.rpgMakerExtractor) ||
     ocrDirty ||
     localeEmulatorPath !== (settings.localeEmulatorPath ?? '') ||
+    JSON.stringify(screenshot) !== JSON.stringify(settings.screenshot) ||
     overlayEnabled !== settings.overlayEnabled;
 
   const handleBrowse = async () => {
@@ -366,6 +370,7 @@ export default function SettingsScreen({
       rpgMakerExtractor,
       ocrTranslate,
       localeEmulatorPath,
+      screenshot,
       overlayEnabled,
       autoBackupSaves,
       closeToTray,
@@ -784,16 +789,34 @@ export default function SettingsScreen({
             </ToolGroup>
 
             <ToolGroup Icon={Clapperboard} title="Enregistreur de macros" summary={<>Enregistre clics et touches dans le jeu, puis les rejoue — {macroRecorder.recordHotkey} enregistre, {macroRecorder.playHotkey} rejoue.</>}>
-              <MacroSettings value={macroRecorder} onChange={setMacroRecorder} takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey]} isDirty={macroDirty} />
+              <MacroSettings value={macroRecorder} onChange={setMacroRecorder} takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey, ocrTranslate.hotkey, screenshot.hotkey]} isDirty={macroDirty} />
             </ToolGroup>
 
             <ToolGroup Icon={Languages} title="Traduction à l'écran" summary={<>Lit le texte du jeu (OCR de Windows) et affiche sa traduction par-dessus — raccourci {ocrTranslate.hotkey}.</>}>
               <OcrSettings
                 value={ocrTranslate}
                 onChange={setOcrTranslate}
-                takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey, macroRecorder.recordHotkey, macroRecorder.playHotkey]}
+                takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey, macroRecorder.recordHotkey, macroRecorder.playHotkey, screenshot.hotkey]}
                 isDirty={ocrDirty}
               />
+            </ToolGroup>
+
+            <ToolGroup Icon={Camera} title="Captures d'écran" summary={<>La fenêtre du jeu seule, dans le dossier de travaux du jeu (captures/) — raccourci {screenshot.hotkey}.</>}>
+              <SettingRow
+                label="Activer les captures"
+                description="Pendant une partie lancée depuis DLSGM, le raccourci capture la fenêtre du jeu (pas tout l'écran) dans <travaux>/<ID>/captures/ : jamais envoyées en partage réseau, gardées si le jeu est supprimé. Galerie sur la page du jeu et dans l'overlay. Les témoins et fenêtres de DLSGM n'apparaissent pas sur les captures."
+              >
+                <input type="checkbox" className="toggle" aria-label="Activer les captures" checked={screenshot.enabled} onChange={e => setScreenshot({ ...screenshot, enabled: e.target.checked })} />
+              </SettingRow>
+              <SettingRow label="Raccourci" description="Différent de ceux des autres outils.">
+                <Select
+                  value={screenshot.hotkey}
+                  options={HOTKEY_OPTIONS.filter(o => ![autoClicker.hotkey, pixelTrigger.hotkey, macroRecorder.recordHotkey, macroRecorder.playHotkey, ocrTranslate.hotkey].some(k => k.toLowerCase() === o.value.toLowerCase()))}
+                  onChange={hotkey => setScreenshot({ ...screenshot, hotkey })}
+                  aria-label="Raccourci de capture"
+                  className="w-[150px]"
+                />
+              </SettingRow>
             </ToolGroup>
           </>
         )}

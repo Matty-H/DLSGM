@@ -167,6 +167,17 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.removeListener('rpgmaker-extract-progress', listener);
     };
   },
+  takeScreenshot: () => ipcRenderer.invoke('take-screenshot'),
+  listCaptures: gameId => ipcRenderer.invoke('list-captures', gameId),
+  deleteCapture: (gameId, file) => ipcRenderer.invoke('delete-capture', gameId, file),
+  openCapturesFolder: gameId => ipcRenderer.invoke('open-captures-folder', gameId),
+  onCapturesChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, gameId: string) => callback(gameId);
+    ipcRenderer.on('captures-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('captures-changed', listener);
+    };
+  },
   getDiskUsage: (gameIds, force) => ipcRenderer.invoke('get-disk-usage', gameIds, Boolean(force)),
   onDiskUsageChanged: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, gameId: string, usage: GameDiskUsage, pending: number) => callback(gameId, usage, pending);

@@ -1,4 +1,4 @@
-import { app, clipboard, ipcMain, dialog, globalShortcut, net, safeStorage, screen, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions, type Rectangle } from 'electron';
+import { app, clipboard, ipcMain, dialog, globalShortcut, net, Notification, safeStorage, screen, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions, type Rectangle } from 'electron';
 
 import path from 'path';
 import fs from 'fs';
@@ -20,6 +20,7 @@ import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
 import { findLeProc, leInstalled, runWithLocaleEmulator } from './locale-emulator';
 import { DiskUsageScanner, diskInfo } from './disk-usage';
+import { DEFAULT_SCREENSHOT, ScreenCapturer, captureFileName, isCaptureName, listCaptures, sanitizeScreenshotSettings } from './screenshots';
 import { DEFAULT_OCR, OcrReader, groupOcrLines, sanitizeOcrSettings } from './ocr';
 import { OcrViewWindow } from './ocr-view';
 import { translateTexts } from './translator';
@@ -36,7 +37,7 @@ import { ClickerHud, MACRO_HUD_OFFSET_X, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSE
 import { DEFAULT_MACRO_RECORDER, MAX_MACROS_PER_GAME, MacroRecorder, acceleratorVks, sanitizeMacroSettings, sanitizeMacros } from './macro-recorder';
 import { TriggerZonesWindow } from './trigger-zones';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -89,7 +90,8 @@ const settingsStore = new Store('settings.db', {
   textractorOutput: 'both',
   rpgMakerExtractor: false,
   ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'none', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
-  localeEmulatorPath: ''
+  localeEmulatorPath: '',
+  screenshot: { enabled: true, hotkey: 'Ctrl+F8' }
 }, 'settings.json');
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
@@ -696,6 +698,77 @@ function saveRecordedMacro(steps: MacroStep[], durationMs: number): void {
   }).catch(error => console.error('Macro non enregistrée :', error));
 }
 
+// --- Captures d'écran ---
+let capturer: ScreenCapturer | null = null;
+let screenshotConfig: ScreenshotSettings = DEFAULT_SCREENSHOT;
+let screenshotHotkey: string | null = null;
+// Racine des travaux gardée en mémoire : le raccourci capture sans lire la base.
+let workspaceRootCache = '';
+let notifyCapture: ((gameId: string) => void) | null = null;
+
+/** `<travaux>/<ID>/captures`. */
+function capturesDir(gameId: string): string {
+  return path.join(workspaceRootCache, gameId, 'captures');
+}
+
+/** Capture servie par `atom://capture/<ID>/<fichier>` (null : refusée ou absente). */
+export function captureFilePath(gameId: string, file: string): string | null {
+  if (!GAME_ID_REGEX.test(gameId) || !isCaptureName(file) || !workspaceRootCache) return null;
+  const full = path.join(capturesDir(gameId), file);
+  return isInside(capturesDir(gameId), full) && fs.existsSync(full) ? full : null;
+}
+
+export async function applyScreenshotSettings(): Promise<void> {
+  const settings = await getSettings();
+  screenshotConfig = sanitizeScreenshotSettings(settings.screenshot);
+  workspaceRootCache = workspaceRoot(settings.workspaceFolder, app.getPath('documents'));
+  refreshScreenshot();
+}
+
+/** Raccourci pris (et worker préchauffé) seulement pendant une partie lancée depuis DLSGM. */
+function refreshScreenshot(): void {
+  const active = screenshotConfig.enabled && process.platform === 'win32' && runningGameDirs.size > 0 && !panicActive;
+  if (screenshotHotkey && (!active || screenshotHotkey !== screenshotConfig.hotkey)) {
+    globalShortcut.unregister(screenshotHotkey);
+    screenshotHotkey = null;
+  }
+  if (!active) {
+    capturer?.dispose();
+    return;
+  }
+  const taken = [...RESERVED_HOTKEYS, clickerHotkey, triggerHotkey, ocrHotkey, ...macroHotkeys].filter((k): k is string => Boolean(k));
+  if (!screenshotHotkey && !taken.some(k => k.toLowerCase() === screenshotConfig.hotkey.toLowerCase())) {
+    try {
+      if (globalShortcut.register(screenshotConfig.hotkey, () => void takeScreenshot().catch(error => console.error('Capture :', error)))) {
+        screenshotHotkey = screenshotConfig.hotkey;
+      }
+    } catch {
+      // accélérateur invalide
+    }
+  }
+  capturer?.warmUp();
+}
+
+/**
+ * Capture la zone client du jeu le plus récemment lancé. Synchrone jusqu'à
+ * l'envoi de la commande au worker (raccourci global : voir AutoClicker.start).
+ */
+function takeScreenshot(): Promise<CaptureInfo | null> {
+  const gameId = [...runningGameDirs.keys()].pop();
+  const area = gameRectForOcr?.();
+  if (!capturer || !gameId || !area || !workspaceRootCache) return Promise.resolve(null);
+  const dir = capturesDir(gameId);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = captureFileName(dir);
+  return capturer.capture(area.physical, path.join(dir, file)).then(() => {
+    notifyCapture?.(gameId);
+    const info = listCaptures(dir).find(c => c.file === file) ?? null;
+    // Petite notification Windows (ne prend pas le focus) : le jeu reste au premier plan.
+    if (Notification.isSupported()) new Notification({ title: 'Capture enregistrée', body: file, silent: true }).show();
+    return info;
+  });
+}
+
 // --- Traduction à l'écran (OCR) ---
 let ocrReader: OcrReader | null = null;
 let ocrView: OcrViewWindow | null = null;
@@ -966,6 +1039,7 @@ export function togglePanic(): void {
   refreshPixelTrigger();
   refreshMacroRecorder();
   refreshOcr();
+  refreshScreenshot();
 }
 
 /** Fermeture de la fenêtre principale ou de l'application. */
@@ -981,6 +1055,7 @@ export function shutdownInGameTools(): void {
   macroHud?.destroy();
   ocrReader?.dispose();
   ocrView?.destroy();
+  capturer?.dispose();
 }
 
 export interface PageLoader {
@@ -1136,6 +1211,38 @@ export function setupIpcHandlers(
     return { physical: screen.dipToScreenRect(null, dip), dip };
   };
   applyOcrSettings().catch(error => console.error('OCR au démarrage :', error));
+
+  capturer = new ScreenCapturer(app.getPath('userData'));
+  notifyCapture = gameId => {
+    getWindow()?.webContents.send('captures-changed', gameId);
+    overlay?.send('captures-changed', gameId);
+  };
+  applyScreenshotSettings().catch(error => console.error('Captures au démarrage :', error));
+  // Overlay : il se cache d'abord (sinon il serait sur la capture), comme pour l'OCR.
+  ipcMain.handle('take-screenshot', async () => {
+    if (overlay?.isVisible()) {
+      overlay.hide();
+      await delay(250);
+    }
+    return takeScreenshot();
+  });
+  ipcMain.handle('list-captures', (event: IpcMainInvokeEvent, gameId: string) => {
+    assertGameId(gameId);
+    return listCaptures(capturesDir(gameId));
+  });
+  ipcMain.handle('delete-capture', async (event: IpcMainInvokeEvent, gameId: string, file: string) => {
+    assertGameId(gameId);
+    const full = captureFilePath(gameId, file);
+    if (!full) throw new Error('Capture introuvable.');
+    await shell.trashItem(full);
+    return listCaptures(capturesDir(gameId));
+  });
+  ipcMain.handle('open-captures-folder', async (event: IpcMainInvokeEvent, gameId: string) => {
+    assertGameId(gameId);
+    fs.mkdirSync(capturesDir(gameId), { recursive: true });
+    const error = await shell.openPath(capturesDir(gameId));
+    if (error) throw new Error(error);
+  });
   ipcMain.handle('get-ocr-view', () => ocrView?.getView() ?? null);
   ipcMain.handle('ocr-languages', async () => {
     try {
@@ -1293,7 +1400,8 @@ export function setupIpcHandlers(
     macroSettings: macroConfig,
     gameMacros: Object.fromEntries(runningGameMacros),
     textractor: Object.fromEntries([...textractorSessions].map(([id, session]) => [id, session.view()])),
-    ocr: { enabled: ocrConfig.enabled && process.platform === 'win32', hotkey: ocrConfig.hotkey }
+    ocr: { enabled: ocrConfig.enabled && process.platform === 'win32', hotkey: ocrConfig.hotkey },
+    screenshot: { ...screenshotConfig, enabled: screenshotConfig.enabled && process.platform === 'win32' }
   }));
   ipcMain.handle('hide-overlay', () => gameOverlay.hide());
   // Témoin : réglages rapides (déplié seulement à l'arrêt, sinon les clics tomberaient dessus).
@@ -1376,6 +1484,7 @@ export function setupIpcHandlers(
     await applyPixelTriggerSettings();
     await applyMacroSettings();
     await applyOcrSettings();
+    await applyScreenshotSettings();
     await overlay?.refreshHotkey();
     onSettingsSaved?.(newSettings);
     return true;
@@ -1507,6 +1616,7 @@ export function setupIpcHandlers(
     refreshPixelTrigger();
     refreshMacroRecorder();
     refreshOcr();
+    refreshScreenshot();
     if (textractor) startTextractor(gameId, gamePath, textractor);
     try {
       result = await startGameProcess(gameId, gamePath, executablePath);
@@ -1525,6 +1635,7 @@ export function setupIpcHandlers(
       refreshPixelTrigger();
       refreshMacroRecorder();
       refreshOcr();
+      refreshScreenshot();
     }
 
     const { code: _code, exitCode: _exitCode, ...launchResult } = result;

@@ -6,6 +6,7 @@ import CustomTagsEditor from '../CustomTagsEditor/CustomTagsEditor';
 import CollectionsEditor from '../CollectionsEditor/CollectionsEditor';
 import GameToolsSection from '../GameToolsSection/GameToolsSection';
 import WorkspaceSection from '../WorkspaceSection/WorkspaceSection';
+import CaptureGallery from '../CaptureGallery/CaptureGallery';
 import { useDiskUsage } from '../../hooks/useDiskUsage';
 import { formatBytes } from '../../lib/diskUsage.js';
 import { categoryMap } from '../../lib/metadataManager.js';
@@ -335,6 +336,10 @@ export default function GameInfoDetails({
                 Choisir…
               </button>
             </div>
+          </Section>
+
+          <Section title="Captures">
+            <CaptureGallery gameId={gameId} limit={8} />
           </Section>
 
           <Section title="Outils">
