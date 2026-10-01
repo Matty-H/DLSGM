@@ -12,6 +12,7 @@ const SORT_OPTIONS = [
   { value: 'release_date_desc', label: 'Sortie (récent)' },
   { value: 'release_date_asc', label: 'Sortie (ancien)' },
   { value: 'playtime_desc', label: 'Temps de jeu' },
+  { value: 'size_desc', label: 'Taille sur le disque' },
   { value: 'last_added', label: 'Dernier ajout' },
   { value: 'last_played', label: 'Dernière fois joué' }
 ].map(opt => ({ value: opt.value, label: `Trier : ${opt.label}` }));

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, MacroRecorderStatus, OcrView, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
+import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, GameDiskUsage, MacroRecorderStatus, OcrView, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -165,6 +165,14 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on('rpgmaker-extract-progress', listener);
     return () => {
       ipcRenderer.removeListener('rpgmaker-extract-progress', listener);
+    };
+  },
+  getDiskUsage: (gameIds, force) => ipcRenderer.invoke('get-disk-usage', gameIds, Boolean(force)),
+  onDiskUsageChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, gameId: string, usage: GameDiskUsage, pending: number) => callback(gameId, usage, pending);
+    ipcRenderer.on('disk-usage-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('disk-usage-changed', listener);
     };
   },
   checkLocaleEmulator: dir => ipcRenderer.invoke('check-locale-emulator', dir),

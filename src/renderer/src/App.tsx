@@ -13,6 +13,7 @@ import WishlistScreen from './components/WishlistScreen/WishlistScreen';
 import ImportResults from './components/ImportResults/ImportResults';
 import ArchiveCleanupToast from './components/ArchiveCleanupToast/ArchiveCleanupToast';
 import { useArchiveImport } from './hooks/useArchiveImport';
+import { useDiskUsage } from './hooks/useDiskUsage';
 import FolderRenameAssistant from './components/FolderRenameAssistant/FolderRenameAssistant';
 import { useFolderRename } from './hooks/useFolderRename';
 import PanicOverlay from './components/PanicOverlay/PanicOverlay';
@@ -46,6 +47,12 @@ export default function App() {
   const lanShare = useLanShare({ onGameReceived: () => library.rescan() });
   // Même principe pour un jeu extrait de son archive.
   const archiveImport = useArchiveImport(library.rescan);
+  // Taille des jeux présents : mesurée en tâche de fond (tri, statistiques).
+  const diskUsage = useDiskUsage(library.gameFolders);
+  const diskSizes = useMemo(
+    () => Object.fromEntries(Object.entries(diskUsage.report?.games ?? {}).map(([id, usage]) => [id, usage.bytes])),
+    [diskUsage.report]
+  );
   // Dossiers mal nommés (« [RJ…] Titre v1.2 ») : revus à chaque scan, renommés sur confirmation.
   const folderRename = useFolderRename(`${library.status}:${library.gameFolders.join('|')}`, library.rescan);
   // PIA installé : proposé sur les fiches en échec (restriction régionale).
@@ -166,7 +173,7 @@ export default function App() {
 
     return presentGames
       .filter(game => matchesFilters(game.data, filterState))
-      .sort((a, b) => compareGames(a, b, filters.selectedSort));
+      .sort((a, b) => compareGames(a, b, filters.selectedSort, diskSizes));
   }, [
     presentGames,
     filters.selectedCategoryCode,
@@ -174,6 +181,7 @@ export default function App() {
     filters.selectedGenres,
     filters.selectedRating,
     filters.selectedSort,
+    diskSizes,
     filters.creatorFilter,
     collectionFilter,
     collections,
@@ -519,6 +527,8 @@ export default function App() {
           cache={presentGamesCache}
           getWorkImageSrc={library.getWorkImageSrc}
           genreNames={genreNames}
+          diskUsage={diskUsage.report}
+          onRecomputeSizes={diskUsage.recompute}
           onOpenGame={gameId => handleOpenGameFrom('stats', gameId)}
 
         />
