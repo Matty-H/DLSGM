@@ -1,6 +1,6 @@
 {
   "name": "dlsgm",
-  "version": "1.0.1-test",
+  "version": "1.1.0",
   "main": "dist/main/main/main.js",
   "scripts": {
     "test": "vitest run",
@@ -36,7 +36,8 @@
     "publish": {
       "provider": "github",
       "owner": "Matty-H",
-      "repo": "DLSGM"
+      "repo": "DLSGM",
+      "releaseType": "release"
     },
     "win": {
       "target": [
