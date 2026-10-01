@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { OcrView } from '../../../../shared/ipc-types';
+import DictWords from './DictWords';
 
 /**
  * Traduction à l'écran (route #ocr-view) : fenêtre transparente posée sur
@@ -23,7 +24,9 @@ export default function OcrViewApp() {
     view.status === 'reading'
       ? 'Lecture du texte…'
       : view.status === 'translating'
-        ? 'Traduction…'
+        ? view.engine === 'dictionary'
+          ? 'Recherche dans le dictionnaire…'
+          : 'Traduction…'
         : view.status === 'error'
           ? view.error
           : view.blocks.length === 0
@@ -33,6 +36,17 @@ export default function OcrViewApp() {
   return (
     <div className="relative h-screen w-screen overflow-hidden font-body">
       {view.blocks.map((block, i) => {
+        if (block.words) {
+          return (
+            <div
+              key={i}
+              className="absolute rounded-sm bg-black/85 px-2 py-1 text-white shadow-lg"
+              style={{ left: block.x - 4, top: block.y - 4, minWidth: block.width + 8, maxWidth: Math.max(block.width + 8, 420) }}
+            >
+              <DictWords words={block.words} />
+            </div>
+          );
+        }
         const text = block.translation ?? (view.engine === 'none' || view.status === 'error' ? block.text : null);
         return (
           <div

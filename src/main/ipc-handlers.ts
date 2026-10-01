@@ -24,6 +24,7 @@ import { DEFAULT_SCREENSHOT, ScreenCapturer, captureFileName, isCaptureName, lis
 import { DEFAULT_OCR, OcrReader, groupOcrLines, sanitizeOcrSettings } from './ocr';
 import { OcrViewWindow } from './ocr-view';
 import { translateTexts } from './translator';
+import { DictionaryStore } from './dictionary-store';
 import { Wishlist } from './wishlist';
 import { describeWorkspace, workspaceRoot } from './workspace';
 import { snapshotDatabase } from './db-backup';
@@ -89,7 +90,7 @@ const settingsStore = new Store('settings.db', {
   textractorPath: '',
   textractorOutput: 'both',
   rpgMakerExtractor: false,
-  ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'none', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
+  ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'dictionary', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
   localeEmulatorPath: '',
   screenshot: { enabled: true, hotkey: 'Ctrl+F8' }
 }, 'settings.json');
@@ -778,6 +779,7 @@ let ocrHotkey: string | null = null;
 let ocrEscape = false;
 // Lecture en cours : une nouvelle pression la remplace (son résultat est ignoré).
 let ocrRun = 0;
+let dictionary: DictionaryStore | null = null;
 let gameRectForOcr: (() => { physical: Rectangle; dip: Rectangle } | null) | null = null;
 // Clés DeepL / Google, chiffrées (safeStorage), jamais dans settings.db ni vers le renderer.
 const translationKeyStore = new Store('translation-keys.db', {});
@@ -807,8 +809,11 @@ function refreshOcr(): void {
   if (!active) {
     hideOcrView();
     ocrReader?.dispose();
+    // ≈200 Mo libérés hors partie (sauf installation en cours, qui utilise le même processus).
+    if (!dictionary?.status().progress) dictionary?.dispose();
     return;
   }
+  if (ocrConfig.engine === 'dictionary') dictionary?.warmUp();
   const taken = [...RESERVED_HOTKEYS, clickerHotkey, triggerHotkey, ...macroHotkeys].filter((k): k is string => Boolean(k));
   if (!ocrHotkey && !taken.some(k => k.toLowerCase() === ocrConfig.hotkey.toLowerCase())) {
     try {
@@ -868,6 +873,13 @@ function toggleOcr(): void {
       const translating = config.engine !== 'none' && blocks.length > 0;
       ocrView?.update({ ...base, status: translating ? 'translating' : 'done', blocks });
       if (!translating) return;
+      if (config.engine === 'dictionary') {
+        if (!dictionary) return;
+        const words = await dictionary.lookup(blocks.map(b => b.text), config.target === 'fr' ? 'fr' : 'en');
+        if (run !== ocrRun) return;
+        ocrView?.update({ ...base, status: 'done', blocks: blocks.map((b, i) => ({ ...b, words: words[i] })) });
+        return;
+      }
       const apiKey = config.engine === 'deepl' || config.engine === 'google' ? await translationKey(config.engine) : null;
       const translations = await translateTexts(blocks.map(b => b.text), {
         settings: config,
@@ -1056,6 +1068,7 @@ export function shutdownInGameTools(): void {
   ocrReader?.dispose();
   ocrView?.destroy();
   capturer?.dispose();
+  dictionary?.dispose();
 }
 
 export interface PageLoader {
@@ -1242,6 +1255,28 @@ export function setupIpcHandlers(
     fs.mkdirSync(capturesDir(gameId), { recursive: true });
     const error = await shell.openPath(capturesDir(gameId));
     if (error) throw new Error(error);
+  });
+  dictionary = new DictionaryStore(
+    path.join(app.getPath('userData'), 'dict'),
+    async url => {
+      const response = await net.fetch(url);
+      return { ok: response.ok, status: response.status, body: response.body };
+    },
+    status => getWindow()?.webContents.send('dictionary-status', status)
+  );
+  ipcMain.handle('get-dictionary-status', () => dictionary!.status());
+  ipcMain.handle('install-dictionary', async () => {
+    await dictionary!.install();
+    return dictionary!.status();
+  });
+  ipcMain.handle('remove-dictionary', () => {
+    dictionary!.remove();
+    return dictionary!.status();
+  });
+  ipcMain.handle('lookup-japanese', async (event: IpcMainInvokeEvent, text: string) => {
+    if (typeof text !== 'string' || text.length > 2000) throw new Error('Texte invalide.');
+    const settings = await getSettings();
+    return (await dictionary!.lookup([text], settings.ocrTranslate?.target === 'en' ? 'en' : 'fr'))[0];
   });
   ipcMain.handle('get-ocr-view', () => ocrView?.getView() ?? null);
   ipcMain.handle('ocr-languages', async () => {

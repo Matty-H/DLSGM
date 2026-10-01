@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ArchiveImportProgress, AutoClickerStatus, ElectronAPI, GameDiskUsage, MacroRecorderStatus, OcrView, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
+import type { ArchiveImportProgress, AutoClickerStatus, DictionaryStatus, ElectronAPI, GameDiskUsage, MacroRecorderStatus, OcrView, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -196,6 +196,17 @@ const electronAPI: ElectronAPI = {
     };
   },
   getOcrLanguages: () => ipcRenderer.invoke('ocr-languages'),
+  getDictionaryStatus: () => ipcRenderer.invoke('get-dictionary-status'),
+  installDictionary: () => ipcRenderer.invoke('install-dictionary'),
+  removeDictionary: () => ipcRenderer.invoke('remove-dictionary'),
+  onDictionaryStatus: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: DictionaryStatus) => callback(status);
+    ipcRenderer.on('dictionary-status', listener);
+    return () => {
+      ipcRenderer.removeListener('dictionary-status', listener);
+    };
+  },
+  lookupJapanese: text => ipcRenderer.invoke('lookup-japanese', text),
   ocrTranslateNow: () => ipcRenderer.invoke('ocr-translate-now'),
   getTranslationKeys: () => ipcRenderer.invoke('get-translation-keys'),
   setTranslationKey: (engine, key) => ipcRenderer.invoke('set-translation-key', engine, key),

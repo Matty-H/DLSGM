@@ -43,7 +43,8 @@ export class OcrViewWindow {
       webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: this.options.preloadPath }
     });
     window.setAlwaysOnTop(true, 'screen-saver');
-    window.setIgnoreMouseEvents(true);
+    // Clics transmis au jeu, mais survol reçu (fiche d'un mot du dictionnaire).
+    window.setIgnoreMouseEvents(true, { forward: true });
     window.setContentProtection(true);
     window.webContents.on('will-navigate', event => event.preventDefault());
     window.on('closed', () => {
