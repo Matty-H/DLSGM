@@ -67,7 +67,7 @@ Drop your games in a folder. DLSGM finds them, fetches their covers and details,
     <td width="50%"><img src="docs/screenshots/settings.png" alt="In-game tools settings: overlay and auto-clicker"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>14 color palettes</b>, your own, or brand-new colors at every startup with our patended <i><b>Super Random Turbo 2000 Remix technology</b> (it's just a randomizer)</i></sub></td>
+    <td align="center"><sub><b>14 color palettes</b>, your own, or brand-new colors at every startup with our patented <i><b>Super Random Turbo 2000 Remix technology</b> (it's just a randomizer)</i></sub></td>
     <td align="center"><sub><b>In-game tools</b>, set up in a few clicks</sub></td>
   </tr>
 </table>
@@ -99,7 +99,7 @@ My games/
 └── VJ01000000/
 ```
 
-The number is in the URL of the game's DLsite page. `https://www.dlsite.com/<category>/work/=/product_id/[GAME_ID].html` If your folders have names like `[RJ01234567] Title v1.2`, DLSGM offers to rename them for you.
+The number is in the URL of the game's DLsite page. `https://www.dlsite.com/<category>/work/=/product_id/[GAME_ID].html`. If your folders have names like `[RJ01234567] Title v1.2`, DLSGM offers to rename them for you.
 
 ## FAQ
 
