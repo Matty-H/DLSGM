@@ -196,28 +196,6 @@ function assertBackupId(backupId: unknown): asserts backupId is string {
  * devient exactement celui de la copie — fichiers en trop compris, sauf hors
  * du filtre `fileFilter` (le reste du jeu n'est jamais touché).
  */
-/**
- * Libellés d'emplacements d'avant leur passage en anglais : les copies faites
- * avant les gardent dans leur manifeste, la restauration les associe donc au
- * libellé actuel.
- */
-const LEGACY_SAVE_LABELS: Record<string, string> = {
-  Sauvegardes: 'Saves',
-  'Sauvegardes (jeu)': 'Saves (game)',
-  'Dossier du jeu (SaveNN)': 'Game folder (SaveNN)',
-  'Godot (Roaming, dossier dédié)': 'Godot (Roaming, dedicated folder)',
-  'Unreal (jeu)': 'Unreal (game)'
-};
-
-/** Libellé actuel d'un emplacement (ancien libellé français converti, « (sandbox) » conservé). */
-export function currentSaveLabel(label: string): string {
-  const suffix = ' (sandbox)';
-  const sandboxed = label.endsWith(suffix);
-  const base = sandboxed ? label.slice(0, -suffix.length) : label;
-  const current = LEGACY_SAVE_LABELS[base] ?? base;
-  return sandboxed ? current + suffix : current;
-}
-
 export async function restoreSaveBackup(gameId: string, backupId: string, sources: SaveSource[]): Promise<SaveRestoreResult> {
   assertBackupId(backupId);
   const backupDir = path.join(backupsDir(gameId), backupId);
@@ -231,7 +209,8 @@ export async function restoreSaveBackup(gameId: string, backupId: string, source
 
   const skipped: string[] = [];
   for (const { label, folder } of manifest.folders) {
-    const target = sources.find(s => s.label === currentSaveLabel(label));
+    // Anciens libellés français : réécrits dans les manifestes par la migration 003.
+    const target = sources.find(s => s.label === label);
     if (!target) {
       skipped.push(label);
       continue;

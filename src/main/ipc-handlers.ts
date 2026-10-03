@@ -8,7 +8,7 @@ import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import { spawn } from 'child_process';
 import Store from './store';
 import { fetchWork } from './dlsite-fetcher';
-import { GenreTranslations, KNOWN_GENRE_TRANSLATIONS, pairsFromAliasGroups } from './genre-translations';
+import { GenreTranslations, KNOWN_GENRE_TRANSLATIONS } from './genre-translations';
 import { applyDlsiteProxy, dlsiteFetch, protectProxySettings, testDlsiteConnection } from './dlsite-net';
 import { detectEngine, findRpgMakerWebRoot, findSaveLocations, readPeArch, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
 import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand, sandboxedPathFor } from './sandboxie';
@@ -65,14 +65,13 @@ const MAX_PLAY_SESSIONS = 2000;
 // dans un dossier portant exactement cet ID, à la racine du dossier de jeux.
 const GAME_ID_REGEX = /^[A-Z]{2}\d{6,9}$/;
 
-// Initialisation des stores (NeDB, avec migration ponctuelle depuis l'ancien
-// format JSON monobloc si celui-ci existe encore)
+// Stores NeDB (les anciens formats sont convertis par src/main/migrations
+// avant leur ouverture)
 const settingsStore = new Store('settings.db', {
   destinationFolder: '',
   refreshRate: 5,
   language: 'en_US',
   blurAdultContent: true,
-  genreAliasGroups: [],
   sandboxLaunch: false,
   startFullscreen: false,
   lanSharePort: DEFAULT_LAN_PORT,
@@ -97,7 +96,7 @@ const settingsStore = new Store('settings.db', {
   screenshot: { enabled: true, hotkey: 'Ctrl+F8' },
   checkUpdatesOnStartup: true,
   uiLanguage: 'system'
-}, 'settings.json');
+});
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
 const pia = new Pia();
@@ -111,7 +110,7 @@ export async function shutdownVpn(): Promise<void> {
   if (pia.active) await pia.restore();
 }
 
-const cacheStore = new Store('cache.db', {}, 'cache.json');
+const cacheStore = new Store('cache.db', {});
 
 // Liste de souhaits : store séparé, jamais mêlé au cache des jeux.
 const wishlistStore = new Store('wishlist.db', {});
@@ -1992,10 +1991,9 @@ export function setupIpcHandlers(
   });
 
   // --- Dictionnaire des tags ---
-  // Amorçage idempotent (n'écrase rien) : paires connues + anciens "genres liés".
-  getSettings()
-    .then(settings => genreTranslations.seed({ ...KNOWN_GENRE_TRANSLATIONS, ...pairsFromAliasGroups(settings.genreAliasGroups) }))
-    .catch(error => console.error('Amorçage du dictionnaire des tags impossible:', error));
+  // Amorçage idempotent (n'écrase rien) avec les paires connues ; les anciens
+  // « genres liés » sont repris par la migration 004.
+  genreTranslations.seed(KNOWN_GENRE_TRANSLATIONS).catch(error => console.error('Amorçage du dictionnaire des tags impossible:', error));
 
   ipcMain.handle('get-genre-translations', () => genreTranslations.all());
   ipcMain.handle('set-genre-translation', async (event: IpcMainInvokeEvent, japanese: string, english: string | null) => {

@@ -1,11 +1,28 @@
 import { app } from 'electron';
 import path from 'path';
-import fs from 'fs';
 import Datastore from '@seald-io/nedb';
 
 interface StoredDoc {
   _id: string;
   value: unknown;
+}
+
+// Ouverture des fichiers retenue pendant les migrations (src/main/migrations),
+// qui convertissent ces mêmes fichiers au format actuel avant que l'app ne
+// les lise : jamais deux Datastore sur un fichier en même temps.
+let storesGate: Promise<void> = Promise.resolve();
+
+/**
+ * Retient l'ouverture de tous les stores jusqu'à l'appel de la fonction
+ * renvoyée (main.ts : avant les migrations, relâché après). Un store utilisé
+ * entre-temps attend simplement.
+ */
+export function holdStores(): () => void {
+  let release!: () => void;
+  storesGate = new Promise(resolve => {
+    release = resolve;
+  });
+  return release;
 }
 
 /**
@@ -14,16 +31,17 @@ interface StoredDoc {
  * plateforme). Chaque entrée logique (un jeu, un paramètre) est un document
  * NeDB indépendant : une écriture (`set`/`setAll`) ne touche que les
  * documents réellement modifiés, au lieu de réécrire tout le fichier comme
- * le faisait l'ancien store JSON monobloc. NeDB persiste en log
+ * le faisait l'ancien store JSON monobloc (converti par la migration 001).
+ * Le fichier n'est ouvert qu'à la première utilisation, après les
+ * migrations (`holdStores`). NeDB persiste en log
  * append-only : un crash en pleine écriture laisse au pire une dernière
  * ligne tronquée, détectée et ignorée au chargement, sans affecter le reste
  * des données.
  */
 class Store {
-  private dbPath: string;
-  private legacyPath: string | null;
   private db: Datastore<StoredDoc>;
-  private ready: Promise<void>;
+  private defaults: Record<string, unknown>;
+  private ready: Promise<void> | null = null;
   // File d'attente des écritures : chaque opération lecture-modification-
   // écriture s'exécute seule, sinon deux `update` concurrents sur la même clé
   // (ou un `setAll` en parallèle) pourraient écraser le travail de l'autre.
@@ -32,62 +50,22 @@ class Store {
   /**
    * @param fileName Nom du fichier NeDB (ex: 'cache.db').
    * @param defaults Valeurs par défaut (clé -> valeur) si le store est vide.
-   * @param legacyFileName Nom de l'ancien fichier JSON monobloc (ex: 'cache.json'),
-   *   migré une seule fois si le nouveau store NeDB n'existe pas encore.
    */
-  constructor(fileName: string, defaults: Record<string, unknown>, legacyFileName?: string) {
-    const userDataPath = app.getPath('userData');
-    this.dbPath = path.join(userDataPath, fileName);
-    this.legacyPath = legacyFileName ? path.join(userDataPath, legacyFileName) : null;
-    this.db = new Datastore<StoredDoc>({ filename: this.dbPath, autoload: false });
-    // Toutes les méthodes publiques attendent cette promesse avant d'agir,
-    // pour ne jamais lire/écrire avant la fin du chargement ou de la migration.
-    this.ready = this._init(defaults);
+  constructor(fileName: string, defaults: Record<string, unknown>) {
+    this.db = new Datastore<StoredDoc>({ filename: path.join(app.getPath('userData'), fileName), autoload: false });
+    this.defaults = defaults;
   }
 
-  private async _init(defaults: Record<string, unknown>): Promise<void> {
+  /** Chargement au premier usage, après les migrations ; toutes les méthodes l'attendent. */
+  private whenReady(): Promise<void> {
+    this.ready ??= storesGate.then(() => this._init());
+    return this.ready;
+  }
+
+  private async _init(): Promise<void> {
     await this.db.loadDatabaseAsync();
-
-    const existingCount = await this.db.countAsync({});
-    if (existingCount === 0) {
-      const legacyData = this._readLegacyFile();
-      const seedData = legacyData || defaults || {};
-      if (Object.keys(seedData).length > 0) {
-        await this._writeAll(seedData);
-      }
-      if (legacyData) {
-        this._archiveLegacyFile();
-      }
-    }
-  }
-
-  /**
-   * Lit l'ancien fichier JSON monobloc (v1) s'il existe encore, pour la
-   * migration ponctuelle vers NeDB.
-   */
-  private _readLegacyFile(): Record<string, unknown> | null {
-    if (!this.legacyPath || !fs.existsSync(this.legacyPath)) return null;
-    try {
-      const parsed = JSON.parse(fs.readFileSync(this.legacyPath, 'utf8'));
-      console.log(`Migration des données depuis l'ancien store: ${this.legacyPath}`);
-      return parsed;
-    } catch (error) {
-      console.error(`Ancien store illisible (${this.legacyPath}), migration ignorée:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Renomme (n'efface jamais) l'ancien fichier une fois migré, pour garder
-   * une trace récupérable en cas de souci pendant la migration.
-   */
-  private _archiveLegacyFile(): void {
-    if (!this.legacyPath) return;
-    try {
-      fs.renameSync(this.legacyPath, `${this.legacyPath}.migrated`);
-      console.log(`Ancien store archivé: ${this.legacyPath}.migrated`);
-    } catch (error) {
-      console.error(`Impossible d'archiver l'ancien store (${this.legacyPath}):`, error);
+    if ((await this.db.countAsync({})) === 0 && Object.keys(this.defaults).length > 0) {
+      await this._writeAll(this.defaults);
     }
   }
 
@@ -95,7 +73,7 @@ class Store {
    * Récupère une valeur à partir d'une clé.
    */
   async get(key: string): Promise<unknown> {
-    await this.ready;
+    await this.whenReady();
     await this.writeQueue; // lit après les écritures déjà demandées
     const doc = await this.db.findOneAsync({ _id: key });
     return doc ? doc.value : undefined;
@@ -103,7 +81,7 @@ class Store {
 
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.writeQueue.then(async () => {
-      await this.ready;
+      await this.whenReady();
       return operation();
     });
     // La file continue même si une opération échoue ; l'erreur reste
@@ -174,7 +152,7 @@ class Store {
    * pour rester compatible avec le format attendu par le reste de l'app.
    */
   async getAll(): Promise<Record<string, unknown>> {
-    await this.ready;
+    await this.whenReady();
     await this.writeQueue; // lit après les écritures déjà demandées
     const docs = await this.db.findAsync({});
     const result: Record<string, unknown> = {};

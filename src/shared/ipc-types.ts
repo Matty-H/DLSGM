@@ -12,8 +12,6 @@ export interface AppSettings {
   language: string;
   /** Floute les jaquettes R18 dans la bibliothèque jusqu'au clic (par jeu, pour la session). */
   blurAdultContent: boolean;
-  /** Groupes de tags de genre liés comme équivalents (ex: doublons JP/EN) — voir lib/genreAliases.ts. */
-  genreAliasGroups: string[][];
   /**
    * Lance les jeux dans Sandboxie-Plus (Windows), une sandbox par jeu —
    * voir src/main/sandboxie.ts. Si Sandboxie est introuvable, le lancement

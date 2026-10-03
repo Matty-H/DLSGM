@@ -33,7 +33,16 @@ npm run check          # typecheck + tests (pre-commit hook and CI)
 npm run build          # build and package with electron-builder
 ```
 
-Tests run under Node without launching Electron. Every behavior change should come with a test in `tests/`.
+Tests run under Node without launching Electron. Every behavior change should come with a test in `tests/`, and the question "does this deserve a test?" should be asked for every change, fixes and refactors included.
+
+### Upgrades from older versions
+
+Users can jump from an old version straight to the latest one, skipping everything in between. The current code must therefore keep converting whatever an older version left behind (settings, cache, stores, folders, backup manifests):
+
+- All of it lives in `src/main/migrations/`, one file per migration, run at startup before anything reads the data. Features only know the current format, so refactoring or deleting a feature never means carrying its old formats along.
+- Old features and modules can be removed; **migrations cannot**, as long as a released version can still produce the data they convert. When you remove code that reads an old format, move that conversion into a new migration first.
+- A migration is idempotent (it runs on every startup and detects whether anything is left to do), converts an old format straight to the current one, and never deletes the original data before it has succeeded.
+- Each migration has a test in `tests/main/migrations/` that starts from data shaped like an older version's, and its legacy data is added to the end-to-end test (a whole old data folder, migrated, then read by the current code).
 
 ## Architecture
 

@@ -3,6 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
 import { setMainLanguage } from './i18n';
+import { runMigrations } from './migrations';
+import { holdStores } from './store';
 import { finishPendingInstall } from './updater';
 import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic, captureFilePath, runStartupUpdateCheck } from './ipc-handlers';
 import { applyDlsiteProxy } from './dlsite-net';
@@ -100,6 +102,9 @@ function createWindow(): void {
   // mainWindow.webContents.openDevTools();
 }
 
+// Les stores n'ouvrent leurs fichiers qu'après les migrations (voir plus bas).
+const releaseStores = holdStores();
+
 // Enregistrement du protocole atom pour charger les images locales
 protocol.registerSchemesAsPrivileged([
   { scheme: 'atom', privileges: { standard: true, secure: true, supportFetchAPI: true } }
@@ -107,6 +112,13 @@ protocol.registerSchemesAsPrivileged([
 
 // Initialisation de l'application
 app.whenReady().then(async () => {
+  // Données laissées par une ancienne version converties au format actuel,
+  // avant toute lecture (src/main/migrations).
+  await runMigrations({
+    userData: app.getPath('userData'),
+    documents: app.getPath('documents'),
+    log: (message, error) => (error ? console.error(message, error) : console.log(message))
+  }).finally(releaseStores);
   // Pas de barre de menu "File, Edit, View, Window, Help" sous Windows/Linux :
   // l'app n'en a pas l'usage (copier/coller et F11 fonctionnent sans). Sur
   // macOS le menu reste : Cmd+C/V/Q en dépendent, et il n'apparaît pas dans

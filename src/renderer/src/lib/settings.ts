@@ -18,8 +18,6 @@ const DEFAULT_SETTINGS: Settings = {
   refreshRate: 5,
   language: 'en_US',
   blurAdultContent: true,
-  // Obsolète (remplacé par le dictionnaire des tags) : lu une fois par main pour l'amorcer.
-  genreAliasGroups: [],
   sandboxLaunch: false,
   startFullscreen: false,
   lanSharePort: 47821,
