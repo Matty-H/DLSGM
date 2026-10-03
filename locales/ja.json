@@ -1092,6 +1092,7 @@
     "Sandboxie-Plus est introuvable.": "Sandboxie-Plus が見つかりません。",
     "Sandboxie-Plus est introuvable. Installe-le, désactive le lancement en sandbox dans les paramètres, ou exclus ce jeu de la sandbox.": "Sandboxie-Plus が見つかりません。インストールするか、設定でサンドボックス起動をオフにするか、このゲームをサンドボックスから除外してください。",
     "Sauvegardes trop volumineuses pour être copiées ({mb} Mo, max {max} Mo) : l'emplacement détecté contient sans doute autre chose que des sauvegardes.": "セーブデータが大きすぎてコピーできません（{mb} MB、最大 {max} MB）。検出した場所にセーブデータ以外のものが含まれている可能性があります。",
+    "Serveur de téléchargement indisponible ({status}), réessaie dans quelques minutes : {url}": "ダウンロードサーバーが利用できません（{status}）。数分後にもう一度お試しください：{url}",
     "Service inconnu.": "不明なサービスです。",
     "Seuls les patchs .zip ou les dossiers sont pris en charge.": ".zip パッチまたはフォルダのみ対応しています。",
     "Somme de contrôle différente pour {path}.": "{path} のチェックサムが一致しません。",
