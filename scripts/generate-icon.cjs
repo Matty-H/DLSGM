@@ -2,8 +2,8 @@
  * Génère build/icon.png (1024 px), l'icône de l'exécutable et de
  * l'installeur qu'electron-builder convertit en .ico/.icns : logo carré aux
  * couleurs du thème par défaut (Néon Tokyo, la palette officielle) ; et les
- * logos du README aux mêmes couleurs (docs/logo/*-neon.svg). Les autres
- * thèmes ne changent que l'icône de la fenêtre et de la zone de
+ * logos du README aux mêmes couleurs, sans fond (docs/logo/*-neon.svg). Les
+ * autres thèmes ne changent que l'icône de la fenêtre et de la zone de
  * notification, à l'exécution.
  *
  * Lancé par `npm run icon` (Electron rasterise le SVG ; compile d'abord
@@ -23,9 +23,10 @@ async function generate() {
   const theme = resolveTheme(DEFAULT_THEME);
   const colors = { background: theme.icon.bg, dls: theme.icon.dls, gm: theme.icon.gm };
 
+  // Logos du README sans fond (cadrés au plus près) : un aplat sombre jure sur le thème clair comme sur le sombre de GitHub.
   for (const [name, shape] of [['square', LOGO_SQUARE], ['horizontal', LOGO_HORIZONTAL]]) {
     const file = path.join(root, 'docs', 'logo', `dlsgm-${name}-${theme.id}.svg`);
-    fs.writeFileSync(file, `${logoSvg(shape, colors)}\n`);
+    fs.writeFileSync(file, `${logoSvg(shape, { dls: colors.dls, gm: colors.gm })}\n`);
     console.log(path.relative(root, file));
   }
 
