@@ -5,7 +5,7 @@ import fs from 'fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
-import { spawn } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import Store from './store';
 import { fetchWork } from './dlsite-fetcher';
 import { GenreTranslations, KNOWN_GENRE_TRANSLATIONS } from './genre-translations';
@@ -19,6 +19,7 @@ import { readInstallInfo } from './release-names';
 import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
 import { findLeProc, leInstalled, runWithLocaleEmulator } from './locale-emulator';
+import { elevatedStartCommand, parseLaunchArguments } from './launch-args';
 import { DiskUsageScanner, diskInfo } from './disk-usage';
 import { DEFAULT_SCREENSHOT, ScreenCapturer, captureFileName, isCaptureName, listCaptures, sanitizeScreenshotSettings } from './screenshots';
 import { DEFAULT_OCR, OcrReader, groupOcrLines, sanitizeOcrSettings } from './ocr';
@@ -272,6 +273,17 @@ function runAndTrack(command: string, args: string[], cwd: string | undefined): 
   });
 }
 
+/** Lance en administrateur (invite UAC) avec des arguments ; non suivi. */
+function startElevated(executablePath: string, args: string[]): Promise<TrackedLaunchResult> {
+  const encoded = Buffer.from(elevatedStartCommand(executablePath, path.dirname(executablePath), args), 'utf16le').toString('base64');
+  return new Promise(resolve => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], { windowsHide: true }, error => {
+      // Invite UAC refusée ou exécutable introuvable : Start-Process échoue.
+      resolve(error ? { success: false, error: tm("Le jeu exige les droits administrateur et n'a pas pu être lancé.") } : { success: true, duration: 0, untracked: true });
+    });
+  });
+}
+
 /**
  * Lance l'exécutable d'un jeu — dans sa sandbox Sandboxie si l'option est
  * active et que le jeu n'en est pas exclu — et résout à sa fermeture.
@@ -280,6 +292,8 @@ async function startGameProcess(gameId: string, gamePath: string, executablePath
   const settings = await settingsStore.getAll() as unknown as AppSettings;
   const entry = await cacheStore.get(gameId) as GameMetadata | undefined;
   const sandboxed = process.platform === 'win32' && settings.sandboxLaunch && !entry?.sandboxDisabled;
+  // Arguments saisis sur la page du jeu (`-dx11`...), passés dans tous les modes de lancement.
+  const gameArgs = parseLaunchArguments(entry?.launchArguments);
 
   // Lancement en japonais demandé : jamais de repli sur un lancement normal.
   if (process.platform === 'win32' && entry?.localeEmulator) {
@@ -293,7 +307,7 @@ async function startGameProcess(gameId: string, gamePath: string, executablePath
     if (readPeArch(executablePath) === 'x64') {
       throw new Error(tm("Locale Emulator ne gère que les jeux 32 bits, et celui-ci est en 64 bits : décoche « Lancer en japonais »."));
     }
-    return runWithLocaleEmulator({ leProc, executablePath, gameDir: gamePath });
+    return runWithLocaleEmulator({ leProc, executablePath, args: gameArgs, gameDir: gamePath });
   }
 
   if (sandboxed) {
@@ -303,7 +317,7 @@ async function startGameProcess(gameId: string, gamePath: string, executablePath
       throw new Error(tm('Sandboxie-Plus est introuvable. Installe-le, désactive le lancement en sandbox dans les paramètres, ou exclus ce jeu de la sandbox.'));
     }
     const box = await ensureGameBox(sandboxieDir, gameId, gamePath);
-    const { command, args } = sandboxedCommand(sandboxieDir, box, executablePath);
+    const { command, args } = sandboxedCommand(sandboxieDir, box, executablePath, gameArgs);
     const result = await runAndTrack(command, args, path.dirname(executablePath));
     if (result.success && result.exitCode !== 0 && (result.duration ?? 0) < SANDBOX_LAUNCH_FAILURE_WINDOW_S) {
       return { success: false, error: tm("Sandboxie n'a pas pu lancer le jeu (code {code}). Si le jeu refuse de tourner en sandbox, exclus-le depuis sa fiche.", { code: String(result.exitCode) }) };
@@ -313,18 +327,20 @@ async function startGameProcess(gameId: string, gamePath: string, executablePath
 
   if (process.platform === 'darwin') {
     // Sur Mac, 'open -W' attend que l'application se ferme
-    return runAndTrack('open', ['-W', executablePath], undefined);
+    return runAndTrack('open', ['-W', executablePath, ...(gameArgs.length > 0 ? ['--args', ...gameArgs] : [])], undefined);
   }
 
   // cwd = dossier de l'exécutable (et non la racine du jeu) : beaucoup de
   // jeux résolvent leurs fichiers relativement au répertoire courant.
-  const result = await runAndTrack(executablePath, [], path.dirname(executablePath));
+  const result = await runAndTrack(executablePath, gameArgs, path.dirname(executablePath));
 
   // Exécutable exigeant les droits admin : CreateProcess refuse
   // (ERROR_ELEVATION_REQUIRED, remonté en EACCES par Node). On repasse
   // par le shell, qui affiche l'invite UAC — mais le processus n'est
   // alors plus suivi, donc pas de temps de jeu comptabilisé.
   if (!result.success && result.code === 'EACCES' && process.platform === 'win32') {
+    // shell.openPath ne passe pas d'arguments : avec des arguments, Start-Process -Verb RunAs.
+    if (gameArgs.length > 0) return startElevated(executablePath, gameArgs);
     const shellError = await shell.openPath(executablePath);
     return shellError === '' ? { success: true, duration: 0, untracked: true } : { success: false, error: shellError };
   }

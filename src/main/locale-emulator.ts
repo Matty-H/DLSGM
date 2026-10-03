@@ -40,6 +40,8 @@ export function leInstalled(dir: string): boolean {
 export interface LeLaunchOptions {
   leProc: string;
   executablePath: string;
+  /** Arguments de lancement du jeu, passés après l'exécutable. */
+  args?: string[];
   gameDir: string;
   /** Processus du jeu (pid → exécutable) ; par défaut via PowerShell. */
   listProcesses?: (gameDir: string) => Promise<Map<number, string>>;
@@ -55,6 +57,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export async function runWithLocaleEmulator({
   leProc,
   executablePath,
+  args = [],
   gameDir,
   listProcesses = listGameProcesses,
   spawn = nodeSpawn,
@@ -65,7 +68,7 @@ export async function runWithLocaleEmulator({
   // LEProc peut rendre la main tout de suite ou rester ouvert tant que le jeu
   // tourne (mesuré : les deux arrivent) : on ne l'attend pas, on suit le jeu.
   let launcherFailure: string | null = null;
-  const child = spawn(leProc, [executablePath], { cwd: path.dirname(executablePath), stdio: 'ignore' });
+  const child = spawn(leProc, [executablePath, ...args], { cwd: path.dirname(executablePath), stdio: 'ignore' });
   child.on('error', (error: Error) => {
     launcherFailure = tm("Locale Emulator n'a pas pu démarrer : {error}", { error: error.message });
   });
