@@ -2,6 +2,18 @@
 
 Technical information to develop, test and release DLSGM. The user guide is in the [README](README.md).
 
+## How to contribute: prompt requests
+
+DLSGM works with **prompt requests**, not pull requests: code contributions are not merged as such. The most useful contribution is to **point out a problem or suggest an improvement** — a bug with the steps to reproduce it, a missing feature, a behavior that could be better.
+
+Open a [pull request](https://github.com/Matty-H/DLSGM/pulls) or an [issue](https://github.com/Matty-H/DLSGM/issues) that describes:
+
+- **What happens**, and what you expected instead (or what you would like to have).
+- **How to reproduce it**: steps, game ID if relevant, screenshots or logs.
+- **Why it matters** to you, if it is not obvious.
+
+You are welcome to include code in your pull request — a fix, a prototype, a sketch of an approach. It is read as part of the description, to understand the problem and the idea, and may inspire the change that ends up in DLSGM; it is not merged directly.
+
 ## Requirements
 
 - Node.js 20 or later (CI uses Node 26)
@@ -48,7 +60,7 @@ The interface is available in French, English and Japanese. The French text is t
 
 ## Releasing a version
 
-The GitHub Actions CI (`.github/workflows/build.yml`) runs the tests, then builds Windows and macOS on every push to `main`. A `v*` tag also publishes a GitHub release with the installers, the auto-update files and the description from `.github/release-notes.md`.
+The GitHub Actions CI (`.github/workflows/build.yml`) runs the tests, then builds Windows and macOS on every push to `main`. A `v*` tag also publishes a GitHub release with the installers, the auto-update files and a description made of a changelog (the subjects of the commits since the previous tag, so write them for users) followed by `.github/release-notes.md`.
 
 ```bash
 # 1. Update "version" in package.json, then commit
