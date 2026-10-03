@@ -8,6 +8,8 @@ import OverlayMacros from './OverlayMacros';
 import OverlayTextractor from './OverlayTextractor';
 import CaptureGallery from '../CaptureGallery/CaptureGallery';
 import type { OverlayState } from '../../../../shared/ipc-types';
+import { t, uiLocale } from '../../lib/i18n.js';
+import Trans from '../Trans/Trans';
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -108,9 +110,9 @@ export default function OverlayApp() {
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-extrabold text-white">DL</span>
           <span className="flex-1 text-[15px] font-extrabold tracking-wide">DLSGM</span>
           <span className="text-[12px] text-text-muted">
-            <span className="kbd">Maj</span> + <span className="kbd">Tab</span> ou <span className="kbd">Échap</span> pour fermer
+            <Trans text={t('{shift} + {tab} ou {esc} pour fermer')} values={{ shift: <span className="kbd">{t('Maj')}</span>, tab: <span className="kbd">Tab</span>, esc: <span className="kbd">{t('Échap')}</span> }} />
           </span>
-          <button type="button" onClick={close} aria-label="Fermer l'overlay" className="btn btn-ghost btn-icon">
+          <button type="button" onClick={close} aria-label={t("Fermer l'overlay")} className="btn btn-ghost btn-icon">
             <X size={17} strokeWidth={2.5} />
           </button>
         </div>
@@ -124,19 +126,19 @@ export default function OverlayApp() {
                 <div className="min-w-0">
                   <div className="truncate text-[17px] font-bold">{game.name}</div>
                   <div className="text-[12px] text-text-muted">
-                    {game.id} · lancé à {new Date(game.startedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    {game.id} · {t('lancé à {time}', { time: new Date(game.startedAt).toLocaleTimeString(uiLocale(), { hour: '2-digit', minute: '2-digit' }) })}
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <Stat label="Session" value={formatClock(sessionSeconds)} />
-                <Stat label="Temps total" value={formatPlayTime(game.previousPlayTime + sessionSeconds) || '< 1 min'} />
-                <Stat label="Sessions" value={String(game.sessionCount + 1)} />
+                <Stat label={t('Session')} value={formatClock(sessionSeconds)} />
+                <Stat label={t('Temps total')} value={formatPlayTime(game.previousPlayTime + sessionSeconds) || t('< 1 min')} />
+                <Stat label={t('Sessions')} value={String(game.sessionCount + 1)} />
               </div>
               {game.lastPlayed && (
                 <div className="flex items-center gap-1.5 text-[12px] text-text-muted">
                   <Clock size={13} strokeWidth={2.25} />
-                  Session précédente : {formatLastPlayed(game.lastPlayed)}
+                  {t('Session précédente : {when}', { when: formatLastPlayed(game.lastPlayed) })}
                 </div>
               )}
 
@@ -155,16 +157,15 @@ export default function OverlayApp() {
                     <span>
                       <span className="flex items-center gap-1.5 font-semibold">
                         <MousePointerClick size={14} strokeWidth={2.25} />
-                        Ajouter l'auto-clicker à ce jeu
+                        {t("Ajouter l'auto-clicker à ce jeu")}
                       </span>
                       <span className="mt-0.5 block text-[12px] leading-relaxed text-text-muted">
                         {clickerSettings.enabled ? (
                           <>
-                            Un témoin s'affichera en bas à gauche de la fenêtre du jeu : <span className="kbd">{clickerSettings.hotkey}</span>{' '}
-                            démarre / arrête les clics, un clic sur le témoin (à l'arrêt) règle l'intervalle et le raccourci.
+                            <Trans text={t("Un témoin s'affichera en bas à gauche de la fenêtre du jeu : {hotkey} démarre / arrête les clics, un clic sur le témoin (à l'arrêt) règle l'intervalle et le raccourci.")} values={{ hotkey: <span className="kbd">{clickerSettings.hotkey}</span> }} />
                           </>
                         ) : (
-                          "Active d'abord l'auto-clicker dans Paramètres › Outils en jeu."
+                          t("Active d'abord l'auto-clicker dans Paramètres › Outils en jeu.")
                         )}
                       </span>
                     </span>
@@ -187,17 +188,15 @@ export default function OverlayApp() {
                     <span>
                       <span className="flex items-center gap-1.5 font-semibold">
                         <ScanEye size={14} strokeWidth={2.25} />
-                        Ajouter le détecteur de rythme à ce jeu
+                        {t('Ajouter le détecteur de rythme à ce jeu')}
                       </span>
                       <span className="mt-0.5 block text-[12px] leading-relaxed text-text-muted">
                         {state.triggerSettings.enabled ? (
                           <>
-                            Clique quand une note passe dans une zone. Un témoin s'affichera en bas à gauche et les zones
-                            seront encadrées sur le jeu (vert à chaque clic) : <span className="kbd">{state.triggerSettings.hotkey}</span>{' '}
-                            démarre / arrête.
+                            <Trans text={t("Clique quand une note passe dans une zone. Un témoin s'affichera en bas à gauche et les zones seront encadrées sur le jeu (vert à chaque clic) : {hotkey} démarre / arrête.")} values={{ hotkey: <span className="kbd">{state.triggerSettings.hotkey}</span> }} />
                           </>
                         ) : (
-                          "Active d'abord le détecteur de rythme dans Paramètres › Outils en jeu."
+                          t("Active d'abord le détecteur de rythme dans Paramètres › Outils en jeu.")
                         )}
                       </span>
                     </span>
@@ -218,13 +217,13 @@ export default function OverlayApp() {
                 <div className="flex flex-col gap-2 border-t border-divider pt-3">
                   <div className="flex items-center gap-2 text-[13px] font-semibold">
                     <Camera size={14} strokeWidth={2.25} />
-                    <span className="flex-1">Captures</span>
+                    <span className="flex-1">{t('Captures')}</span>
                     <button
                       type="button"
                       className="btn py-1 text-[12px]"
                       onClick={() => window.electronAPI.takeScreenshot().catch(err => setError(ipcErrorMessage(err)))}
                     >
-                      Capturer <span className="kbd">{state.screenshot.hotkey}</span>
+                      {t('Capturer')} <span className="kbd">{state.screenshot.hotkey}</span>
                     </button>
                   </div>
                   <CaptureGallery gameId={game.id} limit={6} inOverlay />
@@ -246,16 +245,15 @@ export default function OverlayApp() {
                     <span>
                       <span className="flex items-center gap-1.5 font-semibold">
                         <Clapperboard size={14} strokeWidth={2.25} />
-                        Ajouter l'enregistreur de macros à ce jeu
+                        {t("Ajouter l'enregistreur de macros à ce jeu")}
                       </span>
                       <span className="mt-0.5 block text-[12px] leading-relaxed text-text-muted">
                         {state.macroSettings.enabled ? (
                           <>
-                            Enregistre tes clics et touches dans le jeu puis les rejoue : <span className="kbd">{state.macroSettings.recordHotkey}</span>{' '}
-                            enregistre, <span className="kbd">{state.macroSettings.playHotkey}</span> rejoue la macro choisie ci-dessous.
+                            <Trans text={t('Enregistre tes clics et touches dans le jeu puis les rejoue : {record} enregistre, {play} rejoue la macro choisie ci-dessous.')} values={{ record: <span className="kbd">{state.macroSettings.recordHotkey}</span>, play: <span className="kbd">{state.macroSettings.playHotkey}</span> }} />
                           </>
                         ) : (
-                          "Active d'abord l'enregistreur de macros dans Paramètres › Outils en jeu."
+                          t("Active d'abord l'enregistreur de macros dans Paramètres › Outils en jeu.")
                         )}
                       </span>
                     </span>
@@ -276,7 +274,7 @@ export default function OverlayApp() {
             onClick={() => window.electronAPI.ocrTranslateNow().catch(err => setError(ipcErrorMessage(err)))}
           >
             <Languages size={16} strokeWidth={2.25} />
-            Traduire l'écran du jeu <span className="kbd">{state.ocr.hotkey}</span>
+            {t("Traduire l'écran du jeu")} <span className="kbd">{state.ocr.hotkey}</span>
           </button>
         )}
 

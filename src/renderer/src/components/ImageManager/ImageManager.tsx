@@ -2,6 +2,8 @@ import { useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, ImageDown, ImagePlus, Pencil, Star, Trash2 } from 'lucide-react';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 import { ACCEPTED_IMAGE_TYPES } from '../../lib/gameImages.js';
+import { t } from '../../lib/i18n.js';
+import Trans from '../Trans/Trans';
 
 /** Image de la galerie d'édition : existante (`keep`) ou fichier ajouté, pas encore enregistré. */
 export interface DraftImage {
@@ -167,7 +169,7 @@ function ImageTile({
           }}
           onDragEnd={() => setIsDragging(false)}
           className="h-full w-full cursor-grab active:cursor-grabbing"
-          title="Glisser pour réorganiser"
+          title={t('Glisser pour réorganiser')}
         >
           <img
             src={image.previewSrc}
@@ -181,8 +183,8 @@ function ImageTile({
             className="h-full w-full object-cover"
           />
           <div className="pointer-events-none absolute left-2 top-2 flex gap-1">
-            {isCover && <span className="rounded-sm bg-accent px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">Couverture</span>}
-            {'file' in image.source && <span className="rounded-sm bg-black/70 px-2 py-0.5 text-[11px] font-bold">Nouvelle</span>}
+            {isCover && <span className="rounded-sm bg-accent px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">{t('Couverture')}</span>}
+            {'file' in image.source && <span className="rounded-sm bg-black/70 px-2 py-0.5 text-[11px] font-bold">{t('Nouvelle')}</span>}
           </div>
           <div
             className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 transition-opacity ${
@@ -190,9 +192,9 @@ function ImageTile({
             }`}
           >
             {over === 'files' ? (
-              <span className="text-[13px] font-bold">Déposer pour remplacer</span>
+              <span className="text-[13px] font-bold">{t('Déposer pour remplacer')}</span>
             ) : over === 'slot' ? (
-              <span className="text-[13px] font-bold">{isCover ? 'Définir comme couverture' : 'Déplacer ici'}</span>
+              <span className="text-[13px] font-bold">{isCover ? t('Définir comme couverture') : t('Déplacer ici')}</span>
             ) : (
               <>
                 <div className="flex gap-1.5">
@@ -200,15 +202,15 @@ function ImageTile({
                     type="button"
                     onClick={onToggleCover}
                     className={tileButton}
-                    title={isCover ? 'Remettre parmi les images' : 'Définir comme couverture'}
-                    aria-label={isCover ? 'Remettre la couverture parmi les images' : "Définir l'image comme couverture"}
+                    title={isCover ? t('Remettre parmi les images') : t('Définir comme couverture')}
+                    aria-label={isCover ? t('Remettre la couverture parmi les images') : t("Définir l'image comme couverture")}
                   >
                     {isCover ? <ImageDown size={15} strokeWidth={2.25} /> : <Star size={15} strokeWidth={2.25} />}
                   </button>
-                  <button type="button" onClick={onReplace} className={tileButton} title="Remplacer" aria-label="Remplacer l'image">
+                  <button type="button" onClick={onReplace} className={tileButton} title={t('Remplacer')} aria-label={t("Remplacer l'image")}>
                     <Pencil size={15} strokeWidth={2.25} />
                   </button>
-                  <button type="button" onClick={onRemove} className={tileButton} title="Supprimer" aria-label="Supprimer l'image">
+                  <button type="button" onClick={onRemove} className={tileButton} title={t('Supprimer')} aria-label={t("Supprimer l'image")}>
                     <Trash2 size={15} strokeWidth={2.25} />
                   </button>
                 </div>
@@ -219,8 +221,8 @@ function ImageTile({
                       onClick={onMoveLeft}
                       disabled={!canMoveLeft}
                       className={tileButton}
-                      title="Déplacer avant"
-                      aria-label="Déplacer l'image avant"
+                      title={t('Déplacer avant')}
+                      aria-label={t("Déplacer l'image avant")}
                     >
                       <ChevronLeft size={16} strokeWidth={2.5} />
                     </button>
@@ -229,8 +231,8 @@ function ImageTile({
                       onClick={onMoveRight}
                       disabled={!canMoveRight}
                       className={tileButton}
-                      title="Déplacer après"
-                      aria-label="Déplacer l'image après"
+                      title={t('Déplacer après')}
+                      aria-label={t("Déplacer l'image après")}
                     >
                       <ChevronRight size={16} strokeWidth={2.5} />
                     </button>
@@ -276,10 +278,16 @@ function EmptyDropTile({
             <span className="text-[13px] leading-snug">
               {label}
               <br />
-              ou{' '}
-              <button type="button" onClick={onBrowse} className="rounded-sm font-semibold text-accent hover:underline">
-                parcourir
-              </button>
+              <Trans
+                text={t('ou {browse}')}
+                values={{
+                  browse: (
+                    <button type="button" onClick={onBrowse} className="rounded-sm font-semibold text-accent hover:underline">
+                      {t('parcourir')}
+                    </button>
+                  )
+                }}
+              />
             </span>
           )}
         </div>
@@ -365,8 +373,8 @@ export default function ImageManager({
           />
         ) : (
           <EmptyDropTile
-            label="Glissez la couverture ici"
-            slotLabel="Définir comme couverture"
+            label={t('Glissez la couverture ici')}
+            slotLabel={t('Définir comme couverture')}
             onBrowse={() => browse({ kind: 'cover' })}
             onDropFiles={files => handleFiles({ kind: 'cover' }, files)}
             onDropSlot={dropOnCover}
@@ -392,8 +400,8 @@ export default function ImageManager({
         ))}
 
         <EmptyDropTile
-          label="Glissez des images ici"
-          slotLabel={samples.length > 0 ? 'Déplacer à la fin' : undefined}
+          label={t('Glissez des images ici')}
+          slotLabel={samples.length > 0 ? t('Déplacer à la fin') : undefined}
           onBrowse={() => browse({ kind: 'add' })}
           onDropFiles={files => handleFiles({ kind: 'add' }, files)}
           onDropSlot={
@@ -408,12 +416,12 @@ export default function ImageManager({
       </div>
 
       <p className="mt-2 text-[12px] text-text-muted">
-        Glisse les images pour les réorganiser, ou sur la couverture pour la remplacer (l'étoile fait de même).
+        {t("Glisse les images pour les réorganiser, ou sur la couverture pour la remplacer (l'étoile fait de même).")}
       </p>
 
       {rejected.length > 0 && (
         <p className="mt-2 text-[12px] text-danger">
-          Ignoré (format non pris en charge — JPEG, PNG, GIF ou WebP) : {rejected.join(', ')}
+          {t('Ignoré (format non pris en charge — JPEG, PNG, GIF ou WebP) : {files}', { files: rejected.join(', ') })}
         </p>
       )}
 

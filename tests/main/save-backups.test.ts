@@ -26,8 +26,8 @@ beforeEach(() => {
   // Racine d'un jeu RPG Maker VX : seuls les SaveNN sont des sauvegardes.
   writeTree(vxRoot, { 'Save01.rvdata2': 'S1', 'Game.exe': 'EXE' });
   sources = [
-    { label: 'Sauvegardes', path: saveDir, exists: true },
-    { label: 'Dossier du jeu (SaveNN)', path: vxRoot, exists: true, fileFilter: /^Save\d+\.(rvdata2?|rxdata)$/i },
+    { label: 'Saves', path: saveDir, exists: true },
+    { label: 'Game folder (SaveNN)', path: vxRoot, exists: true, fileFilter: /^Save\d+\.(rvdata2?|rxdata)$/i },
     { label: 'Absent', path: path.join(root, 'nope'), exists: false }
   ];
 });
@@ -37,7 +37,7 @@ afterEach(() => removeTempDir(root));
 describe('createSaveBackup', () => {
   it('copie les emplacements existants, en respectant le filtre de fichiers', async () => {
     const backup = await createSaveBackup(GAME, sources, 'auto');
-    expect(backup?.locations).toEqual(['Sauvegardes', 'Dossier du jeu (SaveNN)']);
+    expect(backup?.locations).toEqual(['Saves', 'Game folder (SaveNN)']);
     expect(backup?.fileCount).toBe(3); // Game.exe exclu
   });
 
@@ -87,7 +87,20 @@ describe('restoreSaveBackup', () => {
 
   it("signale les emplacements qui n'existent plus au lieu d'échouer", async () => {
     const backup = (await createSaveBackup(GAME, sources, 'auto'))!;
-    expect(await restoreSaveBackup(GAME, backup.id, sources.slice(0, 1))).toEqual({ skipped: ['Dossier du jeu (SaveNN)'] });
+    expect(await restoreSaveBackup(GAME, backup.id, sources.slice(0, 1))).toEqual({ skipped: ['Game folder (SaveNN)'] });
+  });
+
+  it("restaure une copie faite avec les anciens libellés français", async () => {
+    const legacy = [
+      { ...sources[0], label: 'Sauvegardes' },
+      { ...sources[1], label: 'Dossier du jeu (SaveNN)' }
+    ];
+    const backup = (await createSaveBackup(GAME, legacy, 'manual'))!;
+    fs.writeFileSync(path.join(saveDir, 'file1.rmmzsave'), 'changed');
+    fs.writeFileSync(path.join(vxRoot, 'Save01.rvdata2'), 'changed');
+    expect(await restoreSaveBackup(GAME, backup.id, sources)).toEqual({ skipped: [] });
+    expect(read(saveDir, 'file1.rmmzsave')).toBe('v1');
+    expect(read(vxRoot, 'Save01.rvdata2')).toBe('S1');
   });
 
   it('restaure la plus ancienne copie automatique même quand le nettoyage passe', async () => {

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Select from '../Select/Select';
 import { HOTKEY_OPTIONS } from '../../lib/autoClicker.js';
 import { formatCaptureRate, type PixelTriggerSettings as TriggerSettings, type PixelTriggerStatus } from '../../lib/pixelTrigger.js';
+import { t } from '../../lib/i18n.js';
 
 export interface PixelTriggerSettingsProps {
   value: TriggerSettings;
@@ -44,40 +45,31 @@ export default function PixelTriggerSettings({ value, onChange, clickerHotkey, i
   return (
     <>
       <Row
-        label="Activer le détecteur de rythme"
+        label={t('Activer le détecteur de rythme')}
         description={
           <>
-            Interrupteur général ; il s'ajoute ensuite jeu par jeu (overlay Maj+Tab, case « Ajouter le détecteur de
-            rythme à ce jeu »), où se règlent aussi ses zones (ou sur la page du jeu). Rien n'est envoyé si le jeu n'est
-            pas au premier plan.
+            {t("Interrupteur général ; il s'ajoute ensuite jeu par jeu (overlay Maj+Tab, case « Ajouter le détecteur de rythme à ce jeu »), où se règlent aussi ses zones. Rien n'est envoyé si le jeu n'est pas au premier plan.")}
             {status?.running && (
               <span className={`mt-1 block font-semibold ${status.paused ? 'text-amber-300' : 'text-play'}`}>
-                {status.paused ? 'En pause (le jeu n’est pas au premier plan).' : `En marche${rate ? ` — ${rate}` : ''}.`}
+                {status.paused ? t('En pause (le jeu n’est pas au premier plan).') : rate ? t('En marche — {rate}.', { rate }) : t('En marche.')}
               </span>
             )}
             {status?.error && <span className="mt-1 block text-danger">{status.error}</span>}
-            {isDirty && <span className="mt-1 block text-text-secondary">Enregistre pour appliquer les changements.</span>}
+            {isDirty && <span className="mt-1 block text-text-secondary">{t('Enregistre pour appliquer les changements.')}</span>}
           </>
         }
       >
-        <input type="checkbox" className="toggle" aria-label="Activer le détecteur de rythme" checked={value.enabled} onChange={e => set({ enabled: e.target.checked })} />
+        <input type="checkbox" className="toggle" aria-label={t('Activer le détecteur de rythme')} checked={value.enabled} onChange={e => set({ enabled: e.target.checked })} />
       </Row>
       <Row
-        label="Raccourci marche / arrêt"
-        description="Différent de celui de l'auto-clicker. Alt+Espace (panique) arrête aussi le détecteur."
+        label={t('Raccourci marche / arrêt')}
+        description={t("Différent de celui de l'auto-clicker. Alt+Espace (panique) arrête aussi le détecteur.")}
       >
-        <Select value={value.hotkey} options={hotkeyOptions} onChange={hotkey => set({ hotkey })} aria-label="Raccourci du détecteur" className="w-[150px]" />
+        <Select value={value.hotkey} options={hotkeyOptions} onChange={hotkey => set({ hotkey })} aria-label={t('Raccourci du détecteur')} className="w-[150px]" />
       </Row>
       <Row
-        label="Limites"
-        description={
-          <>
-            L'écran est lu une fois par rafraîchissement (60 fois par seconde sur un écran 60 Hz) : une note est vue
-            jusqu'à ~17 ms après son affichage — le « délai » de chaque zone sert à recaler l'action sur la ligne de
-            frappe. Ne voit pas les jeux en plein écran exclusif (fenêtré ou plein écran sans bordure seulement), et les
-            entrées n'arrivent pas à un jeu lancé en administrateur si DLSGM ne l'est pas.
-          </>
-        }
+        label={t('Limites')}
+        description={t("L'écran est lu une fois par rafraîchissement (60 fois par seconde sur un écran 60 Hz) : une note est vue jusqu'à ~17 ms après son affichage — le « délai » de chaque zone sert à recaler l'action sur la ligne de frappe. Ne voit pas les jeux en plein écran exclusif (fenêtré ou plein écran sans bordure seulement), et les entrées n'arrivent pas à un jeu lancé en administrateur si DLSGM ne l'est pas.")}
       />
     </>
   );

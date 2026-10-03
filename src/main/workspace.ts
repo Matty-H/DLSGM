@@ -15,8 +15,24 @@ const MAX_LISTED_ENTRIES = 50;
 // Au-delà, le décompte s'arrête (dossiers d'extraction énormes).
 const MAX_COUNTED_FILES = 20000;
 
+/** Dossier des travaux par défaut : Documents/DLSGM/Work. */
+export const WORKSPACE_DIR_NAME = 'Work';
+/** Ancien nom (français) : renommé en Work la première fois que la racine sert, contenu compris. */
+const LEGACY_WORKSPACE_DIR_NAME = 'Travaux';
+
 export function defaultWorkspaceRoot(documentsDir: string): string {
-  return path.join(documentsDir, 'DLSGM', 'Travaux');
+  const root = path.join(documentsDir, 'DLSGM', WORKSPACE_DIR_NAME);
+  const legacy = path.join(documentsDir, 'DLSGM', LEGACY_WORKSPACE_DIR_NAME);
+  // Les deux existent : Work sert, Travaux reste tel quel (DLSGM ne supprime jamais de travaux).
+  if (!fs.existsSync(root) && fs.existsSync(legacy)) {
+    try {
+      fs.renameSync(legacy, root);
+    } catch {
+      // Fichier ouvert ailleurs : on garde l'ancien dossier, nouvel essai au prochain appel.
+      return legacy;
+    }
+  }
+  return root;
 }
 
 /** Racine effective : celle des paramètres si c'est un chemin absolu, sinon celle par défaut. */

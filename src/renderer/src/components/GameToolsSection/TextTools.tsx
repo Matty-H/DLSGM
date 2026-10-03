@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import type { GameToolsInfo, RpgMakerExtractResult } from '../../../../shared/ipc-types';
+import { t } from '../../lib/i18n.js';
+import Trans from '../Trans/Trans';
 
 export interface TextToolsProps {
   gameId: string;
@@ -67,55 +69,58 @@ export default function TextTools({ gameId, info, textractorEnabled, onTextracto
   return (
     <>
       <div>
-        <div className={`${LABEL_CLASS} mb-1`}>Texte du jeu</div>
+        <div className={`${LABEL_CLASS} mb-1`}>{t('Texte du jeu')}</div>
         <label className="flex cursor-pointer items-center justify-between gap-3">
-          Lancer en japonais (Locale Emulator)
+          {t('Lancer en japonais (Locale Emulator)')}
           <input type="checkbox" className="toggle" checked={localeEmulator} onChange={e => onLocaleEmulatorChange(e.target.checked)} />
         </label>
         <p className="mt-1 text-text-secondary">
-          Pour un jeu aux textes illisibles, qui plante au démarrage ou ne trouve pas ses fichiers sur un Windows non
-          japonais. Le temps de jeu reste suivi.
+          {t('Pour un jeu aux textes illisibles, qui plante au démarrage ou ne trouve pas ses fichiers sur un Windows non japonais. Le temps de jeu reste suivi.')}
         </p>
         {localeEmulator && leReady === false && (
-          <p className="mt-1 text-danger">Locale Emulator introuvable (Paramètres › Lancement) : le jeu ne pourra pas être lancé.</p>
+          <p className="mt-1 text-danger">{t('Locale Emulator introuvable (Paramètres › Lancement) : le jeu ne pourra pas être lancé.')}</p>
         )}
         {localeEmulator && info?.engine.arch === 'x64' && (
-          <p className="mt-1 text-danger">Jeu 64 bits : Locale Emulator ne gère que les jeux 32 bits, le lancement sera refusé.</p>
+          <p className="mt-1 text-danger">{t('Jeu 64 bits : Locale Emulator ne gère que les jeux 32 bits, le lancement sera refusé.')}</p>
         )}
         {localeEmulator && sandboxed && (
-          <p className="mt-1 text-danger">Ce jeu est lancé dans Sandboxie : pas encore combinable avec Locale Emulator.</p>
+          <p className="mt-1 text-danger">{t('Ce jeu est lancé dans Sandboxie : pas encore combinable avec Locale Emulator.')}</p>
         )}
       </div>
 
       <div>
         <label className="flex cursor-pointer items-center justify-between gap-3">
-          Lancer avec Textractor
+          {t('Lancer avec Textractor')}
           <input type="checkbox" className="toggle" checked={textractorEnabled} onChange={e => onTextractorEnabledChange(e.target.checked)} />
         </label>
         <p className="mt-1 text-text-secondary">
-          Extrait le texte des visual novels et RPG Maker (moteurs que la traduction BepInEx ne couvre pas). Le fil choisi
-          dans l'overlay (Maj+Tab) part au presse-papiers et/ou dans <span className="font-mono">textractor/</span> du dossier
-          de travaux.
+          {t("Extrait le texte des visual novels et RPG Maker (moteurs que la traduction BepInEx ne couvre pas). Le fil choisi dans l'overlay (Maj+Tab) part au presse-papiers et/ou dans textractor/ du dossier de travaux.")}
         </p>
         {textractorEnabled && textractorFound === false && (
-          <p className="mt-1 text-danger">Textractor introuvable (Paramètres › Lancement) : le jeu ne pourra pas être lancé.</p>
+          <p className="mt-1 text-danger">{t('Textractor introuvable (Paramètres › Lancement) : le jeu ne pourra pas être lancé.')}</p>
         )}
       </div>
 
       {isRpgMakerWeb && extractorEnabled && (
         <div>
-          <div className={`${LABEL_CLASS} mb-1`}>Ressources RPG Maker</div>
+          <div className={`${LABEL_CLASS} mb-1`}>{t('Ressources RPG Maker')}</div>
           <button type="button" onClick={extract} disabled={progress !== null} className="btn text-[13px]">
-            {progress ? (progress.total ? `Extraction ${progress.done}/${progress.total}…` : 'Extraction…') : 'Extraire images et sons'}
+            {progress ? (progress.total ? t('Extraction {done}/{total}…', { done: progress.done, total: progress.total }) : t('Extraction…')) : t('Extraire images et sons')}
           </button>
           {result && (
             <p className="mt-1 text-text-secondary">
-              {result.files} fichier{result.files > 1 ? 's' : ''} déchiffré{result.files > 1 ? 's' : ''} dans{' '}
-              <button type="button" className="font-mono text-accent hover:underline" onClick={() => window.electronAPI.openGameWorkspace(gameId)}>
-                {result.folder}/
-              </button>{' '}
-              (clé {result.keySource === 'system' ? 'du jeu' : 'déduite d’une image'})
-              {result.failed.length > 0 && <span className="text-danger"> — {result.failed.length} illisible{result.failed.length > 1 ? 's' : ''}</span>}.
+              <Trans
+                text={result.keySource === 'system' ? t('{n} fichier(s) déchiffré(s) dans {folder} (clé du jeu)') : t('{n} fichier(s) déchiffré(s) dans {folder} (clé déduite d’une image)')}
+                values={{
+                  n: result.files,
+                  folder: (
+                    <button type="button" className="font-mono text-accent hover:underline" onClick={() => window.electronAPI.openGameWorkspace(gameId)}>
+                      {result.folder}/
+                    </button>
+                  )
+                }}
+              />
+              {result.failed.length > 0 && <span className="text-danger"> — {t('{n} illisible(s)', { n: result.failed.length })}</span>}.
             </p>
           )}
           {error && <p className="mt-1 text-danger">{error}</p>}

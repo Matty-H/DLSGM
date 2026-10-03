@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { tm } from './i18n';
 
 /**
  * Extraction des ressources chiffrées d'un jeu RPG Maker MV / MZ, comme le
@@ -43,7 +44,7 @@ export function decryptedName(name: string): string {
 
 export function decryptAsset(data: Buffer, key: Buffer): Buffer {
   if (data.length < HEADER_LENGTH || !data.subarray(0, SIGNATURE.length).equals(SIGNATURE)) {
-    throw new Error("Ce n'est pas une ressource RPG Maker chiffrée (en-tête RPGMV absent).");
+    throw new Error(tm("Ce n'est pas une ressource RPG Maker chiffrée (en-tête RPGMV absent)."));
   }
   const out = Buffer.from(data.subarray(HEADER_LENGTH));
   for (let i = 0; i < 16 && i < out.length; i++) out[i] ^= key[i];
@@ -107,7 +108,7 @@ export function chooseKey(webDir: string, assets: string[]): { key: Buffer; sour
     if (recovered) return { key: recovered, source: 'image' };
   }
   if (declared) return { key: declared, source: 'system' };
-  throw new Error('Clé de chiffrement introuvable (ni dans data/System.json, ni déductible d’une image).');
+  throw new Error(tm('Clé de chiffrement introuvable (ni dans data/System.json, ni déductible d’une image).'));
 }
 
 /**
@@ -120,7 +121,7 @@ export async function extractRpgMakerAssets(
   onProgress?: (done: number, total: number) => void
 ): Promise<AssetExtraction> {
   const assets = listEncryptedAssets(webDir);
-  if (assets.length === 0) throw new Error("Aucune ressource chiffrée dans ce jeu (images et sons sont déjà lisibles).");
+  if (assets.length === 0) throw new Error(tm("Aucune ressource chiffrée dans ce jeu (images et sons sont déjà lisibles)."));
   const { key, source } = chooseKey(webDir, assets);
   const failed: string[] = [];
   let files = 0;

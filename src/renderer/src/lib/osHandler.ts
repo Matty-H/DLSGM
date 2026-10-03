@@ -1,5 +1,6 @@
 import { loadSettings } from './settings.js';
 import type { LaunchGameResult } from '../../../shared/ipc-types';
+import { t } from './i18n.js';
 
 /**
  * Gère les interactions avec le système d'exploitation (fichiers, lancements, etc.)
@@ -41,7 +42,7 @@ export async function launchGame(gameId: string): Promise<LaunchGameResult> {
   try {
     const result = await window.electronAPI.launchGame(gameId);
     if (!result.success) {
-      alert(`Impossible de lancer le jeu : ${result.error ?? 'erreur inconnue'}`);
+      alert(t('Impossible de lancer le jeu : {error}', { error: result.error ?? t('erreur inconnue') }));
     }
     return result;
   } catch (error) {

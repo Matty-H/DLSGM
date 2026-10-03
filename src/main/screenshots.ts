@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DPI_AWARE_CS } from './auto-clicker';
 import type { CaptureInfo, ScreenshotSettings } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Captures d'écran du jeu (raccourci pendant une partie, ou bouton de
@@ -101,7 +102,7 @@ export class ScreenCapturer {
   }
 
   private start(): Promise<void> {
-    if (process.platform !== 'win32') return Promise.reject(new Error("Les captures ne sont disponibles que sous Windows."));
+    if (process.platform !== 'win32') return Promise.reject(new Error(tm("Les captures ne sont disponibles que sous Windows.")));
     if (this.ready) return this.ready;
     const scriptPath = path.join(this.scriptDir, 'screenshot.ps1');
     fs.writeFileSync(scriptPath, SCREENSHOT_WORKER_SCRIPT, 'utf8');
@@ -127,13 +128,13 @@ export class ScreenCapturer {
           if (!job) continue;
           this.pending.delete(id);
           if (kind === 'ok') job.resolve();
-          else job.reject(new Error(message.join(' ') || 'Capture impossible.'));
+          else job.reject(new Error(message.join(' ') || tm('Capture impossible.')));
         }
       });
       worker.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
       worker.on('error', reject);
       worker.on('exit', code => {
-        const error = new Error(stderr.trim() || `Capture arrêtée (code ${code})`);
+        const error = new Error(stderr.trim() || tm('Capture arrêtée (code {code})', { code: String(code) }));
         reject(error);
         for (const job of this.pending.values()) job.reject(error);
         this.pending.clear();

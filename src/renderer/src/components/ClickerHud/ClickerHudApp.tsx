@@ -3,6 +3,7 @@ import { Minus, MousePointerClick, Plus } from 'lucide-react';
 import { HOTKEY_OPTIONS, INTERVAL_PRESETS, formatInterval, formatRate, stepInterval, type AutoClickerSettings } from '../../lib/autoClicker.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import type { AutoClickerStatus } from '../../../../shared/ipc-types';
+import { t } from '../../lib/i18n.js';
 
 /**
  * Témoin de l'auto-clicker (src/main/clicker-hud.ts, route #clicker-hud),
@@ -81,17 +82,17 @@ export default function ClickerHudApp() {
       className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${
         paused ? 'bg-amber-400' : running ? 'bg-play shadow-[0_0_8px_var(--color-play)]' : inGame ? 'bg-danger' : 'bg-text-muted'
       }`}
-      aria-label={paused ? 'En pause' : running ? 'En marche' : inGame ? 'À l’arrêt' : 'Hors jeu'}
+      aria-label={paused ? t('En pause') : running ? t('En marche') : inGame ? t('À l’arrêt') : t('Hors jeu')}
     />
   );
 
   const title = paused
-    ? 'En pause : le jeu n’est pas au premier plan'
+    ? t('En pause : le jeu n’est pas au premier plan')
     : running
-      ? `En marche — ${settings.hotkey} pour arrêter`
+      ? t('En marche — {hotkey} pour arrêter', { hotkey: settings.hotkey })
       : inGame
-        ? `À l'arrêt — ${settings.hotkey} pour démarrer, clic pour régler`
-        : `Hors jeu : ${settings.hotkey} n'agit que pendant un jeu lancé depuis DLSGM (où l'auto-clicker est permis). Clic pour régler.`;
+        ? t("À l'arrêt — {hotkey} pour démarrer, clic pour régler", { hotkey: settings.hotkey })
+        : t("Hors jeu : {hotkey} n'agit que pendant un jeu lancé depuis DLSGM (où l'auto-clicker est permis). Clic pour régler.", { hotkey: settings.hotkey });
 
   return (
     <div className="flex h-screen w-screen items-end font-body text-text">
@@ -100,19 +101,19 @@ export default function ClickerHudApp() {
           <div className="flex items-center gap-2 text-[13px] font-bold">
             {dot}
             <MousePointerClick size={15} strokeWidth={2.25} />
-            Auto-clicker
+            {t('Auto-clicker')}
           </div>
           <div>
             <div className="section-title mb-1 flex items-center justify-between text-[10px]">
-              Intervalle
+              {t('Intervalle')}
               <span className="normal-case tracking-normal text-text-muted">{formatRate({ intervalMs, double: settings.double })}</span>
             </div>
             <div className="mb-1.5 flex items-center gap-1.5">
-              <button type="button" onClick={() => setIntervalMs(v => stepInterval(v, -1))} aria-label="Plus rapide" className="btn btn-icon h-7 w-7 p-0">
+              <button type="button" onClick={() => setIntervalMs(v => stepInterval(v, -1))} aria-label={t('Plus rapide')} className="btn btn-icon h-7 w-7 p-0">
                 <Minus size={14} strokeWidth={2.5} />
               </button>
               <span className="flex-1 text-center text-[15px] font-bold tabular-nums">{formatInterval(intervalMs)}</span>
-              <button type="button" onClick={() => setIntervalMs(v => stepInterval(v, 1))} aria-label="Plus lent" className="btn btn-icon h-7 w-7 p-0">
+              <button type="button" onClick={() => setIntervalMs(v => stepInterval(v, 1))} aria-label={t('Plus lent')} className="btn btn-icon h-7 w-7 p-0">
                 <Plus size={14} strokeWidth={2.5} />
               </button>
             </div>
@@ -131,7 +132,7 @@ export default function ClickerHudApp() {
             </div>
           </div>
           <div>
-            <div className="section-title mb-1 text-[10px]">Raccourci</div>
+            <div className="section-title mb-1 text-[10px]">{t('Raccourci')}</div>
             <div className="flex flex-wrap gap-1">
               {HOTKEY_OPTIONS.map(option => (
                 <button
@@ -149,10 +150,10 @@ export default function ClickerHudApp() {
           {error && <div className="text-[11px] text-danger">{error}</div>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={close} className="btn btn-ghost py-1 text-[12px]">
-              Annuler
+              {t('Annuler')}
             </button>
             <button type="button" onClick={save} disabled={saving} className="btn btn-primary py-1 text-[12px]">
-              Enregistrer
+              {t('Enregistrer')}
             </button>
           </div>
         </div>
@@ -166,8 +167,8 @@ export default function ClickerHudApp() {
           }`}
         >
           {dot}
-          <span className="min-w-0 flex-1 truncate text-left tabular-nums">{paused ? 'En pause' : formatRate(settings)}</span>
-          {!inGame && !running && <span className="text-[11px] font-normal text-text-muted">hors jeu</span>}
+          <span className="min-w-0 flex-1 truncate text-left tabular-nums">{paused ? t('En pause') : formatRate(settings)}</span>
+          {!inGame && !running && <span className="text-[11px] font-normal text-text-muted">{t('hors jeu')}</span>}
           <span className="kbd">{settings.hotkey}</span>
         </button>
       )}

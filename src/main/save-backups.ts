@@ -4,6 +4,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import type { SaveBackup, SaveRestoreResult } from '../shared/ipc-types';
 import type { SaveSource } from './game-tools';
+import { tm } from './i18n';
 
 /**
  * Copies des sauvegardes des jeux, dans `userData/save_backups/<ID>/<copie>/`
@@ -128,8 +129,7 @@ export async function createSaveBackup(
   const totalBytes = collected.reduce((sum, c) => sum + c.files.reduce((s, f) => s + f.size, 0), 0);
   if (totalBytes > MAX_BACKUP_BYTES) {
     throw new Error(
-      `Sauvegardes trop volumineuses pour être copiées (${Math.round(totalBytes / 1024 / 1024)} Mo, max ${MAX_BACKUP_BYTES / 1024 / 1024} Mo) : ` +
-      "l'emplacement détecté contient sans doute autre chose que des sauvegardes."
+      tm("Sauvegardes trop volumineuses pour être copiées ({mb} Mo, max {max} Mo) : l'emplacement détecté contient sans doute autre chose que des sauvegardes.", { mb: Math.round(totalBytes / 1024 / 1024), max: MAX_BACKUP_BYTES / 1024 / 1024 })
     );
   }
 
@@ -186,7 +186,7 @@ async function pruneAutomaticBackups(gameId: string): Promise<void> {
 }
 
 function assertBackupId(backupId: unknown): asserts backupId is string {
-  if (typeof backupId !== 'string' || !BACKUP_ID_REGEX.test(backupId)) throw new Error('Copie de sauvegarde invalide.');
+  if (typeof backupId !== 'string' || !BACKUP_ID_REGEX.test(backupId)) throw new Error(tm('Copie de sauvegarde invalide.'));
 }
 
 /**
@@ -196,11 +196,33 @@ function assertBackupId(backupId: unknown): asserts backupId is string {
  * devient exactement celui de la copie — fichiers en trop compris, sauf hors
  * du filtre `fileFilter` (le reste du jeu n'est jamais touché).
  */
+/**
+ * Libellés d'emplacements d'avant leur passage en anglais : les copies faites
+ * avant les gardent dans leur manifeste, la restauration les associe donc au
+ * libellé actuel.
+ */
+const LEGACY_SAVE_LABELS: Record<string, string> = {
+  Sauvegardes: 'Saves',
+  'Sauvegardes (jeu)': 'Saves (game)',
+  'Dossier du jeu (SaveNN)': 'Game folder (SaveNN)',
+  'Godot (Roaming, dossier dédié)': 'Godot (Roaming, dedicated folder)',
+  'Unreal (jeu)': 'Unreal (game)'
+};
+
+/** Libellé actuel d'un emplacement (ancien libellé français converti, « (sandbox) » conservé). */
+export function currentSaveLabel(label: string): string {
+  const suffix = ' (sandbox)';
+  const sandboxed = label.endsWith(suffix);
+  const base = sandboxed ? label.slice(0, -suffix.length) : label;
+  const current = LEGACY_SAVE_LABELS[base] ?? base;
+  return sandboxed ? current + suffix : current;
+}
+
 export async function restoreSaveBackup(gameId: string, backupId: string, sources: SaveSource[]): Promise<SaveRestoreResult> {
   assertBackupId(backupId);
   const backupDir = path.join(backupsDir(gameId), backupId);
   const manifest = await readManifest(backupDir);
-  if (!manifest) throw new Error('Copie de sauvegarde introuvable.');
+  if (!manifest) throw new Error(tm('Copie de sauvegarde introuvable.'));
 
   // L'état actuel d'abord : si la copie ne peut pas être faite, on ne
   // restaure pas (on écraserait des sauvegardes sans retour possible).
@@ -209,7 +231,7 @@ export async function restoreSaveBackup(gameId: string, backupId: string, source
 
   const skipped: string[] = [];
   for (const { label, folder } of manifest.folders) {
-    const target = sources.find(s => s.label === label);
+    const target = sources.find(s => s.label === currentSaveLabel(label));
     if (!target) {
       skipped.push(label);
       continue;

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { DictToken } from '../../../../shared/ipc-types';
 import { shortGloss } from '../../lib/ocr.js';
+import { t } from '../../lib/i18n.js';
 
 /**
  * Texte d'un bloc découpé en mots : lecture en furigana au-dessus, premier
@@ -8,7 +9,7 @@ import { shortGloss } from '../../lib/ocr.js';
  * kanji un à un). La fenêtre laisse passer les clics au jeu : seul le survol
  * est reçu.
  */
-export default function DictWords({ words }: { words: DictToken[] }) {
+export default function DictWords({ words, frenchWanted = true }: { words: DictToken[]; frenchWanted?: boolean }) {
   const [hovered, setHovered] = useState<number | null>(null);
   // Fiche du côté du bloc où il y a le plus de place dans la fenêtre du jeu, sa hauteur limitée à cette place.
   const [placement, setPlacement] = useState<{ above: boolean; maxHeight: number }>({ above: false, maxHeight: 300 });
@@ -62,7 +63,7 @@ export default function DictWords({ words }: { words: DictToken[] }) {
               ))}
             </ol>
           )}
-          {!card.french && card.senses.length > 0 && <div className="mt-1 text-[11px] text-white/50">Pas de traduction française dans JMdict : sens en anglais.</div>}
+          {frenchWanted && !card.french && card.senses.length > 0 && <div className="mt-1 text-[11px] text-white/50">{t('Pas de traduction française dans JMdict : sens en anglais.')}</div>}
           {card.kanji.length > 0 && (
             <div className="mt-2 flex flex-col gap-1 border-t border-divider pt-2">
               {card.kanji.map(k => (
@@ -71,7 +72,7 @@ export default function DictWords({ words }: { words: DictToken[] }) {
                   <span className="min-w-0">
                     <span>{k.meanings.join(', ')}</span>
                     <span className="block text-[11px] text-white/60">
-                      {[k.on.length > 0 && `on : ${k.on.join('、')}`, k.kun.length > 0 && `kun : ${k.kun.join('、')}`].filter(Boolean).join(' · ')}
+                      {[k.on.length > 0 && t('on : {readings}', { readings: k.on.join('、') }), k.kun.length > 0 && t('kun : {readings}', { readings: k.kun.join('、') })].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                 </div>

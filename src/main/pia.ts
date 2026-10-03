@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import type { PiaStatus } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Pilotage de Private Internet Access (PIA) par sa ligne de commande
@@ -60,7 +61,7 @@ export class Pia {
   })(), private delays = { poll: POLL_INTERVAL_MS, settle: SETTLE_MS, connectTimeout: CONNECT_TIMEOUT_MS }) {}
 
   private run(args: string[]): Promise<string> {
-    if (!this.runner) throw new Error("Private Internet Access (piactl) est introuvable sur ce PC.");
+    if (!this.runner) throw new Error(tm("Private Internet Access (piactl) est introuvable sur ce PC."));
     return this.runner(args);
   }
 
@@ -83,7 +84,7 @@ export class Pia {
     for (;;) {
       const state = await this.run(['get', 'connectionstate']);
       if (state === wanted) return;
-      if (Date.now() > deadline) throw new Error(`PIA n'est pas passé à l'état ${wanted} (état actuel : ${state}).`);
+      if (Date.now() > deadline) throw new Error(tm("PIA n'est pas passé à l'état {wanted} (état actuel : {state}).", { wanted, state }));
       await sleep(this.delays.poll);
     }
   }
@@ -93,10 +94,10 @@ export class Pia {
    * réussi doit être suivi d'un `end`.
    */
   async begin(region: string): Promise<void> {
-    if (!/^[a-z0-9-]+$/.test(region)) throw new Error(`Région PIA invalide : ${region}`);
+    if (!/^[a-z0-9-]+$/.test(region)) throw new Error(tm('Région PIA invalide : {region}', { region }));
     if (this.opening) await this.opening.catch(() => undefined);
     if (this.session) {
-      if (this.session.region !== region) throw new Error(`Une session PIA est déjà ouverte sur ${this.session.region}.`);
+      if (this.session.region !== region) throw new Error(tm('Une session PIA est déjà ouverte sur {region}.', { region: this.session.region }));
       this.session.depth++;
       return;
     }
@@ -113,7 +114,7 @@ export class Pia {
       } catch (error) {
         await this.restore().catch(() => undefined);
         throw new Error(
-          `Connexion PIA impossible : ${(error as Error).message} — l'application PIA doit être ouverte (ou "piactl background enable").`
+          tm('Connexion PIA impossible : {error} — l\'application PIA doit être ouverte (ou "piactl background enable").', { error: (error as Error).message })
         );
       }
     })();

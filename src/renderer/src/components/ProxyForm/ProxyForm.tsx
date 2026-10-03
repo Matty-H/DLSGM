@@ -1,4 +1,5 @@
 import type { ProxyForm as ProxyFormValue, ProxyType } from '../../lib/proxyForm.js';
+import { msg, t, tr } from '../../lib/i18n.js';
 
 export interface ProxyFormProps {
   value: ProxyFormValue;
@@ -8,7 +9,7 @@ export interface ProxyFormProps {
 }
 
 const TYPE_LABELS: Record<ProxyType, string> = {
-  '': 'Aucun',
+  '': msg('Aucun'),
   http: 'HTTP',
   socks5: 'SOCKS5',
   https: 'HTTPS',
@@ -25,10 +26,10 @@ export default function ProxyForm({ value, onChange, storedType }: ProxyFormProp
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="seg self-start" role="group" aria-label="Type de proxy">
+      <div className="seg self-start" role="group" aria-label={t('Type de proxy')}>
         {types.map(type => (
           <button key={type || 'none'} type="button" aria-pressed={value.type === type} onClick={() => set({ type })} className="seg-opt">
-            {TYPE_LABELS[type]}
+            {tr(TYPE_LABELS[type])}
           </button>
         ))}
       </div>
@@ -37,16 +38,16 @@ export default function ProxyForm({ value, onChange, storedType }: ProxyFormProp
           <div className="flex gap-2">
             <input
               className="input flex-1"
-              placeholder="Hôte (ex: jp.proxy.exemple ou 1.2.3.4)"
-              aria-label="Hôte du proxy"
+              placeholder={t('Hôte (ex: jp.proxy.exemple ou 1.2.3.4)')}
+              aria-label={t('Hôte du proxy')}
               spellCheck={false}
               value={value.host}
               onChange={e => set({ host: e.target.value })}
             />
             <input
               className="input w-[100px]"
-              placeholder="Port"
-              aria-label="Port du proxy"
+              placeholder={t('Port')}
+              aria-label={t('Port du proxy')}
               inputMode="numeric"
               value={value.port}
               onChange={e => set({ port: e.target.value.replace(/\D/g, '').slice(0, 5) })}
@@ -55,8 +56,8 @@ export default function ProxyForm({ value, onChange, storedType }: ProxyFormProp
           <div className="flex gap-2">
             <input
               className="input flex-1"
-              placeholder="Identifiant (facultatif)"
-              aria-label="Identifiant du proxy"
+              placeholder={t('Identifiant (facultatif)')}
+              aria-label={t('Identifiant du proxy')}
               autoComplete="off"
               spellCheck={false}
               disabled={credentialsDisabled}
@@ -66,8 +67,8 @@ export default function ProxyForm({ value, onChange, storedType }: ProxyFormProp
             <input
               className="input flex-1"
               type="password"
-              placeholder={value.hasStoredPassword ? 'Enregistré (vide = inchangé)' : 'Mot de passe (facultatif)'}
-              aria-label="Mot de passe du proxy"
+              placeholder={value.hasStoredPassword ? t('Enregistré (vide = inchangé)') : t('Mot de passe (facultatif)')}
+              aria-label={t('Mot de passe du proxy')}
               autoComplete="new-password"
               disabled={credentialsDisabled}
               value={value.password}

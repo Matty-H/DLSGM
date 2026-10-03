@@ -35,6 +35,7 @@ import { useGenreTranslations } from './hooks/useGenreTranslations';
 import { getPiaStatus } from './lib/vpn.js';
 import { openGameFolder } from './lib/osHandler.js';
 import { PAD_LABELS } from './lib/gamepadLayout.js';
+import { t } from './lib/i18n.js';
 
 export default function App() {
   const { settings, save: saveSettings } = useSettings();
@@ -62,8 +63,8 @@ export default function App() {
   }, []);
   const importStatus = archiveImport.running
     ? archiveImport.progress
-      ? `Import ${archiveImport.progress.index}/${archiveImport.progress.total}…`
-      : 'Import…'
+      ? t('Import {index}/{total}…', { index: archiveImport.progress.index, total: archiveImport.progress.total })
+      : t('Import…')
     : null;
 
   const [activeTab, setActiveTab] = useState<AppTab>('library');
@@ -340,43 +341,43 @@ export default function App() {
   const footerHints: FooterHint[] = pad
     ? inPopup
       ? [
-          { keys: ['↑', '↓'], label: 'Parcourir' },
-          { keys: [pad.south], label: 'Choisir' },
-          { keys: [pad.east], label: 'Fermer' }
+          { keys: ['↑', '↓'], label: t('Parcourir') },
+          { keys: [pad.south], label: t('Choisir') },
+          { keys: [pad.east], label: t('Fermer') }
         ]
       : activeTab !== 'library'
         ? [
-            { keys: [pad.lt, pad.rt], label: 'Onglets' },
-            { keys: [pad.south], label: 'Valider' },
-            { keys: [pad.east], label: 'Bibliothèque' }
+            { keys: [pad.lt, pad.rt], label: t('Onglets') },
+            { keys: [pad.south], label: t('Valider') },
+            { keys: [pad.east], label: t('Bibliothèque') }
           ]
         : isGamePageOpen
           ? [
-              { keys: [pad.lb, pad.rb], label: 'Images' },
-              { keys: [pad.south], label: 'Valider' },
-              { keys: [pad.east], label: 'Retour' }
+              { keys: [pad.lb, pad.rb], label: t('Images') },
+              { keys: [pad.south], label: t('Valider') },
+              { keys: [pad.east], label: t('Retour') }
             ]
           : [
-              { keys: [pad.lb, pad.rb], label: 'Catégories' },
-              { keys: [pad.lt, pad.rt], label: 'Onglets' },
-              { keys: [pad.north], label: 'Rechercher' },
-              { keys: [pad.south], label: 'Ouvrir' }
+              { keys: [pad.lb, pad.rb], label: t('Catégories') },
+              { keys: [pad.lt, pad.rt], label: t('Onglets') },
+              { keys: [pad.north], label: t('Rechercher') },
+              { keys: [pad.south], label: t('Ouvrir') }
             ]
     : activeTab !== 'library'
-      ? [{ keys: ['Échap'], label: 'Bibliothèque' }]
+      ? [{ keys: [t('Échap')], label: t('Bibliothèque') }]
       : isGamePageOpen
         ? [
-            { keys: ['←', '→'], label: 'Images' },
-            { keys: ['Entrée'], label: 'Jouer' },
-            { keys: ['Échap'], label: 'Retour' }
+            { keys: ['←', '→'], label: t('Images') },
+            { keys: [t('Entrée')], label: t('Jouer') },
+            { keys: [t('Échap')], label: t('Retour') }
           ]
         : [
-            { keys: ['←', '↑', '↓', '→'], label: 'Naviguer' },
-            { keys: ['Entrée'], label: 'Ouvrir' }
+            { keys: ['←', '↑', '↓', '→'], label: t('Naviguer') },
+            { keys: [t('Entrée')], label: t('Ouvrir') }
           ];
   footerHints.push(
-    pad ? { keys: [pad.view], label: 'Plein écran' } : { keys: ['F11'], label: 'Plein écran' },
-    { keys: ['Alt', 'Espace'], label: "Masquer l'application" }
+    pad ? { keys: [pad.view], label: t('Plein écran') } : { keys: ['F11'], label: t('Plein écran') },
+    { keys: ['Alt', t('Espace')], label: t("Masquer l'application") }
   );
 
   return (
@@ -446,13 +447,13 @@ export default function App() {
           />
 
           <div data-scroll-root className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-2">
-            {library.status === 'loading' && <p className="text-text-secondary">Chargement...</p>}
+            {library.status === 'loading' && <p className="text-text-secondary">{t('Chargement…')}</p>}
             {library.status === 'no-folder' && (
               <p className="text-text-secondary">
-                Dossier des jeux non configuré ou introuvable. Veuillez le définir dans les paramètres.
+                {t('Dossier des jeux non configuré ou introuvable. Veuillez le définir dans les paramètres.')}
               </p>
             )}
-            {library.status === 'empty' && <p className="text-text-secondary">Aucun jeu trouvé dans le dossier sélectionné.</p>}
+            {library.status === 'empty' && <p className="text-text-secondary">{t('Aucun jeu trouvé dans le dossier sélectionné.')}</p>}
             {library.status === 'ok' && (
               <GamesGrid
                 games={displayedGames}
@@ -495,6 +496,9 @@ export default function App() {
             collections={collections}
             onCreateCollection={handleCreateCollection}
             vpnAvailable={vpnAvailable}
+            blurAdultContent={settings?.blurAdultContent ?? true}
+            revealedGames={revealedGames}
+            onReveal={handleReveal}
           />
         </div>
       )}
@@ -530,6 +534,8 @@ export default function App() {
           diskUsage={diskUsage.report}
           onRecomputeSizes={diskUsage.recompute}
           onOpenGame={gameId => handleOpenGameFrom('stats', gameId)}
+          blurAdultContent={settings?.blurAdultContent ?? true}
+          revealedGames={revealedGames}
 
         />
       )}
@@ -571,14 +577,14 @@ export default function App() {
                 onClick={archiveImport.start}
                 disabled={importStatus !== null}
                 className="btn btn-ghost py-1 text-[12px]"
-                title="Extraire des archives de jeux (.zip, .rar, .7z, .part1.exe) dans le dossier de la bibliothèque"
+                title={t('Extraire des archives de jeux (.zip, .rar, .7z, .part1.exe) dans le dossier de la bibliothèque')}
               >
                 <PackagePlus size={14} strokeWidth={2.25} />
-                {importStatus ?? 'Importer'}
+                {importStatus ?? t('Importer')}
               </button>
-              <button type="button" onClick={handleResetFilters} className="btn btn-ghost py-1 text-[12px]" title="Réinitialiser les filtres et rescanner">
+              <button type="button" onClick={handleResetFilters} className="btn btn-ghost py-1 text-[12px]" title={t('Réinitialiser les filtres et rescanner')}>
                 <RotateCcw size={14} strokeWidth={2.25} />
-                Réinitialiser
+                {t('Réinitialiser')}
               </button>
             </>
           )

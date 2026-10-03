@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react';
+import { getUiLanguage, t } from '../../lib/i18n.js';
 
 export interface PanicOverlayProps {
   active: boolean;
 }
 
 const ORIGINAL_TITLE = document.title;
-const PANIC_URL = 'https://fr.wikipedia.org/wiki/Spécial:Aléatoire';
+/** Page aléatoire de Wikipédia dans la langue de l'interface. */
+const panicPage = () => {
+  const language = getUiLanguage();
+  return language === 'fr'
+    ? { url: 'https://fr.wikipedia.org/wiki/Spécial:Aléatoire', title: "Wikipédia, l'encyclopédie libre" }
+    : language === 'ja'
+      ? { url: 'https://ja.wikipedia.org/wiki/特別:おまかせ表示', title: 'ウィキペディア' }
+      : { url: 'https://en.wikipedia.org/wiki/Special:Random', title: 'Wikipedia, the free encyclopedia' };
+};
 const TRANSITION_DELAY_MS = 500;
 
 /**
@@ -21,11 +30,11 @@ export default function PanicOverlay({ active }: PanicOverlayProps) {
 
   useEffect(() => {
     if (active) {
-      document.title = "Wikipedia - L'encyclopédie libre";
+      document.title = panicPage().title;
       setOverlayVisible(true);
 
       const timer = setTimeout(() => {
-        setIframeSrc(PANIC_URL);
+        setIframeSrc(panicPage().url);
         setIframeVisible(true);
       }, TRANSITION_DELAY_MS);
 
@@ -52,8 +61,8 @@ export default function PanicOverlay({ active }: PanicOverlayProps) {
       >
         <div className="text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-neutral-200 border-t-blue-500" />
-          <p className="mt-4 font-sans text-base font-bold text-neutral-800">Chargement, veuillez patienter...</p>
-          <p className="mt-2 font-sans text-xs italic text-neutral-800">(Alt+Space pour fermer)</p>
+          <p className="mt-4 font-sans text-base font-bold text-neutral-800">{t('Chargement, veuillez patienter…')}</p>
+          <p className="mt-2 font-sans text-xs italic text-neutral-800">{t('(Alt+Espace pour fermer)')}</p>
         </div>
       </div>
       <iframe

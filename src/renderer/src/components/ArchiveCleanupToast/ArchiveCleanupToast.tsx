@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CircleCheck, Trash2, TriangleAlert, X } from 'lucide-react';
 import type { ArchiveCleanup } from '../../hooks/useArchiveImport';
+import { t } from '../../lib/i18n.js';
 
 export interface ArchiveCleanupToastProps {
   cleanup: ArchiveCleanup;
@@ -45,15 +46,15 @@ export default function ArchiveCleanupToast({ cleanup, onTrash, onDismiss }: Arc
           {!outcome ? (
             <>
               <p className="m-0">
-                {count > 1 ? `${count} jeux importés.` : 'Jeu importé.'} Mettre {count > 1 ? 'leurs archives' : 'son archive'} à la corbeille ?
+                {count > 1 ? t('{n} jeux importés. Mettre leurs archives à la corbeille ?', { n: count }) : t('Jeu importé. Mettre son archive à la corbeille ?')}
               </p>
               <div className="mt-2 flex gap-2">
                 <button type="button" onClick={onTrash} disabled={busy} className="btn btn-primary py-1 text-[12px]">
                   <Trash2 size={14} strokeWidth={2.25} />
-                  {busy ? 'Suppression…' : 'Mettre à la corbeille'}
+                  {busy ? t('Suppression…') : t('Mettre à la corbeille')}
                 </button>
                 <button type="button" onClick={onDismiss} disabled={busy} className="btn btn-ghost py-1 text-[12px]">
-                  Garder
+                  {t('Garder')}
                 </button>
               </div>
             </>
@@ -61,8 +62,8 @@ export default function ArchiveCleanupToast({ cleanup, onTrash, onDismiss }: Arc
             <>
               <p className="m-0">
                 {outcome.trashed > 0
-                  ? `${outcome.trashed} fichier${outcome.trashed > 1 ? 's' : ''} mis à la corbeille.`
-                  : 'Aucun fichier mis à la corbeille.'}
+                  ? t('{n} fichier(s) mis à la corbeille.', { n: outcome.trashed })
+                  : t('Aucun fichier mis à la corbeille.')}
               </p>
               {outcome.errors.length > 0 && (
                 <ul className="m-0 mt-1 list-none p-0 text-text-secondary">
@@ -72,7 +73,7 @@ export default function ArchiveCleanupToast({ cleanup, onTrash, onDismiss }: Arc
             </>
           )}
         </div>
-        <button type="button" onClick={onDismiss} aria-label="Fermer" className="btn btn-ghost btn-icon -mr-2 -mt-1 h-7 w-7 flex-shrink-0">
+        <button type="button" onClick={onDismiss} aria-label={t('Fermer')} className="btn btn-ghost btn-icon -mr-2 -mt-1 h-7 w-7 flex-shrink-0">
           <X size={14} strokeWidth={2.25} />
         </button>
       </div>

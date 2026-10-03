@@ -9,12 +9,13 @@ import WorkspaceSection from '../WorkspaceSection/WorkspaceSection';
 import CaptureGallery from '../CaptureGallery/CaptureGallery';
 import { useDiskUsage } from '../../hooks/useDiskUsage';
 import { formatBytes } from '../../lib/diskUsage.js';
-import { categoryMap } from '../../lib/metadataManager.js';
+import { categoryLabel, workLanguageLabel } from '../../lib/metadataManager.js';
 import { formatLastPlayed, formatPlayTime, formatSessionDuration } from '../../lib/timeFormatter.js';
 import type { GenreNames } from '../../lib/genreNames.js';
 import { creatorValues, type CreatorField, type CreatorFilter } from '../../lib/filterManager.js';
 import { gameCollectionIds, isInCollectionByRulesOnly, toggleGameCollection, type GameCollection } from '../../lib/collections.js';
 import type { PlaySession } from '../../../../shared/ipc-types';
+import { t, uiLocale } from '../../lib/i18n.js';
 
 // Sessions affichées sur la page du jeu (l'historique complet reste en cache).
 const RECENT_SESSIONS = 5;
@@ -40,9 +41,12 @@ export interface GameInfoDetailsProps {
   collections: GameCollection[];
   /** Crée une collection ; renvoie son ID, ou null si le nom est vide ou déjà pris. */
   onCreateCollection: (name: string) => string | null;
+  /** Images floutées (R18 non révélée, voir lib/adultContent.ts). */
+  isBlurred: boolean;
+  onReveal: (gameId: string) => void;
 }
 
-const formatDate = (dateString?: string) => (dateString && dateString !== 'N/A' ? dateString.split('T')[0] : 'Inconnue');
+const formatDate = (dateString?: string) => (dateString && dateString !== 'N/A' ? dateString.split('T')[0] : t('Inconnue'));
 const joinIfArray = (value: string[] | string | null | undefined): string =>
   Array.isArray(value) ? value.join(', ') : value || '';
 
@@ -91,7 +95,9 @@ export default function GameInfoDetails({
   onEdit,
   genreNames,
   collections,
-  onCreateCollection
+  onCreateCollection,
+  isBlurred,
+  onReveal
 }: GameInfoDetailsProps) {
   // Taille du dossier : en cache, sinon mesurée en tâche de fond.
   const { report: diskReport } = useDiskUsage([gameId]);
@@ -99,11 +105,11 @@ export default function GameInfoDetails({
   const sampleImages: any[] = gameData.sample_images || [];
   const rawGenres: string[] = Array.isArray(gameData.genre) ? gameData.genre : [];
   const genres: string[] = Array.from(new Set(rawGenres.map(genreNames.canonical)));
-  const categoryLabel = gameData.category ? (categoryMap as Record<string, string>)[gameData.category] || 'Inconnu' : 'Inconnu';
+  const category = gameData.category ? categoryLabel(gameData.category) : t('Inconnu');
   const options: string[] = Array.isArray(gameData.options) ? gameData.options : [];
   const circle: string | null =
  typeof gameData.circle === 'string' && gameData.circle ? gameData.circle : null;
-  const creator = circle || joinIfArray(gameData.author) || 'Créateur non disponible';
+  const creator = circle || joinIfArray(gameData.author) || t('Créateur non disponible');
   const collectionIds = gameCollectionIds(gameData);
   const ruleCollectionIds = collections.filter(c => isInCollectionByRulesOnly(gameData, c, genreNames)).map(c => c.id);
   const sessions: PlaySession[] = Array.isArray(gameData.playSessions) ? gameData.playSessions : [];
@@ -122,20 +128,20 @@ export default function GameInfoDetails({
 
   // `field` : valeurs cliquables, qui filtrent la bibliothèque sur ce nom.
   const allDetailFields: { label: string; field?: CreatorField; value?: any }[] = [
-    { label: 'Auteur', field: 'author' },
-    { label: 'Voix', field: 'voice_actor' },
-    { label: 'Marque', field: 'brand' },
-    { label: 'Éditeur', field: 'publisher' },
-    { label: 'Label', field: 'label' },
-    { label: 'Taille du fichier', value: gameData.file_size },
-    { label: 'Langue', value: joinIfArray(gameData.language) },
-    { label: 'Série', field: 'series' },
-    { label: 'Nombre de pages', value: gameData.page_count },
-    { label: 'Scénariste', field: 'writer' },
-    { label: 'Scénario', field: 'scenario' },
-    { label: 'Illustration', field: 'illustration' },
-    { label: 'Musique', field: 'music' },
-    { label: 'Événements', value: joinIfArray(gameData.event) }
+    { label: t('Auteur'), field: 'author' },
+    { label: t('Voix'), field: 'voice_actor' },
+    { label: t('Marque'), field: 'brand' },
+    { label: t('Éditeur'), field: 'publisher' },
+    { label: t('Label'), field: 'label' },
+    { label: t('Taille du fichier'), value: gameData.file_size },
+    { label: t('Langue'), value: (Array.isArray(gameData.language) ? gameData.language : gameData.language ? [gameData.language] : []).map(workLanguageLabel).join(', ') },
+    { label: t('Série'), field: 'series' },
+    { label: t('Nombre de pages'), value: gameData.page_count },
+    { label: t('Scénariste'), field: 'writer' },
+    { label: t('Scénario'), field: 'scenario' },
+    { label: t('Illustration'), field: 'illustration' },
+    { label: t('Musique'), field: 'music' },
+    { label: t('Événements'), value: joinIfArray(gameData.event) }
   ];
   const detailFields = allDetailFields.filter(f => (f.field ? creatorValues(gameData, f.field).length > 0 : f.value && f.value !== 'N/A'));
 
@@ -150,6 +156,8 @@ export default function GameInfoDetails({
           onPrev={() => onCarouselIndexChange((carouselIndex - 1 + totalImages) % totalImages)}
           onNext={() => onCarouselIndexChange((carouselIndex + 1) % totalImages)}
           onSelect={onCarouselIndexChange}
+          blurred={isBlurred}
+          onReveal={() => onReveal(gameId)}
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-bg to-transparent" />
         <div className="pointer-events-none absolute bottom-5 left-8 right-8 [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">
@@ -157,7 +165,7 @@ export default function GameInfoDetails({
             <button
               type="button"
               onClick={() => onCreatorClick({ field: 'circle', value: circle, makerId: gameData.maker_id, otherNames: [gameData.circle_en] })}
-              title="Voir les œuvres de ce cercle"
+              title={t('Voir les œuvres de ce cercle')}
               className="section-title pointer-events-auto text-text-secondary hover:text-text hover:underline"
             >
               {circle}
@@ -165,13 +173,13 @@ export default function GameInfoDetails({
           ) : (
             <div className="section-title text-text-secondary">{creator}</div>
           )}
-          <h1 className="mb-2 mt-1 max-w-[900px] text-[32px] font-extrabold">{gameData.work_name || 'Nom non disponible'}</h1>
+          <h1 className="mb-2 mt-1 max-w-[900px] text-[32px] font-extrabold">{gameData.work_name || t('Nom non disponible')}</h1>
           <div className="flex flex-wrap gap-1.5 [text-shadow:none]">
-            <span className="tag bg-black/50">{categoryLabel}</span>
+            <span className="tag bg-black/50">{category}</span>
             {(ageCategory === 'R15' || ageCategory === 'R18') && <span className="tag bg-black/50 font-bold text-white">{ageCategory}</span>}
-            {options.includes('AIG') && <span className="tag bg-black/50">Généré par IA</span>}
-            {options.includes('AIP') && <span className="tag bg-black/50">IA en partie</span>}
-            {options.includes('TRI') && <span className="tag bg-black/50">Version d'essai</span>}
+            {options.includes('AIG') && <span className="tag bg-black/50">{t('Généré par IA')}</span>}
+            {options.includes('AIP') && <span className="tag bg-black/50">{t('IA en partie')}</span>}
+            {options.includes('TRI') && <span className="tag bg-black/50">{t("Version d'essai")}</span>}
             <span className="tag bg-black/50 font-mono text-text-muted">{gameId}</span>
           </div>
         </div>
@@ -187,22 +195,22 @@ export default function GameInfoDetails({
           className={`btn btn-play ${isRunning ? 'is-running' : ''}`}
         >
           {!isRunning && <Play size={18} strokeWidth={0} fill="currentColor" />}
-          {isRunning ? 'En cours' : 'Jouer'}
+          {isRunning ? t('En cours') : t('Jouer')}
         </button>
 
-        <PlayBarStat label="Temps de jeu">{formatPlayTime(gameData.totalPlayTime || 0) || '—'}</PlayBarStat>
-        <PlayBarStat label="Dernière session">{formatLastPlayed(gameData.lastPlayed) || 'Jamais'}</PlayBarStat>
-        <PlayBarStat label="Sortie">{formatDate(gameData.release_date)}</PlayBarStat>
-        <PlayBarStat label="Sur le disque">{diskBytes !== undefined ? formatBytes(diskBytes) : '…'}</PlayBarStat>
-        <PlayBarStat label="Ma note">
+        <PlayBarStat label={t('Temps de jeu')}>{formatPlayTime(gameData.totalPlayTime || 0) || '—'}</PlayBarStat>
+        <PlayBarStat label={t('Dernière session')}>{formatLastPlayed(gameData.lastPlayed) || t('Jamais')}</PlayBarStat>
+        <PlayBarStat label={t('Sortie')}>{formatDate(gameData.release_date)}</PlayBarStat>
+        <PlayBarStat label={t('Sur le disque')}>{diskBytes !== undefined ? formatBytes(diskBytes) : '…'}</PlayBarStat>
+        <PlayBarStat label={t('Ma note')}>
           <RatingStars value={gameData.rating || 0} onChange={val => onUpdateGame(gameId, { rating: val })} size={17} />
         </PlayBarStat>
 
         <div className="ml-auto flex gap-2">
-          <button type="button" onClick={onEdit} className="btn btn-icon" title="Modifier la fiche" aria-label="Modifier la fiche">
+          <button type="button" onClick={onEdit} className="btn btn-icon" title={t('Modifier la fiche')} aria-label={t('Modifier la fiche')}>
             <Pencil size={17} strokeWidth={2.25} />
           </button>
-          <button type="button" onClick={() => onOpenFolder(gameId)} className="btn btn-icon" title="Ouvrir le dossier" aria-label="Ouvrir le dossier">
+          <button type="button" onClick={() => onOpenFolder(gameId)} className="btn btn-icon" title={t('Ouvrir le dossier')} aria-label={t('Ouvrir le dossier')}>
             <FolderOpen size={17} strokeWidth={2.25} />
           </button>
           <a
@@ -212,8 +220,8 @@ export default function GameInfoDetails({
               window.electronAPI.openExternal(e.currentTarget.href);
             }}
             className="btn btn-icon"
-            title="Voir sur DLsite"
-            aria-label="Voir sur DLsite"
+            title={t('Voir sur DLsite')}
+            aria-label={t('Voir sur DLsite')}
           >
             <ExternalLink size={17} strokeWidth={2.25} />
           </a>
@@ -222,16 +230,16 @@ export default function GameInfoDetails({
 
       <div className="grid grid-cols-[minmax(0,1fr)_360px] items-start gap-5 px-8 py-6">
         <div className="flex min-w-0 flex-col gap-5">
-          <Section title="À propos">
+          <Section title={t('À propos')}>
             {gameData.description ? (
               <p className="m-0 whitespace-pre-line text-[14px] leading-relaxed text-text-secondary">{gameData.description}</p>
             ) : (
-              <p className="m-0 text-text-muted">Aucune description.</p>
+              <p className="m-0 text-text-muted">{t('Aucune description.')}</p>
             )}
             {genres.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {genres.map(genre => (
-                  <button key={genre} type="button" onClick={() => onGenreClick(genre)} className="tag tag-accent" title={genreNames.label(genre) === genre ? 'Filtrer la bibliothèque par ce genre' : genre}>
+                  <button key={genre} type="button" onClick={() => onGenreClick(genre)} className="tag tag-accent" title={genreNames.label(genre) === genre ? t('Filtrer la bibliothèque par ce genre') : genre}>
                     {genreNames.label(genre)}
                   </button>
                 ))}
@@ -240,7 +248,7 @@ export default function GameInfoDetails({
           </Section>
 
           {detailFields.length > 0 && (
-            <Section title="Informations">
+            <Section title={t('Informations')}>
               <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-3">
                 {detailFields.map(f => (
                   <div key={f.label} className="min-w-0">
@@ -254,7 +262,7 @@ export default function GameInfoDetails({
                                 type="button"
                                 onClick={() => onCreatorClick({ field: f.field!, value: name, makerId: f.field === 'brand' ? gameData.maker_id : undefined })}
 
-                                title={`Voir les œuvres liées à ${name}`}
+                                title={t('Voir les œuvres liées à {name}', { name })}
                                 className="text-left text-accent hover:underline"
                               >
                                 {name}
@@ -269,7 +277,7 @@ export default function GameInfoDetails({
             </Section>
           )}
 
-          <Section title="Mes travaux">
+          <Section title={t('Mes travaux')}>
             <WorkspaceSection gameId={gameId} />
           </Section>
         </div>
@@ -277,17 +285,17 @@ export default function GameInfoDetails({
 
         <div className="flex flex-col gap-5">
           <Section
-            title="Mes tags"
+            title={t('Mes tags')}
             action={
               <button
                 type="button"
                 onClick={() => onUpdateGame(gameId, { completed: !gameData.completed })}
                 aria-pressed={Boolean(gameData.completed)}
-                title={gameData.completed ? 'Marqué comme fini — cliquer pour annuler' : 'Marquer comme fini'}
+                title={gameData.completed ? t('Marqué comme fini — cliquer pour annuler') : t('Marquer comme fini')}
                 className={`btn py-1 text-[13px] ${gameData.completed ? '!bg-play !text-white' : 'btn-ghost'}`}
               >
                 <CircleCheck size={15} strokeWidth={2.25} />
-                Fini
+                {t('Fini')}
               </button>
             }
           >
@@ -298,7 +306,7 @@ export default function GameInfoDetails({
             />
           </Section>
 
-          <Section title="Collections">
+          <Section title={t('Collections')}>
             <CollectionsEditor
               collections={collections}
               selectedIds={collectionIds}
@@ -313,12 +321,12 @@ export default function GameInfoDetails({
           </Section>
 
           {recentSessions.length > 0 && (
-            <Section title="Dernières sessions">
+            <Section title={t('Dernières sessions')}>
               <ul className="m-0 flex list-none flex-col p-0 text-[13px]">
                 {recentSessions.map(session => (
                   <li key={session.start} className="flex justify-between border-b border-divider py-1.5 last:border-0">
                     <span className="text-text-secondary">
-                      {new Date(session.start).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' })}
+                      {new Date(session.start).toLocaleString(uiLocale(), { dateStyle: 'medium', timeStyle: 'short' })}
                     </span>
                     <span className="font-semibold tabular-nums">{formatSessionDuration(session.duration)}</span>
                   </li>
@@ -327,22 +335,22 @@ export default function GameInfoDetails({
             </Section>
           )}
 
-          <Section title="Exécutable">
+          <Section title={t('Exécutable')}>
             <div className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate text-[13px] text-text-secondary" title={gameData.executablePath || undefined}>
-                {gameData.executablePath || 'Détection automatique'}
+                {gameData.executablePath || t('Détection automatique')}
               </span>
               <button type="button" onClick={() => onChooseExecutable(gameId)} className="btn flex-shrink-0 text-[13px]">
-                Choisir…
+                {t('Choisir…')}
               </button>
             </div>
           </Section>
 
-          <Section title="Captures">
+          <Section title={t('Captures')}>
             <CaptureGallery gameId={gameId} limit={8} />
           </Section>
 
-          <Section title="Outils">
+          <Section title={t('Outils')}>
             <GameToolsSection
               gameId={gameId}
               executablePath={gameData.executablePath}

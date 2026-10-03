@@ -38,6 +38,7 @@ import { ClickerHud, MACRO_HUD_OFFSET_X, TRIGGER_HUD_EXPANDED, TRIGGER_HUD_OFFSE
 import { DEFAULT_MACRO_RECORDER, MAX_MACROS_PER_GAME, MacroRecorder, acceleratorVks, sanitizeMacroSettings, sanitizeMacros } from './macro-recorder';
 import { TriggerZonesWindow } from './trigger-zones';
 import { checkForUpdates, getAppUpdateInfo } from './updater';
+import { setMainLanguage, systemLanguages, tm } from './i18n';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
 import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 
@@ -94,7 +95,8 @@ const settingsStore = new Store('settings.db', {
   ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'dictionary', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
   localeEmulatorPath: '',
   screenshot: { enabled: true, hotkey: 'Ctrl+F8' },
-  checkUpdatesOnStartup: true
+  checkUpdatesOnStartup: true,
+  uiLanguage: 'system'
 }, 'settings.json');
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
@@ -132,7 +134,7 @@ const genreTranslations = new GenreTranslations(new Store('translations.db', {})
  */
 function assertGameId(gameId: unknown): asserts gameId is string {
   if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) {
-    throw new Error(`ID de jeu invalide : ${String(gameId)}`);
+    throw new Error(tm('ID de jeu invalide : {id}', { id: String(gameId) }));
   }
 }
 
@@ -169,9 +171,9 @@ export async function getSettings(): Promise<AppSettings> {
  * JPEG, PNG, GIF ou WebP) de taille raisonnable, avant de l'écrire sur disque.
  */
 function assertImageBytes(data: unknown): asserts data is Uint8Array {
-  if (!(data instanceof Uint8Array)) throw new Error('Image invalide.');
+  if (!(data instanceof Uint8Array)) throw new Error(tm('Image invalide.'));
   if (data.byteLength === 0 || data.byteLength > MAX_MANUAL_IMAGE_BYTES) {
-    throw new Error(`Image vide ou trop lourde (max ${MAX_MANUAL_IMAGE_BYTES / 1024 / 1024} Mo).`);
+    throw new Error(tm('Image vide ou trop lourde (max {mb} Mo).', { mb: MAX_MANUAL_IMAGE_BYTES / 1024 / 1024 }));
   }
   const b = data;
   const isJpeg = b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
@@ -180,7 +182,7 @@ function assertImageBytes(data: unknown): asserts data is Uint8Array {
   const ascii = (from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
   const isWebp = b.byteLength > 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP';
   if (!isJpeg && !isPng && !isGif && !isWebp) {
-    throw new Error('Format d\'image non pris en charge (JPEG, PNG, GIF ou WebP).');
+    throw new Error(tm("Format d'image non pris en charge (JPEG, PNG, GIF ou WebP)."));
   }
 }
 
@@ -191,7 +193,7 @@ export function getImgCacheDir(): string {
 async function getGameDir(gameId: string): Promise<string> {
   assertGameId(gameId);
   const settings = await settingsStore.getAll() as unknown as AppSettings;
-  if (!settings.destinationFolder) throw new Error('Dossier de jeux non configuré');
+  if (!settings.destinationFolder) throw new Error(tm('Dossier de jeux non configuré'));
   return path.join(settings.destinationFolder, gameId);
 }
 
@@ -277,14 +279,14 @@ async function startGameProcess(gameId: string, gamePath: string, executablePath
   // Lancement en japonais demandé : jamais de repli sur un lancement normal.
   if (process.platform === 'win32' && entry?.localeEmulator) {
     if (sandboxed) {
-      throw new Error('« Lancer en japonais » et Sandboxie ne peuvent pas encore être combinés (les deux lancent le jeu) : exclus ce jeu de la sandbox, ou décoche « Lancer en japonais ».');
+      throw new Error(tm('« Lancer en japonais » et Sandboxie ne peuvent pas encore être combinés (les deux lancent le jeu) : exclus ce jeu de la sandbox, ou décoche « Lancer en japonais ».'));
     }
     const leProc = findLeProc(settings.localeEmulatorPath ?? '');
     if (!leProc) {
-      throw new Error('Locale Emulator introuvable (Paramètres › Lancement) : le jeu ne peut pas être lancé en japonais. Choisis son dossier, ou décoche « Lancer en japonais ».');
+      throw new Error(tm('Locale Emulator introuvable (Paramètres › Lancement) : le jeu ne peut pas être lancé en japonais. Choisis son dossier, ou décoche « Lancer en japonais ».'));
     }
     if (readPeArch(executablePath) === 'x64') {
-      throw new Error("Locale Emulator ne gère que les jeux 32 bits, et celui-ci est en 64 bits : décoche « Lancer en japonais ».");
+      throw new Error(tm("Locale Emulator ne gère que les jeux 32 bits, et celui-ci est en 64 bits : décoche « Lancer en japonais »."));
     }
     return runWithLocaleEmulator({ leProc, executablePath, gameDir: gamePath });
   }
@@ -293,13 +295,13 @@ async function startGameProcess(gameId: string, gamePath: string, executablePath
     // Jamais de repli hors sandbox : l'utilisateur a demandé l'isolation.
     const sandboxieDir = await findSandboxieDir();
     if (!sandboxieDir) {
-      throw new Error('Sandboxie-Plus est introuvable. Installe-le, désactive le lancement en sandbox dans les paramètres, ou exclus ce jeu de la sandbox.');
+      throw new Error(tm('Sandboxie-Plus est introuvable. Installe-le, désactive le lancement en sandbox dans les paramètres, ou exclus ce jeu de la sandbox.'));
     }
     const box = await ensureGameBox(sandboxieDir, gameId, gamePath);
     const { command, args } = sandboxedCommand(sandboxieDir, box, executablePath);
     const result = await runAndTrack(command, args, path.dirname(executablePath));
     if (result.success && result.exitCode !== 0 && (result.duration ?? 0) < SANDBOX_LAUNCH_FAILURE_WINDOW_S) {
-      return { success: false, error: `Sandboxie n'a pas pu lancer le jeu (code ${result.exitCode}). Si le jeu refuse de tourner en sandbox, exclus-le depuis sa fiche.` };
+      return { success: false, error: tm("Sandboxie n'a pas pu lancer le jeu (code {code}). Si le jeu refuse de tourner en sandbox, exclus-le depuis sa fiche.", { code: String(result.exitCode) }) };
     }
     return result;
   }
@@ -334,7 +336,7 @@ async function getGameToolsInfo(gameId: string): Promise<Omit<GameToolsInfo, 'sa
   saveLocations: SaveSource[];
 }> {
   const gamePath = await getGameDir(gameId);
-  if (!fs.existsSync(gamePath)) throw new Error('Dossier du jeu introuvable');
+  if (!fs.existsSync(gamePath)) throw new Error(tm('Dossier du jeu introuvable'));
   const exePath = await resolveExecutable(gameId, gamePath);
   const installRootAbs = exePath ? path.dirname(exePath) : gamePath;
   const engine = detectEngine(installRootAbs, exePath);
@@ -402,7 +404,7 @@ function publicToolsInfo({ gamePath: _g, installRootAbs: _r, saveLocations, ...i
 // Une seule opération de patch à la fois par jeu (double clic, etc.).
 const patchingGames = new Set<string>();
 async function withPatchLock<T>(gameId: string, work: () => Promise<T>): Promise<T> {
-  if (patchingGames.has(gameId)) throw new Error('Une opération de patch est déjà en cours pour ce jeu.');
+  if (patchingGames.has(gameId)) throw new Error(tm('Une opération de patch est déjà en cours pour ce jeu.'));
   patchingGames.add(gameId);
   try {
     return await work();
@@ -437,7 +439,7 @@ async function recordPlaySession(gameId: string, durationSeconds: number): Promi
 // Une seule opération de copie/restauration de sauvegardes à la fois par jeu.
 const backingUpGames = new Set<string>();
 async function withBackupLock<T>(gameId: string, work: () => Promise<T>): Promise<T> {
-  if (backingUpGames.has(gameId)) throw new Error('Une copie ou restauration des sauvegardes est déjà en cours pour ce jeu.');
+  if (backingUpGames.has(gameId)) throw new Error(tm('Une copie ou restauration des sauvegardes est déjà en cours pour ce jeu.'));
   backingUpGames.add(gameId);
   try {
     return await work();
@@ -570,11 +572,11 @@ function gameTriggersChanged(gameId: string, triggers: PixelTrigger[]): void {
 
 /** Marche / arrêt. Aucun await ne doit précéder `toggle` (raccourci global). */
 async function togglePixelTriggerNow(): Promise<PixelTriggerStatus> {
-  if (!pixelTrigger) throw new Error('Détecteur de rythme indisponible.');
+  if (!pixelTrigger) throw new Error(tm('Détecteur de rythme indisponible.'));
   if (!pixelTrigger.getStatus().running) {
-    if (!triggerConfig.enabled) throw new Error('Le détecteur de rythme est désactivé (Paramètres › Outils en jeu).');
+    if (!triggerConfig.enabled) throw new Error(tm('Le détecteur de rythme est désactivé (Paramètres › Outils en jeu).'));
     if (!pixelTrigger.getStatus().inGame) {
-      throw new Error("Le détecteur de rythme ne fonctionne que pendant un jeu lancé depuis DLSGM où il a été ajouté (case de l'overlay Maj+Tab), avec au moins une zone.");
+      throw new Error(tm("Le détecteur de rythme ne fonctionne que pendant un jeu lancé depuis DLSGM où il a été ajouté (case de l'overlay Maj+Tab), avec au moins une zone."));
     }
   }
   await pixelTrigger.toggle(currentTriggers());
@@ -682,11 +684,11 @@ function refreshMacroRecorder(): void {
 
 /** Enregistrer / arrêter. Aucun await avant toggleRecord (raccourci global). */
 async function toggleMacroRecordingNow(): Promise<MacroRecorderStatus> {
-  if (!macroRecorder) throw new Error('Enregistreur de macros indisponible.');
+  if (!macroRecorder) throw new Error(tm('Enregistreur de macros indisponible.'));
   const status = macroRecorder.getStatus();
   if (!status.recording) {
-    if (!macroConfig.enabled) throw new Error("L'enregistreur de macros est désactivé (Paramètres › Outils en jeu).");
-    if (!status.inGame) throw new Error("L'enregistreur ne fonctionne que pendant un jeu lancé depuis DLSGM, où il a été ajouté (case de l'overlay Maj+Tab).");
+    if (!macroConfig.enabled) throw new Error(tm("L'enregistreur de macros est désactivé (Paramètres › Outils en jeu)."));
+    if (!status.inGame) throw new Error(tm("L'enregistreur ne fonctionne que pendant un jeu lancé depuis DLSGM, où il a été ajouté (case de l'overlay Maj+Tab)."));
   }
   const ignore = [macroConfig.recordHotkey, macroConfig.playHotkey].flatMap(acceleratorVks);
   await macroRecorder.toggleRecord(ignore);
@@ -695,10 +697,10 @@ async function toggleMacroRecordingNow(): Promise<MacroRecorderStatus> {
 
 /** Lire / arrêter la macro active. Aucun await avant togglePlay. */
 async function toggleMacroPlaybackNow(): Promise<MacroRecorderStatus> {
-  if (!macroRecorder) throw new Error('Enregistreur de macros indisponible.');
+  if (!macroRecorder) throw new Error(tm('Enregistreur de macros indisponible.'));
   const status = macroRecorder.getStatus();
   if (!status.playing && !status.recording && !status.inGame) {
-    throw new Error("Les macros ne se jouent que pendant un jeu lancé depuis DLSGM, où l'enregistreur a été ajouté.");
+    throw new Error(tm("Les macros ne se jouent que pendant un jeu lancé depuis DLSGM, où l'enregistreur a été ajouté."));
   }
   await macroRecorder.togglePlay(activeMacro());
   return macroRecorder.getStatus();
@@ -784,7 +786,7 @@ function takeScreenshot(): Promise<CaptureInfo | null> {
     notifyCapture?.(gameId);
     const info = listCaptures(dir).find(c => c.file === file) ?? null;
     // Petite notification Windows (ne prend pas le focus) : le jeu reste au premier plan.
-    if (Notification.isSupported()) new Notification({ title: 'Capture enregistrée', body: file, silent: true }).show();
+    if (Notification.isSupported()) new Notification({ title: tm('Capture enregistrée'), body: file, silent: true }).show();
     return info;
   });
 }
@@ -868,7 +870,7 @@ function toggleOcr(): void {
   if (!area) return;
   const run = ++ocrRun;
   const config = ocrConfig;
-  const base: OcrView = { status: 'reading', area: area.dip, blocks: [], error: null, engine: config.engine };
+  const base: OcrView = { status: 'reading', area: area.dip, blocks: [], error: null, engine: config.engine, target: config.target };
   ocrView.show(base, area.dip);
   if (!globalShortcut.isRegistered('Escape')) ocrEscape = globalShortcut.register('Escape', () => hideOcrView());
   // Erreur (OCR ou traduction) : les blocs déjà lus restent affichés.
@@ -928,14 +930,14 @@ interface TextractorLaunch {
 async function textractorLaunch(gameId: string): Promise<TextractorLaunch | null> {
   const entry = ((await cacheStore.get(gameId)) ?? {}) as Partial<GameMetadata>;
   if (entry.textractorEnabled !== true) return null;
-  if (process.platform !== 'win32') throw new Error("Textractor n'existe que sous Windows : décoche « Lancer avec Textractor » sur la page du jeu.");
+  if (process.platform !== 'win32') throw new Error(tm("Textractor n'existe que sous Windows : décoche « Lancer avec Textractor » sur la page du jeu."));
   const settings = await getSettings();
   const dir = settings.textractorPath ?? '';
   if (!findTextractorCli(dir, 'x86') && !findTextractorCli(dir, 'x64')) {
     throw new Error(
       dir
-        ? `TextractorCLI.exe introuvable dans ${dir} : vérifie le dossier de Textractor (Paramètres › Lancement), ou décoche « Lancer avec Textractor ».`
-        : 'Dossier de Textractor non configuré (Paramètres › Lancement) : le jeu ne peut pas être lancé avec Textractor.'
+        ? tm('TextractorCLI.exe introuvable dans {dir} : vérifie le dossier de Textractor (Paramètres › Lancement), ou décoche « Lancer avec Textractor ».', { dir })
+        : tm('Dossier de Textractor non configuré (Paramètres › Lancement) : le jeu ne peut pas être lancé avec Textractor.')
     );
   }
   return {
@@ -1049,11 +1051,11 @@ function refreshAutoClicker(): void {
  * AutoClicker.start) : tout jusqu'à l'envoi de la commande reste synchrone.
  */
 async function toggleAutoClicker(requestedAt = Date.now()): Promise<AutoClickerStatus> {
-  if (!autoClicker) throw new Error('Auto-clicker indisponible.');
+  if (!autoClicker) throw new Error(tm('Auto-clicker indisponible.'));
   if (!autoClicker.getStatus().running) {
-    if (!clickerConfig.enabled) throw new Error("L'auto-clicker est désactivé (Paramètres › Outils en jeu).");
+    if (!clickerConfig.enabled) throw new Error(tm("L'auto-clicker est désactivé (Paramètres › Outils en jeu)."));
     if (!autoClicker.getStatus().inGame) {
-      throw new Error("L'auto-clicker ne fonctionne que pendant un jeu lancé depuis DLSGM, où il a été ajouté (case de l'overlay Maj+Tab).");
+      throw new Error(tm("L'auto-clicker ne fonctionne que pendant un jeu lancé depuis DLSGM, où il a été ajouté (case de l'overlay Maj+Tab)."));
     }
   }
   await autoClicker.toggle(clickerConfig, requestedAt);
@@ -1265,7 +1267,7 @@ export function setupIpcHandlers(
   ipcMain.handle('delete-capture', async (event: IpcMainInvokeEvent, gameId: string, file: string) => {
     assertGameId(gameId);
     const full = captureFilePath(gameId, file);
-    if (!full) throw new Error('Capture introuvable.');
+    if (!full) throw new Error(tm('Capture introuvable.'));
     await shell.trashItem(full);
     return listCaptures(capturesDir(gameId));
   });
@@ -1293,7 +1295,7 @@ export function setupIpcHandlers(
     return dictionary!.status();
   });
   ipcMain.handle('lookup-japanese', async (event: IpcMainInvokeEvent, text: string) => {
-    if (typeof text !== 'string' || text.length > 2000) throw new Error('Texte invalide.');
+    if (typeof text !== 'string' || text.length > 2000) throw new Error(tm('Texte invalide.'));
     const settings = await getSettings();
     return (await dictionary!.lookup([text], settings.ocrTranslate?.target === 'en' ? 'en' : 'fr'))[0];
   });
@@ -1307,7 +1309,7 @@ export function setupIpcHandlers(
   });
   // Bouton de l'overlay : l'overlay se cache d'abord, sinon il serait lu avec le jeu.
   ipcMain.handle('ocr-translate-now', () => {
-    if (!ocrConfig.enabled) throw new Error("La traduction à l'écran est désactivée (Paramètres › Outils en jeu).");
+    if (!ocrConfig.enabled) throw new Error(tm("La traduction à l'écran est désactivée (Paramètres › Outils en jeu)."));
     if (overlay?.isVisible()) {
       overlay.hide();
       setTimeout(toggleOcr, 250);
@@ -1320,13 +1322,13 @@ export function setupIpcHandlers(
     google: (await translationKey('google')) !== null
   }));
   ipcMain.handle('set-translation-key', async (event: IpcMainInvokeEvent, engine: string, key: string | null) => {
-    if (engine !== 'deepl' && engine !== 'google') throw new Error('Service inconnu.');
+    if (engine !== 'deepl' && engine !== 'google') throw new Error(tm('Service inconnu.'));
     if (key === null || key === '') {
       await translationKeyStore.set(engine, '');
       return;
     }
-    if (typeof key !== 'string' || key.length > 300) throw new Error('Clé invalide.');
-    if (!safeStorage.isEncryptionAvailable()) throw new Error('Chiffrement Windows indisponible : clé non enregistrée.');
+    if (typeof key !== 'string' || key.length > 300) throw new Error(tm('Clé invalide.'));
+    if (!safeStorage.isEncryptionAvailable()) throw new Error(tm('Chiffrement Windows indisponible : clé non enregistrée.'));
     await translationKeyStore.set(engine, safeStorage.encryptString(key.trim()).toString('base64'));
   });
 
@@ -1336,7 +1338,7 @@ export function setupIpcHandlers(
   };
   ipcMain.handle('set-textractor-hook', async (event: IpcMainInvokeEvent, gameId: string, hookcode: string | null) => {
     assertGameId(gameId);
-    if (hookcode !== null && (typeof hookcode !== 'string' || hookcode.length > 300)) throw new Error('Fil invalide.');
+    if (hookcode !== null && (typeof hookcode !== 'string' || hookcode.length > 300)) throw new Error(tm('Fil invalide.'));
     // '' = aucun fil choisi (Store.update fusionne : on ne retire pas la clé).
     await cacheStore.update(gameId, () => ({ textractorHook: hookcode ?? '' }));
     textractorSessions.get(gameId)?.setSelectedHook(hookcode);
@@ -1379,10 +1381,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle('extract-rpgmaker-assets', async (event: IpcMainInvokeEvent, gameId: string): Promise<RpgMakerExtractResult> => {
     assertGameId(gameId);
-    if (!(await getSettings()).rpgMakerExtractor) throw new Error("L'extracteur RPG Maker est désactivé (Paramètres › Lancement).");
+    if (!(await getSettings()).rpgMakerExtractor) throw new Error(tm("L'extracteur RPG Maker est désactivé (Paramètres › Lancement)."));
     const { installRootAbs } = await getGameToolsInfo(gameId);
     const web = findRpgMakerWebRoot(installRootAbs);
-    if (!web) throw new Error("Ce jeu n'est pas un RPG Maker MV / MZ.");
+    if (!web) throw new Error(tm("Ce jeu n'est pas un RPG Maker MV / MZ."));
     const folder = 'rpgmaker-assets';
     const outDir = path.join(await gameWorkspaceDir(gameId), folder);
     const result = await extractRpgMakerAssets(web.webDir, outDir, (done, total) =>
@@ -1408,7 +1410,7 @@ export function setupIpcHandlers(
   });
   ipcMain.handle('get-trigger-zones', () => triggerZones?.getView() ?? null);
   ipcMain.handle('set-game-pixel-trigger', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
-    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error('ID de jeu invalide.');
+    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error(tm('ID de jeu invalide.'));
     await cacheStore.update(gameId, () => ({ pixelTriggerEnabled: Boolean(enabled) }));
     // Retiré en pleine surveillance : refreshPixelTrigger repart sans ses zones (ou s'arrête).
     if (enabled) triggerEnabledGames.add(gameId);
@@ -1434,7 +1436,7 @@ export function setupIpcHandlers(
     }
   });
   ipcMain.handle('set-game-pixel-triggers', async (event: IpcMainInvokeEvent, gameId: string, raw: unknown) => {
-    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error('ID de jeu invalide.');
+    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error(tm('ID de jeu invalide.'));
     const triggers = sanitizePixelTriggers(raw);
     await cacheStore.update(gameId, () => ({ pixelTriggers: triggers }));
     gameTriggersChanged(gameId, triggers);
@@ -1463,7 +1465,7 @@ export function setupIpcHandlers(
     hud.setExpanded(Boolean(expanded) && !clicker.getStatus().running);
   });
   ipcMain.handle('set-game-auto-clicker', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
-    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error('ID de jeu invalide.');
+    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error(tm('ID de jeu invalide.'));
     await cacheStore.update(gameId, () => ({ autoClickerEnabled: Boolean(enabled) }));
     if (enabled) clickerEnabledGames.add(gameId);
     else clickerEnabledGames.delete(gameId);
@@ -1532,11 +1534,23 @@ export function setupIpcHandlers(
     return settingsStore.getAll();
   });
 
+  ipcMain.handle('get-system-languages', () => systemLanguages());
+
   ipcMain.handle('save-settings', async (event: IpcMainInvokeEvent, newSettings: AppSettings) => {
     // Mot de passe du proxy : chiffré à part, jamais en clair dans settings.db
     // (le renderer ne renvoie que le masque, ou un nouveau mot de passe).
-    const proxy = protectProxySettings(newSettings.dlsiteProxy, (await getSettings()).dlsiteProxySecret);
+    const previous = await getSettings();
+    const proxy = protectProxySettings(newSettings.dlsiteProxy, previous.dlsiteProxySecret);
     await settingsStore.setAll({ ...newSettings, ...proxy } as unknown as Record<string, unknown>);
+    // Langue de l'interface changée : chaque fenêtre la relit à son chargement.
+    setMainLanguage(newSettings.uiLanguage);
+    if (previous.uiLanguage !== newSettings.uiLanguage) {
+      setTimeout(() => {
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) window.webContents.reload();
+        }
+      }, 150);
+    }
     await applyDlsiteProxy(proxy.dlsiteProxy, proxy.dlsiteProxySecret);
     await applyAutoClickerSettings();
     await applyPixelTriggerSettings();
@@ -1633,10 +1647,10 @@ export function setupIpcHandlers(
   // --- Lancement de Jeu ---
   ipcMain.handle('launch-game', async (event: IpcMainInvokeEvent, gameId: string): Promise<LaunchGameResult> => {
     const gamePath = await getGameDir(gameId);
-    if (!fs.existsSync(gamePath)) throw new Error('Dossier du jeu introuvable');
+    if (!fs.existsSync(gamePath)) throw new Error(tm('Dossier du jeu introuvable'));
 
     const executablePath = await resolveExecutable(gameId, gamePath);
-    if (!executablePath) throw new Error('Aucun exécutable trouvé pour ce jeu.');
+    if (!executablePath) throw new Error(tm('Aucun exécutable trouvé pour ce jeu.'));
     // Lancement avec Textractor demandé : sans Textractor, le lancement échoue
     // plutôt que de se faire sans (l'option a été choisie pour ce jeu).
     const textractor = await textractorLaunch(gameId);
@@ -1715,10 +1729,10 @@ export function setupIpcHandlers(
 
   ipcMain.handle('choose-game-executable', async (event: IpcMainInvokeEvent, gameId: string) => {
     const gamePath = await getGameDir(gameId);
-    if (!fs.existsSync(gamePath)) throw new Error('Dossier du jeu introuvable');
+    if (!fs.existsSync(gamePath)) throw new Error(tm('Dossier du jeu introuvable'));
 
     const result = await showOpenDialog({
-      title: `Exécutable de ${gameId}`,
+      title: tm('Exécutable de {id}', { id: gameId }),
       defaultPath: gamePath,
       properties: ['openFile'],
       filters: process.platform === 'darwin'
@@ -1729,12 +1743,12 @@ export function setupIpcHandlers(
 
     const chosen = result.filePaths[0];
     if (!isInside(gamePath, chosen)) {
-      throw new Error(`L'exécutable doit se trouver dans le dossier du jeu (${gamePath}).`);
+      throw new Error(tm("L'exécutable doit se trouver dans le dossier du jeu ({path}).", { path: gamePath }));
     }
 
     const relativePath = path.relative(gamePath, chosen);
     const saved = await cacheStore.update(gameId, { executablePath: relativePath });
-    if (!saved) throw new Error(`Aucune fiche en cache pour ${gameId}.`);
+    if (!saved) throw new Error(tm('Aucune fiche en cache pour {id}.', { id: gameId }));
     return relativePath;
   });
 
@@ -1762,12 +1776,12 @@ export function setupIpcHandlers(
     return withPatchLock(gameId, async () => {
       const info = await getGameToolsInfo(gameId);
       const result = await showOpenDialog(source === 'zip'
-        ? { title: `Patch pour ${gameId}`, properties: ['openFile'], filters: [{ name: 'Archive zip', extensions: ['zip'] }] }
-        : { title: `Patch pour ${gameId}`, properties: ['openDirectory'] });
+        ? { title: tm('Patch pour {id}', { id: gameId }), properties: ['openFile'], filters: [{ name: tm('Archive zip'), extensions: ['zip'] }] }
+        : { title: tm('Patch pour {id}', { id: gameId }), properties: ['openDirectory'] });
       if (result.canceled || result.filePaths.length === 0) return null;
 
       const sourcePath = result.filePaths[0];
-      if (isInside(info.gamePath, sourcePath)) throw new Error('Le patch ne peut pas se trouver dans le dossier du jeu lui-même.');
+      if (isInside(info.gamePath, sourcePath)) throw new Error(tm('Le patch ne peut pas se trouver dans le dossier du jeu lui-même.'));
       await applyUserPatch(info.gamePath, info.installRootAbs, sourcePath);
       return publicToolsInfo(await getGameToolsInfo(gameId));
     });
@@ -1805,15 +1819,15 @@ export function setupIpcHandlers(
     }
   };
   ipcMain.handle('import-game-archives', async (): Promise<ArchiveImportResult[]> => {
-    if (importing) throw new Error('Un import est déjà en cours.');
+    if (importing) throw new Error(tm('Un import est déjà en cours.'));
     importing = true;
     try {
       const { destinationFolder } = await getSettings();
-      if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error('Dossier de jeux non configuré ou introuvable.');
+      if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
       const result = await showOpenDialog({
-        title: 'Importer des jeux depuis leur archive',
+        title: tm('Importer des jeux depuis leur archive'),
         properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Archives (.zip, .rar, .7z, .part1.exe)', extensions: ARCHIVE_EXTENSIONS }]
+        filters: [{ name: tm('Archives (.zip, .rar, .7z, .part1.exe)'), extensions: ARCHIVE_EXTENSIONS }]
       });
       if (result.canceled) return [];
       await removeStaleImports(destinationFolder);
@@ -1832,13 +1846,13 @@ export function setupIpcHandlers(
 
   ipcMain.handle('retry-archive-import', async (event: IpcMainInvokeEvent, retryId: string, password: string, remember: boolean): Promise<ArchiveImportResult> => {
     const file = typeof retryId === 'string' ? passwordRetries.get(retryId) : undefined;
-    if (!file) throw new Error('Import introuvable : relance-le depuis « Importer ».');
-    if (typeof password !== 'string' || !password || password.length > 256) throw new Error('Mot de passe invalide.');
-    if (importing) throw new Error('Un import est déjà en cours.');
+    if (!file) throw new Error(tm('Import introuvable : relance-le depuis « Importer ».'));
+    if (typeof password !== 'string' || !password || password.length > 256) throw new Error(tm('Mot de passe invalide.'));
+    if (importing) throw new Error(tm('Un import est déjà en cours.'));
     importing = true;
     try {
       const { destinationFolder } = await getSettings();
-      if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error('Dossier de jeux non configuré ou introuvable.');
+      if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
       await removeStaleImports(destinationFolder);
       getWindow()?.webContents.send('archive-import-progress', { file: path.basename(file), index: 1, total: 1 });
       const result = await importOne(file, destinationFolder, [password, ...await archivePasswords()]);
@@ -1869,8 +1883,8 @@ export function setupIpcHandlers(
 
   ipcMain.handle('rename-misnamed-folders', async (event: IpcMainInvokeEvent, folders: string[]): Promise<FolderRenameResult[]> => {
     const { destinationFolder } = await getSettings();
-    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error('Dossier de jeux non configuré ou introuvable.');
-    if (!Array.isArray(folders) || folders.some(f => typeof f !== 'string')) throw new Error('Liste de dossiers invalide.');
+    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
+    if (!Array.isArray(folders) || folders.some(f => typeof f !== 'string')) throw new Error(tm('Liste de dossiers invalide.'));
     // Seuls des noms proposés par findMisnamedFolders sont renommés (revérifiés dans renameMisnamedFolders).
     return renameMisnamedFolders(destinationFolder, folders);
   });
@@ -1937,7 +1951,7 @@ export function setupIpcHandlers(
     const dir = await gameWorkspaceDir(gameId);
     await fs.promises.mkdir(dir, { recursive: true });
     const error = await shell.openPath(dir);
-    if (error) throw new Error(`Impossible d'ouvrir le dossier de travaux : ${error}`);
+    if (error) throw new Error(tm("Impossible d'ouvrir le dossier de travaux : {error}", { error }));
     return describeWorkspace(dir);
   });
 
@@ -1955,7 +1969,7 @@ export function setupIpcHandlers(
 
   ipcMain.handle('restore-save-backup', async (event: IpcMainInvokeEvent, gameId: string, backupId: string) => {
     assertGameId(gameId);
-    if (runningGames.has(gameId)) throw new Error("Le jeu est en cours d'exécution : ferme-le avant de restaurer ses sauvegardes.");
+    if (runningGames.has(gameId)) throw new Error(tm("Le jeu est en cours d'exécution : ferme-le avant de restaurer ses sauvegardes."));
     return withBackupLock(gameId, async () => restoreSaveBackup(gameId, backupId, (await getGameToolsInfo(gameId)).saveLocations));
   });
 
@@ -1973,9 +1987,9 @@ export function setupIpcHandlers(
 
   ipcMain.handle('clear-game-sandbox', async (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
-    if (runningGames.has(gameId)) throw new Error("Le jeu est en cours d'exécution : ferme-le avant de vider sa sandbox.");
+    if (runningGames.has(gameId)) throw new Error(tm("Le jeu est en cours d'exécution : ferme-le avant de vider sa sandbox."));
     const sandboxieDir = await findSandboxieDir();
-    if (!sandboxieDir) throw new Error('Sandboxie-Plus est introuvable.');
+    if (!sandboxieDir) throw new Error(tm('Sandboxie-Plus est introuvable.'));
     await deleteGameBox(sandboxieDir, gameId);
     return publicToolsInfo(await getGameToolsInfo(gameId));
   });
@@ -1996,8 +2010,8 @@ export function setupIpcHandlers(
 
   ipcMain.handle('get-genre-translations', () => genreTranslations.all());
   ipcMain.handle('set-genre-translation', async (event: IpcMainInvokeEvent, japanese: string, english: string | null) => {
-    if (typeof japanese !== 'string' || !japanese || japanese.length > 200) throw new Error('Genre invalide.');
-    if (english !== null && (typeof english !== 'string' || english.length > 200)) throw new Error('Traduction invalide.');
+    if (typeof japanese !== 'string' || !japanese || japanese.length > 200) throw new Error(tm('Genre invalide.'));
+    if (english !== null && (typeof english !== 'string' || english.length > 200)) throw new Error(tm('Traduction invalide.'));
     await genreTranslations.setManual(japanese, english);
     return genreTranslations.all();
   });
@@ -2043,17 +2057,17 @@ export function setupIpcHandlers(
   // des fichiers `.staged` pour que les renumérotations ne s'écrasent pas.
   ipcMain.handle('apply-game-images', async (event: IpcMainInvokeEvent, gameId: string, plan: GameImagesPlan) => {
     assertGameId(gameId);
-    if (!plan || typeof plan !== 'object' || !Array.isArray(plan.samples)) throw new Error('Plan d\'images invalide.');
+    if (!plan || typeof plan !== 'object' || !Array.isArray(plan.samples)) throw new Error(tm("Plan d'images invalide."));
 
     // Chaque image existante (0 = couverture, n = sample_n.jpg) sert au plus
     // une fois : sinon deux renommages se disputeraient le même fichier.
     const used = new Set<number>();
     const checkSource = (source: unknown, allowCover: boolean) => {
-      if (!source || typeof source !== 'object') throw new Error('Plan d\'images invalide.');
+      if (!source || typeof source !== 'object') throw new Error(tm("Plan d'images invalide."));
       if ('keep' in source) {
         const keep = (source as { keep: unknown }).keep;
         if (typeof keep !== 'number' || !Number.isInteger(keep) || keep < (allowCover ? 0 : 1) || used.has(keep)) {
-          throw new Error('Plan d\'images invalide.');
+          throw new Error(tm("Plan d'images invalide."));
         }
         used.add(keep);
       } else {
@@ -2228,7 +2242,7 @@ export function setupIpcHandlers(
 
   ipcMain.handle('get-wishlist', () => wishlist.list());
   ipcMain.handle('add-to-wishlist', (event: IpcMainInvokeEvent, text: string) => {
-    if (typeof text !== 'string' || text.length > 20000) throw new Error('Saisie invalide.');
+    if (typeof text !== 'string' || text.length > 20000) throw new Error(tm('Saisie invalide.'));
     return wishlist.add(text);
   });
   ipcMain.handle('remove-from-wishlist', (event: IpcMainInvokeEvent, gameId: string) => {
@@ -2237,7 +2251,7 @@ export function setupIpcHandlers(
   });
   ipcMain.handle('refresh-wishlist-item', async (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
-    if (!(await wishlistStore.get(gameId))) throw new Error(`${gameId} n'est pas dans la liste de souhaits.`);
+    if (!(await wishlistStore.get(gameId))) throw new Error(tm("{id} n'est pas dans la liste de souhaits.", { id: gameId }));
     return wishlist.refresh(gameId);
   });
 }

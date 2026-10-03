@@ -5,6 +5,7 @@ import { pipeline } from 'stream/promises';
 import yauzl from 'yauzl';
 import { isPasswordFailure, type SevenZipRequest, type SevenZipResult } from './archive-7z';
 import { gameIdFromName, gameIdsIn, mergeReleaseNames, passwordsFromArchiveName, passwordsFromFolder, writeInstallInfo } from './release-names';
+import { tm } from './i18n';
 
 export { gameIdFromName } from './release-names';
 
@@ -58,7 +59,7 @@ export function firstVolume(archivePath: string): string {
     const m = RAR_PART.exec(name);
     return m !== null && m[1] === match[1] && Number(m[2]) === 1;
   });
-  if (!first) throw new Error(`Première partie introuvable pour ${path.basename(archivePath)} (${match[1]}.part1.exe ou .part1.rar).`);
+  if (!first) throw new Error(tm('Première partie introuvable pour {file} ({name}.part1.exe ou .part1.rar).', { file: path.basename(archivePath), name: match[1] }));
   return path.join(dir, first);
 }
 
@@ -111,7 +112,7 @@ function safeEntrySegments(name: string): string[] | null {
 function openZip(file: string): Promise<yauzl.ZipFile> {
   return new Promise((resolve, reject) => {
     yauzl.open(file, { lazyEntries: true, decodeStrings: false, autoClose: true }, (error, zip) => {
-      if (error || !zip) reject(error ?? new Error('Archive illisible.'));
+      if (error || !zip) reject(error ?? new Error(tm('Archive illisible.')));
       else resolve(zip);
     });
   });
@@ -135,14 +136,14 @@ async function extractZip(archive: string, destination: string): Promise<void> {
         const name = decodeZipName(rawName, (entry.generalPurposeBitFlag & 0x800) !== 0);
         if ((entry.generalPurposeBitFlag & 0x1) !== 0) throw new EncryptedZipError();
         const segments = safeEntrySegments(name);
-        if (!segments) throw new Error(`Chemin refusé dans l'archive : ${name}`);
+        if (!segments) throw new Error(tm("Chemin refusé dans l'archive : {path}", { path: name }));
         const target = path.join(destination, ...segments);
         if (/\/$/.test(name) || /\\$/.test(name)) {
           await fs.promises.mkdir(target, { recursive: true });
         } else {
           await fs.promises.mkdir(path.dirname(target), { recursive: true });
           const stream = await new Promise<NodeJS.ReadableStream>((res, rej) =>
-            zip.openReadStream(entry, (error, s) => (error || !s ? rej(error ?? new Error('Entrée illisible.')) : res(s)))
+            zip.openReadStream(entry, (error, s) => (error || !s ? rej(error ?? new Error(tm('Entrée illisible.'))) : res(s)))
           );
           await pipeline(stream, fs.createWriteStream(target, { flags: 'wx' }));
         }
@@ -166,7 +167,7 @@ export function extractWith7z(request: SevenZipRequest): Promise<SevenZipResult>
       resolve(result);
     });
     child.on('exit', code => {
-      if (!answered) reject(new Error(`Le processus d'extraction s'est arrêté (code ${code}).`));
+      if (!answered) reject(new Error(tm("Le processus d'extraction s'est arrêté (code {code}).", { code: String(code) })));
     });
     child.postMessage(request);
   });
@@ -176,7 +177,11 @@ export function extractWith7z(request: SevenZipRequest): Promise<SevenZipResult>
 export class ArchivePasswordError extends Error {
   /** `inner` : nom de l'archive interne en cause (l'archive choisie est déjà nommée dans le bilan). */
   constructor(inner?: string) {
-    super(`${inner ? `Archive interne ${inner} protégée` : 'Archive protégée'} par mot de passe (aucun mot de passe connu ne l'ouvre) ou illisible : saisis son mot de passe.`);
+    super(
+      inner
+        ? tm("Archive interne {name} protégée par mot de passe (aucun mot de passe connu ne l'ouvre) ou illisible : saisis son mot de passe.", { name: inner })
+        : tm("Archive protégée par mot de passe (aucun mot de passe connu ne l'ouvre) ou illisible : saisis son mot de passe.")
+    );
     this.name = 'ArchivePasswordError';
   }
 }
@@ -208,7 +213,7 @@ async function extractArchive(archive: string, destination: string, passwords: s
     if (result.code < 2) return;
     if (!isPasswordFailure(result)) {
       const text = result.errors.join(' ');
-      throw new Error(`Extraction impossible (7-Zip, code ${result.code})${text ? ` : ${text}` : ''}`);
+      throw new Error(tm('Extraction impossible (7-Zip, code {code})', { code: String(result.code) }) + (text ? ` : ${text}` : ''));
     }
   }
   throw new ArchivePasswordError(inner ? path.basename(archive) : undefined);
@@ -221,7 +226,7 @@ async function assertRegularTree(dir: string): Promise<void> {
   for (const entry of await fs.promises.readdir(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) await assertRegularTree(full);
-    else if (!entry.isFile()) throw new Error(`Élément non pris en charge dans l'archive : ${entry.name}`);
+    else if (!entry.isFile()) throw new Error(tm("Élément non pris en charge dans l'archive : {name}", { name: entry.name }));
   }
 }
 
@@ -297,12 +302,12 @@ export interface ImportOptions {
  * enveloppe, sinon du seul ID présent dans l'arborescence.
  */
 export async function importArchive(archivePath: string, destinationFolder: string, options: ImportOptions = {}): Promise<ImportedGame> {
-  if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error('Dossier de jeux non configuré ou introuvable.');
+  if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
   const extract7z = options.extract7z ?? extractWith7z;
   const archive = firstVolume(archivePath);
   const idFromArchive = gameIdFromName(path.basename(archive));
   if (idFromArchive && fs.existsSync(path.join(destinationFolder, idFromArchive))) {
-    throw new Error(`${idFromArchive} est déjà dans la bibliothèque : rien n'a été extrait.`);
+    throw new Error(tm("{id} est déjà dans la bibliothèque : rien n'a été extrait.", { id: idFromArchive }));
   }
 
   const stagingRoot = path.join(destinationFolder, STAGING_DIR);
@@ -332,17 +337,17 @@ export async function importArchive(archivePath: string, destinationFolder: stri
       await fs.promises.rm(current, { recursive: true, force: true });
       current = next;
     }
-    if ((await fs.promises.readdir(root)).length === 0) throw new Error("L'archive est vide.");
+    if ((await fs.promises.readdir(root)).length === 0) throw new Error(tm("L'archive est vide."));
 
     const treeIds = idsInTree(root);
     const gameId = idFromArchive
       ?? names.map(gameIdFromName).find(id => id !== null)
       ?? (treeIds.size === 1 ? [...treeIds][0] : null);
     if (!gameId || !GAME_ID_REGEX.test(gameId)) {
-      throw new Error("ID DLsite introuvable (ni dans le nom de l'archive, ni dans son contenu) : renomme l'archive avec l'ID, ex: RJ01234567.zip.");
+      throw new Error(tm("ID DLsite introuvable (ni dans le nom de l'archive, ni dans son contenu) : renomme l'archive avec l'ID, ex: RJ01234567.zip."));
     }
     const target = path.join(destinationFolder, gameId);
-    if (fs.existsSync(target)) throw new Error(`${gameId} est déjà dans la bibliothèque : rien n'a été importé.`);
+    if (fs.existsSync(target)) throw new Error(tm("{id} est déjà dans la bibliothèque : rien n'a été importé.", { id: gameId }));
     await fs.promises.rename(root, target);
     const release = mergeReleaseNames(names);
     try {

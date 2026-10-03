@@ -1,6 +1,8 @@
 import { ChevronRight, SlidersHorizontal } from 'lucide-react';
 import GameCard from '../GameCard/GameCard';
 import type { Shelf, ShelfSize } from '../../lib/collections.js';
+import { t } from '../../lib/i18n.js';
+import { isAdultBlurred } from '../../lib/adultContent.js';
 
 export interface HomeScreenProps {
   shelves: Shelf[];
@@ -43,7 +45,7 @@ export default function HomeScreen({
   return (
     <div data-scroll-root className="animate-steam-in min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-4">
       {isLibraryEmpty && (
-        <p className="text-text-secondary">Aucun jeu dans la bibliothèque. Choisis ton dossier de jeux dans les paramètres.</p>
+        <p className="text-text-secondary">{t('Aucun jeu dans la bibliothèque. Choisis ton dossier de jeux dans les paramètres.')}</p>
       )}
 
       {shelves.map(shelf => (
@@ -56,8 +58,8 @@ export default function HomeScreen({
                 <button
                   type="button"
                   onClick={() => onEditCollection(shelf.collectionId!)}
-                  aria-label={`Régler la collection ${shelf.title}`}
-                  title="Régler la collection (jeux, règles, affichage)"
+                  aria-label={t('Régler la collection {name}', { name: shelf.title })}
+                  title={t('Régler la collection (jeux, règles, affichage)')}
                   className="btn btn-ghost btn-icon"
                 >
                   <SlidersHorizontal size={15} strokeWidth={2.25} />
@@ -65,7 +67,7 @@ export default function HomeScreen({
               )}
               {shelf.total > 0 && (
                 <button type="button" onClick={() => onShowAll(shelf.showAll)} className="btn btn-ghost py-1 text-[13px]">
-                  Tout voir
+                  {t('Tout voir')}
                   <ChevronRight size={15} strokeWidth={2.25} />
                 </button>
               )}
@@ -74,11 +76,11 @@ export default function HomeScreen({
 
           {shelf.games.length === 0 ? (
             <p className="m-0 flex flex-wrap items-center gap-2 text-[13px] text-text-muted">
-              Il semblerait que cette collection soit vide.
+              {t('Il semblerait que cette collection soit vide.')}
               {shelf.collectionId && (
                 <button type="button" onClick={() => onEditCollection(shelf.collectionId!)} className="btn py-1 text-[13px]">
                   <SlidersHorizontal size={14} strokeWidth={2.25} />
-                  Régler ses paramètres dans « Collections »
+                  {t('Régler ses paramètres dans « Collections »')}
                 </button>
               )}
             </p>
@@ -93,7 +95,7 @@ export default function HomeScreen({
                     imageSrc={getWorkImageSrc(id)}
                     isRunning={runningGames.has(id)}
                     isFocused={false}
-                    isBlurred={data.age_category === 'R18' && blurAdultContent && !revealedGames.has(id)}
+                    isBlurred={isAdultBlurred(data.age_category, blurAdultContent, revealedGames.has(id))}
                     onOpenInfo={onOpenGame}
                     onReveal={onReveal}
                     onFocusGame={noop}

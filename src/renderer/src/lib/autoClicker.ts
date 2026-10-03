@@ -1,4 +1,5 @@
 import type { AutoClickerSettings, ClickerButton } from '../../../shared/ipc-types';
+import { t } from './i18n.js';
 
 /**
  * Auto-clicker (voir src/main/auto-clicker.ts) : intervalle découpé en
@@ -36,14 +37,19 @@ export function joinInterval(parts: IntervalParts): number {
 
 export function formatInterval(totalMs: number): string {
   const { hours, minutes, seconds, ms } = splitInterval(totalMs);
-  const parts = [hours && `${hours} h`, minutes && `${minutes} min`, seconds && `${seconds} s`, ms && `${ms} ms`].filter(Boolean);
+  const parts = [hours && t('{h} h', { h: hours }), minutes && t('{m} min', { m: minutes }), seconds && `${seconds} s`, ms && `${ms} ms`].filter(Boolean);
   return parts.length ? parts.join(' ') : '0 ms';
 }
 
-/** Raccourcis proposés : touches rarement utilisées par les jeux (Maj+Tab et Alt+Espace sont déjà pris). */
+/**
+ * Raccourcis proposés : touches rarement utilisées par les jeux (Maj+Tab et Alt+Espace sont déjà pris).
+ * Libellé lu à l'affichage (getter) : la liste est créée avant que la langue soit connue.
+ */
 export const HOTKEY_OPTIONS = ['F6', 'F7', 'F8', 'F9', 'F10', 'Ctrl+F6', 'Ctrl+F8', 'Ctrl+Alt+C', 'Pause', 'ScrollLock'].map(key => ({
   value: key,
-  label: key === 'ScrollLock' ? 'Arrêt défil' : key
+  get label() {
+    return key === 'ScrollLock' ? t('Arrêt défil') : key;
+  }
 }));
 
 /** Durée de session en h:mm:ss (compteur de l'overlay). */

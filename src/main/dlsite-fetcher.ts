@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio';
 import type { Element } from 'domhandler';
 import type { GameMetadata } from '../shared/ipc-types';
 import { dlsiteFetch } from './dlsite-net';
+import { tm } from './i18n';
 
 /**
  * Récupère les métadonnées d'une œuvre DLsite en deux requêtes HTTP non
@@ -165,12 +166,12 @@ async function fetchProductInfoJson(gameId: string, locale: string): Promise<Aja
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   });
   if (!response.ok) {
-    throw new Error(`Échec de la requête product-info (HTTP ${response.status}) pour ${gameId}`);
+    throw new Error(tm('Échec de la requête product-info (HTTP {status}) pour {id}', { status: response.status, id: gameId }));
   }
   const data = await response.json() as Record<string, Record<string, unknown>>;
   const info = data[gameId];
   if (!info) {
-    throw new Error(`Aucune donnée product-info pour ${gameId}`);
+    throw new Error(tm('Aucune donnée product-info pour {id}', { id: gameId }));
   }
 
   return {

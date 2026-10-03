@@ -1,4 +1,5 @@
 import type { GameToolsInfo, InstalledPatch, SandboxieStatus, SaveBackup } from '../../../shared/ipc-types';
+import { msg, t, tr, uiLocale } from './i18n.js';
 
 /**
  * Outils par jeu (moteur, sauvegardes, patchs) : fines surcouches IPC, sans
@@ -8,27 +9,52 @@ import type { GameToolsInfo, InstalledPatch, SandboxieStatus, SaveBackup } from 
 
 export type { GameToolsInfo, InstalledPatch, SandboxieStatus, SaveBackup };
 
+/** Clés de traduction : afficher avec tr(). */
 export const BACKUP_REASON_LABELS: Record<SaveBackup['reason'], string> = {
-  auto: 'Auto',
-  manual: 'Manuelle',
-  'pre-restore': 'Avant restauration'
+  auto: msg('Auto'),
+  manual: msg('Manuelle'),
+  'pre-restore': msg('Avant restauration')
 };
 
 /** Taille lisible (ex: "340 Ko", "1,2 Mo"). */
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
-  return `${(bytes / 1024 / 1024).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Mo`;
+  if (bytes < 1024) return `${bytes} ${t('o')}`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} ${t('Ko')}`;
+  return `${(bytes / 1024 / 1024).toLocaleString(uiLocale(), { maximumFractionDigits: 1 })} ${t('Mo')}`;
 }
 
-/** Langues cibles proposées pour la traduction automatique (codes XUnity). */
+/**
+ * Libellés d'emplacements de sauvegarde envoyés par main (game-tools.ts) :
+ * identifiants stables en anglais (une restauration associe une copie à son
+ * emplacement par ce libellé), traduits ici à l'affichage. Les copies faites
+ * avant leur passage en anglais gardent les anciens libellés français.
+ */
+const SAVE_LOCATION_LABELS: Record<string, string> = {
+  Saves: msg('Sauvegardes'),
+  'Saves (game)': msg('Sauvegardes (jeu)'),
+  'Game folder (SaveNN)': msg('Dossier du jeu (SaveNN)'),
+  'Godot (Roaming, dedicated folder)': msg('Godot (Roaming, dossier dédié)'),
+  'Unreal (game)': msg('Unreal (jeu)')
+};
+const LEGACY_SAVE_LOCATION_LABELS = new Set(Object.values(SAVE_LOCATION_LABELS));
+
+/** Libellé affiché d'un emplacement de sauvegarde (« … (sandbox) » compris). */
+export function saveLocationLabel(label: string): string {
+  const sandbox = label.endsWith(' (sandbox)');
+  const base = sandbox ? label.slice(0, -' (sandbox)'.length) : label;
+  const key = SAVE_LOCATION_LABELS[base] ?? (LEGACY_SAVE_LOCATION_LABELS.has(base) ? base : null);
+  const shown = key ? tr(key) : base;
+  return sandbox ? `${shown} (sandbox)` : shown;
+}
+
+/** Langues cibles proposées pour la traduction automatique (codes XUnity ; `label` : clé, tr()). */
 export const TRANSLATION_LANGUAGES: { code: string; label: string }[] = [
-  { code: 'en', label: 'Anglais' },
-  { code: 'fr', label: 'Français' },
-  { code: 'es', label: 'Espagnol' },
-  { code: 'de', label: 'Allemand' },
-  { code: 'zh-CN', label: 'Chinois (simplifié)' },
-  { code: 'ko', label: 'Coréen' }
+  { code: 'en', label: msg('Anglais') },
+  { code: 'fr', label: msg('Français') },
+  { code: 'es', label: msg('Espagnol') },
+  { code: 'de', label: msg('Allemand') },
+  { code: 'zh-CN', label: msg('Chinois (simplifié)') },
+  { code: 'ko', label: msg('Coréen') }
 ];
 
 /** Le patch de traduction automatique ne s'applique qu'aux jeux Unity Mono. */

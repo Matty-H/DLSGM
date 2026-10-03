@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, Plus, Sparkles } from 'lucide-react';
 import type { GameCollection } from '../../lib/collections.js';
+import { t } from '../../lib/i18n.js';
 
 export interface CollectionsEditorProps {
   collections: GameCollection[];
@@ -42,7 +43,7 @@ export default function CollectionsEditor({ collections, selectedIds, ruleIds = 
                 onClick={() => onToggle(collection.id)}
                 aria-pressed={selected}
                 disabled={byRules}
-                title={byRules ? 'Ajouté par les règles de la collection (Paramètres › Collections)' : undefined}
+                title={byRules ? t('Ajouté par les règles de la collection (Paramètres › Collections)') : undefined}
                 className={`tag ${selected ? 'tag-accent' : ''}`}
               >
                 {byRules ? <Sparkles size={12} strokeWidth={2.5} /> : selected && <Check size={12} strokeWidth={3} />}
@@ -61,15 +62,15 @@ export default function CollectionsEditor({ collections, selectedIds, ruleIds = 
             setError(false);
           }}
           onKeyDown={e => e.key === 'Enter' && handleCreate()}
-          placeholder="Nouvelle collection…"
-          aria-label="Nom de la nouvelle collection"
+          placeholder={t('Nouvelle collection…')}
+          aria-label={t('Nom de la nouvelle collection')}
           className="input flex-1"
         />
-        <button type="button" onClick={handleCreate} aria-label="Créer la collection" className="btn btn-icon">
+        <button type="button" onClick={handleCreate} aria-label={t('Créer la collection')} className="btn btn-icon">
           <Plus size={17} strokeWidth={2.5} />
         </button>
       </div>
-      {error && <p className="mt-1.5 text-[12px] text-danger">Une collection porte déjà ce nom.</p>}
+      {error && <p className="mt-1.5 text-[12px] text-danger">{t('Une collection porte déjà ce nom.')}</p>}
     </div>
   );
 }

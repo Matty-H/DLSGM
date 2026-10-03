@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { Check, Clock, EyeOff, Play, TriangleAlert } from 'lucide-react';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 import { formatPlayTime } from '../../lib/timeFormatter.js';
-import { categoryMap } from '../../lib/metadataManager.js';
+import { categoryLabel } from '../../lib/metadataManager.js';
+import { t } from '../../lib/i18n.js';
 
 const AGE_LABELS: Record<string, string> = { R15: 'R15', R18: 'R18' };
 
@@ -38,7 +39,7 @@ export default function GameCard({
   const rootRef = useRef<HTMLDivElement>(null);
   const gameName = gameData.work_name || gameId;
   const playTimeText = formatPlayTime(gameData.totalPlayTime || 0);
-  const categoryLabel = gameData.category ? categoryMap[gameData.category] || gameData.category : 'Inconnu';
+  const category = gameData.category ? categoryLabel(gameData.category) : t('Inconnu');
   const ageLabel = AGE_LABELS[gameData.age_category || 'ALL_AGES'];
 
   // Ciblée au clavier : prend aussi le focus DOM, pour que manette, Tab et
@@ -83,7 +84,7 @@ export default function GameCard({
         >
           <EyeOff size={20} strokeWidth={2} className="text-text-secondary" />
           <span className="text-xs font-bold tracking-wide">{ageLabel}</span>
-          <span className="text-[11px] text-text-secondary">Cliquer pour révéler</span>
+          <span className="text-[11px] text-text-secondary">{t('Cliquer pour révéler')}</span>
         </div>
       )}
 
@@ -91,13 +92,13 @@ export default function GameCard({
         {gameData.fetchFailed && (
           <span className="flex items-center gap-1 rounded-sm bg-danger px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
             <TriangleAlert size={11} strokeWidth={2.5} />
-            Échec sync
+            {t('Échec sync')}
           </span>
         )}
         {isRunning && (
           <span className="flex items-center gap-1 rounded-sm bg-play px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
             <Play size={10} strokeWidth={0} fill="currentColor" />
-            En cours
+            {t('En cours')}
           </span>
         )}
       </div>
@@ -106,8 +107,8 @@ export default function GameCard({
         // Macaron "fini" : au-dessus du flou R18 (il ne dévoile rien de l'image).
         <span
           className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-play text-white shadow-md ring-2 ring-black/30"
-          title="Fini"
-          aria-label="Fini"
+          title={t('Fini')}
+          aria-label={t('Fini')}
         >
           <Check size={16} strokeWidth={3} />
         </span>
@@ -116,7 +117,7 @@ export default function GameCard({
       <div className="capsule-caption pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/75 to-transparent px-3 pb-2.5 pt-10">
         <div className="line-clamp-2 text-[13px] font-bold leading-tight">{gameName}</div>
         <div className="mt-1 flex items-center gap-2 text-[11px] text-text-secondary">
-          <span className="truncate">{gameData.circle || categoryLabel}</span>
+          <span className="truncate">{gameData.circle || category}</span>
           {ageLabel && <span className="rounded-sm bg-white/15 px-1 font-bold text-white">{ageLabel}</span>}
           {playTimeText && (
             <span className="ml-auto flex flex-shrink-0 items-center gap-1">

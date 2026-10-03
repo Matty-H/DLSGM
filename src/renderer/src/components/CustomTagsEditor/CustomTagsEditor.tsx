@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
+import { t } from '../../lib/i18n.js';
 
 export interface CustomTagsEditorProps {
   tags: string[];
@@ -28,7 +29,7 @@ export default function CustomTagsEditor({ tags, onAddTag, onRemoveTag }: Custom
               <button
                 type="button"
                 onClick={() => onRemoveTag(tag)}
-                aria-label={`Retirer ${tag}`}
+                aria-label={t('Retirer {label}', { label: tag })}
                 className="rounded-sm p-0.5 text-text-muted hover:bg-white/10 hover:text-text"
               >
                 <X size={12} strokeWidth={2.5} />
@@ -43,10 +44,10 @@ export default function CustomTagsEditor({ tags, onAddTag, onRemoveTag }: Custom
           value={newTag}
           onChange={e => setNewTag(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="Ajouter un tag…"
+          placeholder={t('Ajouter un tag…')}
           className="input flex-1"
         />
-        <button type="button" onClick={handleAdd} aria-label="Ajouter le tag" className="btn btn-icon">
+        <button type="button" onClick={handleAdd} aria-label={t('Ajouter le tag')} className="btn btn-icon">
           <Plus size={17} strokeWidth={2.5} />
         </button>
       </div>

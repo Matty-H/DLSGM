@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { File, Folder, FolderOpen, RefreshCw } from 'lucide-react';
 import { formatBytes, ipcErrorMessage } from '../../lib/gameTools.js';
 import type { GameWorkspaceInfo } from '../../../../shared/ipc-types';
+import { t, uiLocale } from '../../lib/i18n.js';
 
 export interface WorkspaceSectionProps {
   gameId: string;
@@ -9,7 +10,7 @@ export interface WorkspaceSectionProps {
 
 const COLLAPSED_COUNT = 8;
 
-const formatDate = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+const formatDate = (iso: string) => new Date(iso).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
 
 /**
  * Dossier de travaux du jeu (data mining, extractions, notes...), hors du
@@ -56,17 +57,16 @@ export default function WorkspaceSection({ gameId }: WorkspaceSectionProps) {
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={handleOpen} className="btn text-[13px]">
           <FolderOpen size={15} strokeWidth={2.25} />
-          {info?.exists ? 'Ouvrir le dossier' : 'Créer et ouvrir le dossier'}
+          {info?.exists ? t('Ouvrir le dossier') : t('Créer et ouvrir le dossier')}
         </button>
         {info?.exists && (
-          <button type="button" onClick={reload} className="btn btn-ghost btn-icon" title="Actualiser" aria-label="Actualiser le contenu">
+          <button type="button" onClick={reload} className="btn btn-ghost btn-icon" title={t('Actualiser')} aria-label={t('Actualiser le contenu')}>
             <RefreshCw size={15} strokeWidth={2.25} />
           </button>
         )}
         {info?.exists && (
           <span className="text-text-secondary">
-            {info.truncated ? 'plus de ' : ''}
-            {info.totalFiles} fichier{info.totalFiles > 1 ? 's' : ''} · {formatBytes(info.totalBytes)}
+            {info.truncated ? t('plus de {n} fichier(s)', { n: info.totalFiles }) : t('{n} fichier(s)', { n: info.totalFiles })} · {formatBytes(info.totalBytes)}
           </span>
         )}
       </div>
@@ -77,16 +77,16 @@ export default function WorkspaceSection({ gameId }: WorkspaceSectionProps) {
         </div>
       )}
 
-      {info?.exists && entries.length === 0 && <p className="m-0 text-text-secondary">Dossier vide.</p>}
+      {info?.exists && entries.length === 0 && <p className="m-0 text-text-secondary">{t('Dossier vide.')}</p>}
 
       {visible.length > 0 && (
         <ul className="m-0 flex list-none flex-col p-0">
           {visible.map(entry => (
             <li key={entry.name} className="flex items-center gap-2 border-b border-divider py-1.5 last:border-0">
               {entry.isDirectory ? (
-                <Folder size={15} strokeWidth={2.25} className="flex-shrink-0 text-accent" aria-label="Dossier" />
+                <Folder size={15} strokeWidth={2.25} className="flex-shrink-0 text-accent" aria-label={t('Dossier')} />
               ) : (
-                <File size={15} strokeWidth={2.25} className="flex-shrink-0 text-text-muted" aria-label="Fichier" />
+                <File size={15} strokeWidth={2.25} className="flex-shrink-0 text-text-muted" aria-label={t('Fichier')} />
               )}
               <span className="min-w-0 flex-1 truncate" title={entry.name}>
                 {entry.name}
@@ -100,7 +100,7 @@ export default function WorkspaceSection({ gameId }: WorkspaceSectionProps) {
 
       {entries.length > COLLAPSED_COUNT && (
         <button type="button" onClick={() => setExpanded(e => !e)} className="btn btn-ghost self-start px-2 py-1 text-[13px]">
-          {expanded ? 'Réduire' : `Tout afficher (${entries.length})`}
+          {expanded ? t('Réduire') : t('Tout afficher ({n})', { n: entries.length })}
         </button>
       )}
 

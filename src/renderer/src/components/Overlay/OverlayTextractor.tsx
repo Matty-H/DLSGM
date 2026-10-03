@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ScrollText } from 'lucide-react';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import type { TextractorView } from '../../../../shared/ipc-types';
+import { t } from '../../lib/i18n.js';
 
 export interface OverlayTextractorProps {
   gameId: string;
@@ -32,17 +33,17 @@ export default function OverlayTextractor({ gameId, view }: OverlayTextractorPro
         <ScrollText size={14} strokeWidth={2.25} />
         Textractor
         <span className="font-normal text-text-muted">
-          {view.attachedPids.length > 0 ? `· attaché (${view.attachedPids.length} processus)` : '· recherche du jeu…'}
+          {view.attachedPids.length > 0 ? '· ' + t('attaché ({n} processus)', { n: view.attachedPids.length }) : '· ' + t('recherche du jeu…')}
         </span>
       </div>
       {view.threads.length === 0 ? (
-        <p className="m-0 text-[12px] text-text-muted">Aucun texte capté pour l'instant : avance un peu dans le jeu.</p>
+        <p className="m-0 text-[12px] text-text-muted">{t("Aucun texte capté pour l'instant : avance un peu dans le jeu.")}</p>
       ) : (
         <ul className="m-0 flex max-h-[260px] list-none flex-col gap-1 overflow-y-auto p-0">
           <li>
             <label className="flex cursor-pointer items-center gap-2 text-[12px] text-text-secondary">
               <input type="radio" name={`tx-${gameId}`} className="accent-accent" checked={view.selectedHook === null} onChange={() => select(null)} />
-              Aucun fil choisi (tous au fichier, rien au presse-papiers)
+              {t('Aucun fil choisi (tous au fichier, rien au presse-papiers)')}
             </label>
           </li>
           {view.threads.map(thread => (

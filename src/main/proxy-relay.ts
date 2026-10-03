@@ -1,5 +1,6 @@
 import net from 'net';
 import tls from 'tls';
+import { tm } from './i18n';
 
 /**
  * Relais local pour les proxys avec identifiants. Chromium (dont la pile
@@ -41,7 +42,7 @@ class SocketReader {
   };
 
   private onEnd = (error?: Error | boolean) => {
-    this.failure = error instanceof Error ? error : new Error('Connexion fermée pendant la négociation.');
+    this.failure = error instanceof Error ? error : new Error(tm('Connexion fermée pendant la négociation.'));
     this.waiter?.();
   };
 
@@ -87,7 +88,7 @@ async function readSocksAddress(reader: SocketReader): Promise<Buffer> {
   else if (atyp === 0x03) {
     const [length] = await reader.read(1);
     address = Buffer.concat([Buffer.from([length]), await reader.read(length)]);
-  } else throw new Error(`Type d'adresse SOCKS inconnu : ${atyp}`);
+  } else throw new Error(tm("Type d'adresse SOCKS inconnu : {type}", { type: atyp }));
   return Buffer.concat([Buffer.from([atyp]), address, await reader.read(2)]);
 }
 
@@ -108,7 +109,7 @@ function connectUpstream(upstream: UpstreamProxy): Promise<net.Socket> {
       upstream.scheme === 'https'
         ? tls.connect({ host: upstream.host, port: upstream.port, servername: upstream.host })
         : net.connect({ host: upstream.host, port: upstream.port });
-    socket.setTimeout(HANDSHAKE_TIMEOUT_MS, () => socket.destroy(new Error('Le proxy ne répond pas.')));
+    socket.setTimeout(HANDSHAKE_TIMEOUT_MS, () => socket.destroy(new Error(tm('Le proxy ne répond pas.'))));
     socket.once(upstream.scheme === 'https' ? 'secureConnect' : 'connect', () => resolve(socket));
     socket.once('error', reject);
   });
@@ -123,18 +124,18 @@ async function openTunnel(upstream: UpstreamProxy, address: Buffer): Promise<{ s
       const withAuth = upstream.username !== undefined;
       socket.write(Buffer.from([0x05, 0x01, withAuth ? 0x02 : 0x00]));
       const [version, method] = await reader.read(2);
-      if (version !== 0x05 || method === 0xff) throw new Error('Le proxy SOCKS5 refuse la méthode d’authentification.');
+      if (version !== 0x05 || method === 0xff) throw new Error(tm('Le proxy SOCKS5 refuse la méthode d’authentification.'));
       if (method === 0x02) {
         const user = Buffer.from(upstream.username ?? '', 'utf8');
         const pass = Buffer.from(upstream.password ?? '', 'utf8');
         socket.write(Buffer.concat([Buffer.from([0x01, user.length]), user, Buffer.from([pass.length]), pass]));
         const [, status] = await reader.read(2);
-        if (status !== 0x00) throw new Error('Identifiants refusés par le proxy SOCKS5.');
+        if (status !== 0x00) throw new Error(tm('Identifiants refusés par le proxy SOCKS5.'));
       }
       socket.write(Buffer.concat([Buffer.from([0x05, 0x01, 0x00]), address]));
       const [, reply] = await reader.read(3);
       await readSocksAddress(reader); // adresse liée, non utilisée
-      if (reply !== 0x00) throw new Error(`Le proxy SOCKS5 a refusé la connexion (code ${reply}).`);
+      if (reply !== 0x00) throw new Error(tm('Le proxy SOCKS5 a refusé la connexion (code {code}).', { code: reply }));
     } else {
       const target = describeSocksAddress(address);
       const auth = upstream.username !== undefined
@@ -142,8 +143,8 @@ async function openTunnel(upstream: UpstreamProxy, address: Buffer): Promise<{ s
         : '';
       socket.write(`CONNECT ${target} HTTP/1.1\r\nHost: ${target}\r\n${auth}\r\n`);
       const status = /^HTTP\/1\.[01] (\d{3})/.exec(await reader.readHttpHead())?.[1];
-      if (status === '407') throw new Error('Identifiants refusés par le proxy HTTP (407).');
-      if (status !== '200') throw new Error(`Le proxy HTTP a refusé le tunnel (${status ?? 'réponse illisible'}).`);
+      if (status === '407') throw new Error(tm('Identifiants refusés par le proxy HTTP (407).'));
+      if (status !== '200') throw new Error(tm('Le proxy HTTP a refusé le tunnel ({status}).', { status: status ?? tm('réponse illisible') }));
     }
     socket.setTimeout(0);
     return { socket, leftover: reader.release() };

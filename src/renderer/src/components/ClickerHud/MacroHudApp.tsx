@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Clapperboard } from 'lucide-react';
 import { activeMacroOf, macroSummary } from '../../lib/macros.js';
 import type { MacroRecorderStatus, OverlayState } from '../../../../shared/ipc-types';
+import { t } from '../../lib/i18n.js';
 
 /**
  * Témoin de l'enregistreur de macros (route #macro-hud), à droite de celui
@@ -53,19 +54,19 @@ export default function MacroHudApp() {
         ? 'bg-play shadow-[0_0_8px_var(--color-play)]'
         : 'bg-text-muted';
   const label = status.recording
-    ? `REC · ${status.stepCount} étape${status.stepCount > 1 ? 's' : ''}`
+    ? `REC · ${status.stepCount > 1 ? t('{n} étapes', { n: status.stepCount }) : t('{n} étape', { n: status.stepCount })}`
     : status.paused
-      ? 'En pause'
+      ? t('En pause')
       : status.playing
-        ? `${macro?.name ?? 'Macro'}${status.loops > 0 ? ` · tour ${status.loops + 1}` : ''}`
+        ? `${macro?.name ?? t('Macro')}${status.loops > 0 ? ' · ' + t('tour {n}', { n: status.loops + 1 }) : ''}`
         : macro
           ? `${macro.name} · ${macroSummary(macro)}`
-          : 'Aucune macro';
+          : t('Aucune macro');
   const title = status.recording
-    ? `Enregistrement — ${settings.recordHotkey} pour finir`
+    ? t('Enregistrement — {hotkey} pour finir', { hotkey: settings.recordHotkey })
     : status.playing
-      ? `Lecture — ${settings.playHotkey} pour arrêter`
-      : `${settings.recordHotkey} enregistre, ${settings.playHotkey} rejoue la macro choisie (overlay Maj+Tab)`;
+      ? t('Lecture — {hotkey} pour arrêter', { hotkey: settings.playHotkey })
+      : t('{record} enregistre, {play} rejoue la macro choisie (overlay Maj+Tab)', { record: settings.recordHotkey, play: settings.playHotkey });
 
   return (
     <div className="flex h-screen w-screen items-end font-body text-text">
