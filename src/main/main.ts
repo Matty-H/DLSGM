@@ -8,7 +8,8 @@ import { holdStores } from './store';
 import { finishPendingInstall } from './updater';
 import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic, captureFilePath, runStartupUpdateCheck } from './ipc-handlers';
 import { applyDlsiteProxy } from './dlsite-net';
-import { hideInsteadOfClose, setTrayEnabled } from './tray';
+import { hideInsteadOfClose, setTrayEnabled, setTrayIcon } from './tray';
+import { initTheme, onThemeIcon } from './theme';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -145,6 +146,7 @@ app.whenReady().then(async () => {
   });
 
   const getWindow = () => mainWindow;
+  onThemeIcon(setTrayIcon);
   setupIpcHandlers(getWindow, settings => setTrayEnabled(Boolean(settings.closeToTray), getWindow), {
     preloadPath: PRELOAD_PATH,
     loadPage: loadRenderer
@@ -153,6 +155,7 @@ app.whenReady().then(async () => {
   await getSettings()
     .then(async settings => {
       setMainLanguage(settings.uiLanguage);
+      initTheme(settings.theme);
       setTrayEnabled(Boolean(settings.closeToTray), getWindow);
       await applyDlsiteProxy(settings.dlsiteProxy, settings.dlsiteProxySecret);
     })

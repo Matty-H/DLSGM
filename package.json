@@ -8,6 +8,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.main.json && tsc --noEmit -p src/renderer/tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
     "check": "npm run typecheck && npm test",
     "i18n:template": "node scripts/i18n-template.mjs",
+    "icon": "npm run build:main && electron scripts/generate-icon.cjs",
+    "screenshots": "npm run build:main && npm run build:renderer && electron -r ./scripts/readme-screenshots.cjs .",
     "prepare": "git config core.hooksPath .githooks || exit 0",
     "dev:renderer": "vite --config src/renderer/vite.config.mts",
     "dev:main": "tsc -w -p tsconfig.main.json",

@@ -1,3 +1,5 @@
+import type { ActiveTheme } from './themes';
+
 /**
  * Contrat de types partagé pour la surface IPC entre main (ipc-handlers.ts),
  * preload (preload.ts) et renderer (window.electronAPI). Fichier type-only :
@@ -85,6 +87,12 @@ export interface AppSettings {
    * traduite, sinon anglais) ou le code d'un fichier de `locales/` (`fr`, `en`, `ja`…).
    */
   uiLanguage: string;
+  /**
+   * Thème de couleur : id d'une palette de src/shared/themes.ts, `random`
+   * (une palette tirée à chaque démarrage) ou `turbo` (couleurs générées à
+   * chaque démarrage). Absent dans les réglages d'avant les thèmes : `neon`, le thème par défaut.
+   */
+  theme?: string;
 }
 
 /** Version de l'application et mode d'installation (src/main/updater.ts). */
@@ -929,6 +937,15 @@ export interface ElectronAPI {
   getSettings(): Promise<AppSettings>;
   /** Langues préférées du système (app.getPreferredSystemLanguages). */
   getSystemLanguages(): Promise<string[]>;
+  /** Quitte l'application (même avec `closeToTray`). */
+  quitApp(): void;
+  /** Thème résolu par main (le même pour toutes les fenêtres). */
+  getActiveTheme(): Promise<ActiveTheme>;
+  /** Nouveau tirage du thème (modes aléatoire et turbo). */
+  rerollTheme(): Promise<ActiveTheme>;
+  /** Icône aux couleurs du thème (PNG en data URL) pour la fenêtre et la zone de notification. */
+  setAppIcon(pngDataUrl: string): void;
+  onThemeChanged(callback: (theme: ActiveTheme) => void): () => void;
   saveSettings(settings: AppSettings): Promise<boolean>;
   updateLanguage(lang: string): void;
 

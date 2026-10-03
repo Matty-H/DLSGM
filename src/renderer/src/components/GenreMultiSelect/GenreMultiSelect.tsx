@@ -54,7 +54,7 @@ export default function GenreMultiSelect({ genres, selectedGenres, onToggleGenre
               >
                 <span
                   className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm ${
-                    checked ? 'bg-accent text-white' : 'bg-bg-deep'
+                    checked ? 'bg-accent text-on-accent' : 'bg-bg-deep'
                   }`}
                 >
                   {checked && <Check size={12} strokeWidth={3} />}

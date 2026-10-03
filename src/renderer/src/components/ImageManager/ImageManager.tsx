@@ -183,7 +183,7 @@ function ImageTile({
             className="h-full w-full object-cover"
           />
           <div className="pointer-events-none absolute left-2 top-2 flex gap-1">
-            {isCover && <span className="rounded-sm bg-accent px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">{t('Couverture')}</span>}
+            {isCover && <span className="rounded-sm bg-accent px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-on-accent">{t('Couverture')}</span>}
             {'file' in image.source && <span className="rounded-sm bg-black/70 px-2 py-0.5 text-[11px] font-bold">{t('Nouvelle')}</span>}
           </div>
           <div
