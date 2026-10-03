@@ -5,7 +5,7 @@ const electron = vi.hoisted(() => ({ userData: '' }));
 vi.mock('electron', () => ({ app: { getPath: () => electron.userData } }));
 
 import Store from '../../src/main/store';
-import { GenreTranslations, pairsFromAliasGroups } from '../../src/main/genre-translations';
+import { GenreTranslations } from '../../src/main/genre-translations';
 
 let translations: GenreTranslations;
 
@@ -48,12 +48,3 @@ describe('GenreTranslations', () => {
   });
 });
 
-describe('pairsFromAliasGroups', () => {
-  it('reprend les anciens genres liés (anglais d’abord ou japonais d’abord)', () => {
-    expect(pairsFromAliasGroups([['Anal', 'アナル'], ['巨乳/爆乳', 'Big Breasts'], ['A', 'B'], 'bruit'])).toEqual({
-      'アナル': 'Anal',
-      '巨乳/爆乳': 'Big Breasts'
-    });
-    expect(pairsFromAliasGroups(undefined)).toEqual({});
-  });
-});

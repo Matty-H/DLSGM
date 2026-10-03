@@ -7,7 +7,6 @@ export interface AppSettings {
   refreshRate: number;
   language: string;
   blurAdultContent: boolean;
-  genreAliasGroups: string[][];
   sandboxLaunch: boolean;
   startFullscreen: boolean;
   lanSharePort: number;

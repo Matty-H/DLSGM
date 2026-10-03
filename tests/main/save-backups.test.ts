@@ -90,19 +90,6 @@ describe('restoreSaveBackup', () => {
     expect(await restoreSaveBackup(GAME, backup.id, sources.slice(0, 1))).toEqual({ skipped: ['Game folder (SaveNN)'] });
   });
 
-  it("restaure une copie faite avec les anciens libellés français", async () => {
-    const legacy = [
-      { ...sources[0], label: 'Sauvegardes' },
-      { ...sources[1], label: 'Dossier du jeu (SaveNN)' }
-    ];
-    const backup = (await createSaveBackup(GAME, legacy, 'manual'))!;
-    fs.writeFileSync(path.join(saveDir, 'file1.rmmzsave'), 'changed');
-    fs.writeFileSync(path.join(vxRoot, 'Save01.rvdata2'), 'changed');
-    expect(await restoreSaveBackup(GAME, backup.id, sources)).toEqual({ skipped: [] });
-    expect(read(saveDir, 'file1.rmmzsave')).toBe('v1');
-    expect(read(vxRoot, 'Save01.rvdata2')).toBe('S1');
-  });
-
   it('restaure la plus ancienne copie automatique même quand le nettoyage passe', async () => {
     for (let i = 0; i < 10; i++) {
       fs.writeFileSync(path.join(saveDir, 'file1.rmmzsave'), `loop${i}`);

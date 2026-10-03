@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeTempDir, removeTempDir } from '../helpers';
 
@@ -48,10 +46,4 @@ describe('Store', () => {
     expect(await reopened.getAll()).toEqual({ RJ1: { a: 1 } });
   });
 
-  it("migre l'ancien fichier JSON monobloc et le garde en .migrated", async () => {
-    fs.writeFileSync(path.join(electron.userData, 'cache.json'), JSON.stringify({ RJ1: { work_name: 'A' } }));
-    const store = new Store('cache.db', {}, 'cache.json');
-    expect(await store.getAll()).toEqual({ RJ1: { work_name: 'A' } });
-    expect(fs.existsSync(path.join(electron.userData, 'cache.json.migrated'))).toBe(true);
-  });
 });

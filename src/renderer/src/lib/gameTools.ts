@@ -26,8 +26,7 @@ export function formatBytes(bytes: number): string {
 /**
  * Libellés d'emplacements de sauvegarde envoyés par main (game-tools.ts) :
  * identifiants stables en anglais (une restauration associe une copie à son
- * emplacement par ce libellé), traduits ici à l'affichage. Les copies faites
- * avant leur passage en anglais gardent les anciens libellés français.
+ * emplacement par ce libellé), traduits ici à l'affichage.
  */
 const SAVE_LOCATION_LABELS: Record<string, string> = {
   Saves: msg('Sauvegardes'),
@@ -36,13 +35,12 @@ const SAVE_LOCATION_LABELS: Record<string, string> = {
   'Godot (Roaming, dedicated folder)': msg('Godot (Roaming, dossier dédié)'),
   'Unreal (game)': msg('Unreal (jeu)')
 };
-const LEGACY_SAVE_LOCATION_LABELS = new Set(Object.values(SAVE_LOCATION_LABELS));
 
 /** Libellé affiché d'un emplacement de sauvegarde (« … (sandbox) » compris). */
 export function saveLocationLabel(label: string): string {
   const sandbox = label.endsWith(' (sandbox)');
   const base = sandbox ? label.slice(0, -' (sandbox)'.length) : label;
-  const key = SAVE_LOCATION_LABELS[base] ?? (LEGACY_SAVE_LOCATION_LABELS.has(base) ? base : null);
+  const key = SAVE_LOCATION_LABELS[base];
   const shown = key ? tr(key) : base;
   return sandbox ? `${shown} (sandbox)` : shown;
 }

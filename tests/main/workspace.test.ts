@@ -22,24 +22,6 @@ describe('workspaceRoot', () => {
   });
 });
 
-describe('defaultWorkspaceRoot', () => {
-  it("renomme l'ancien dossier Travaux en Work, contenu compris", () => {
-    const docs = path.join(root, 'Documents');
-    writeTree(path.join(docs, 'DLSGM', 'Travaux'), { 'RJ01000001/notes.md': 'abc' });
-    expect(defaultWorkspaceRoot(docs)).toBe(path.join(docs, 'DLSGM', 'Work'));
-    expect(fs.readFileSync(path.join(docs, 'DLSGM', 'Work', 'RJ01000001', 'notes.md'), 'utf8')).toBe('abc');
-    expect(fs.existsSync(path.join(docs, 'DLSGM', 'Travaux'))).toBe(false);
-  });
-
-  it('garde Work et ne touche pas à Travaux quand les deux existent', () => {
-    const docs = path.join(root, 'Documents');
-    writeTree(path.join(docs, 'DLSGM', 'Travaux'), { 'old.md': 'old' });
-    writeTree(path.join(docs, 'DLSGM', 'Work'), { 'new.md': 'new' });
-    expect(defaultWorkspaceRoot(docs)).toBe(path.join(docs, 'DLSGM', 'Work'));
-    expect(fs.readFileSync(path.join(docs, 'DLSGM', 'Travaux', 'old.md'), 'utf8')).toBe('old');
-  });
-});
-
 describe('describeWorkspace', () => {
   it("signale un dossier pas encore créé, sans le créer", async () => {
     const dir = path.join(root, 'RJ01000001');

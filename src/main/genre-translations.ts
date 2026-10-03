@@ -37,21 +37,6 @@ export const KNOWN_GENRE_TRANSLATIONS: Record<string, string> = {
   '処女': 'Virgin Female'
 };
 
-const JAPANESE = /[぀-ヿ㐀-䶿一-鿿豈-﫿ｦ-ﾟ]/;
-
-/** Paires JP → EN tirées d'anciens groupes de genres liés (un membre japonais, un non japonais). */
-export function pairsFromAliasGroups(groups: unknown): Record<string, string> {
-  const pairs: Record<string, string> = {};
-  if (!Array.isArray(groups)) return pairs;
-  for (const group of groups) {
-    if (!Array.isArray(group)) continue;
-    const japanese = group.find((g): g is string => typeof g === 'string' && JAPANESE.test(g));
-    const english = group.find((g): g is string => typeof g === 'string' && g.trim() !== '' && !JAPANESE.test(g));
-    if (japanese && english) pairs[japanese] = english;
-  }
-  return pairs;
-}
-
 export class GenreTranslations {
   constructor(private store: Store) {}
 
@@ -81,7 +66,7 @@ export class GenreTranslations {
     else await this.store.delete(japanese);
   }
 
-  /** Amorçage (premier démarrage, reprise des genres liés) : n'écrase rien d'existant. */
+  /** Amorçage (paires connues) : n'écrase rien d'existant. */
   async seed(pairs: Record<string, string>): Promise<void> {
     for (const [japanese, english] of Object.entries(pairs)) {
       await this.store.insert(japanese, { en: english } satisfies StoredTranslation);
