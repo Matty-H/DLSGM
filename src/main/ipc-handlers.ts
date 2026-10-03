@@ -42,7 +42,7 @@ import { setMainLanguage, systemLanguages, tm } from './i18n';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
 import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
 import { applyThemeIcon, applyThemeSetting, getActiveTheme, iconFromDataUrl, rerollTheme } from './theme';
-import { DEFAULT_THEME } from '../shared/themes';
+import { DEFAULT_THEME, normalizeThemeSetting, sanitizeCustomThemes } from '../shared/themes';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -98,7 +98,8 @@ const settingsStore = new Store('settings.db', {
   screenshot: { enabled: true, hotkey: 'Ctrl+F8' },
   checkUpdatesOnStartup: true,
   uiLanguage: 'system',
-  theme: DEFAULT_THEME
+  theme: DEFAULT_THEME,
+  customThemes: []
 });
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
@@ -1533,6 +1534,18 @@ export function setupIpcHandlers(
   // --- Thème de couleur (src/main/theme.ts) ---
   ipcMain.handle('get-active-theme', () => getActiveTheme());
   ipcMain.handle('reroll-theme', () => rerollTheme());
+  // Palettes perso : enregistrées tout de suite (sans attendre « Enregistrer »).
+  // Pas de `settings-changed` : il réinitialiserait le formulaire des
+  // paramètres ouvert ; le sélecteur de thème tient sa propre liste.
+  ipcMain.handle('save-custom-themes', async (event: IpcMainInvokeEvent, list: unknown) => {
+    const customThemes = sanitizeCustomThemes(list);
+    await settingsStore.set('customThemes', customThemes);
+    const { theme } = await getSettings();
+    // Thème enregistré = palette supprimée : retour au thème par défaut.
+    if (normalizeThemeSetting(theme, customThemes) !== theme) await settingsStore.set('theme', DEFAULT_THEME);
+    applyThemeSetting(theme, customThemes);
+    return customThemes;
+  });
   ipcMain.on('set-app-icon', (event, dataUrl: unknown) => {
     // Seule la fenêtre principale dessine l'icône (l'overlay et les témoins ont le même thème).
     const window = getWindow();
@@ -1546,10 +1559,12 @@ export function setupIpcHandlers(
     // (le renderer ne renvoie que le masque, ou un nouveau mot de passe).
     const previous = await getSettings();
     const proxy = protectProxySettings(newSettings.dlsiteProxy, previous.dlsiteProxySecret);
+    // Palettes perso : gérées par `save-custom-themes`, jamais écrasées par une copie périmée du formulaire.
+    newSettings = { ...newSettings, customThemes: sanitizeCustomThemes(previous.customThemes) };
     await settingsStore.setAll({ ...newSettings, ...proxy } as unknown as Record<string, unknown>);
     // Langue de l'interface changée : chaque fenêtre la relit à son chargement.
     setMainLanguage(newSettings.uiLanguage);
-    applyThemeSetting(newSettings.theme);
+    applyThemeSetting(newSettings.theme, newSettings.customThemes);
     if (previous.uiLanguage !== newSettings.uiLanguage) {
       setTimeout(() => {
         for (const window of BrowserWindow.getAllWindows()) {

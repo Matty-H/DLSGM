@@ -9,8 +9,9 @@ vi.mock('electron', () => ({
 }));
 
 import {
-  DEFAULT_THEME, RANDOM_THEME, THEMES, TURBO_THEME, UI_BACKGROUND,
-  contrastRatio, generateTurboTheme, isHexColor, normalizeThemeSetting, onAccentColor, resolveTheme
+  DEFAULT_THEME, MAX_CUSTOM_THEMES, RANDOM_THEME, THEMES, TURBO_THEME, UI_BACKGROUND,
+  contrastRatio, customToTheme, generateTurboTheme, isHexColor, newCustomThemeId, normalizeThemeSetting, onAccentColor, resolveTheme, sanitizeCustomThemes,
+  type CustomTheme
 } from '../../src/shared/themes';
 import { applyThemeSetting, getActiveTheme, iconFromDataUrl, initTheme, rerollTheme } from '../../src/main/theme';
 
@@ -120,5 +121,71 @@ describe('thème actif (main)', () => {
     expect(iconFromDataUrl('file:///C:/Windows/notepad.exe')).toBeNull();
     expect(iconFromDataUrl(42)).toBeNull();
     expect(iconFromDataUrl('data:image/png;base64,' + 'A'.repeat(2_000_001))).toBeNull();
+  });
+});
+
+describe('palettes perso', () => {
+  const dark: CustomTheme = { id: 'custom-abc123', name: 'Nuit', dls: '#101010', gm: '#202a60', bg: '#f0e0d0', rounded: true };
+
+  it('réglages d’avant les palettes perso : aucune', () => {
+    expect(sanitizeCustomThemes(undefined)).toEqual([]);
+    expect(normalizeThemeSetting('custom-abc123')).toBe(DEFAULT_THEME);
+  });
+
+  it('ne gardent que des palettes valides, nommées, sans doublon ni excédent', () => {
+    const list = sanitizeCustomThemes([
+      { ...dark, name: '  Nuit   bleue ', dls: '#ABCDEF' },
+      { ...dark, name: 'doublon' },
+      { ...dark, id: 'custom-sansnom', name: '   ' },
+      { ...dark, id: 'custom-badcolor', gm: 'red' },
+      { ...dark, id: '../../etc', name: 'x' },
+      { ...dark, id: 'custom-norounded', rounded: 'oui' },
+      null
+    ]);
+    expect(list).toEqual([
+      { ...dark, name: 'Nuit bleue', dls: '#abcdef' },
+      { ...dark, id: 'custom-norounded', rounded: false }
+    ]);
+    const many = Array.from({ length: MAX_CUSTOM_THEMES + 5 }, (_, i) => ({ ...dark, id: `custom-n${i}xyz` }));
+    expect(sanitizeCustomThemes(many)).toHaveLength(MAX_CUSTOM_THEMES);
+    expect(newCustomThemeId(seeded(9))).toMatch(/^custom-[a-z0-9]{10}$/);
+  });
+
+  it('gardent leurs trois couleurs sur l’icône, éclaircies sur l’interface sombre', () => {
+    const theme = customToTheme(dark);
+    expect(theme.icon).toEqual({ bg: '#f0e0d0', dls: '#101010', gm: '#202a60', rounded: true });
+    for (const color of [theme.accent, theme.logo.dls, theme.logo.gm]) expect(contrastRatio(color, UI_BACKGROUND)).toBeGreaterThanOrEqual(3);
+    // Couleur déjà lisible : inchangée.
+    expect(customToTheme({ ...dark, gm: '#ff3ea5' }).logo.gm).toBe('#ff3ea5');
+  });
+
+  it('se choisissent comme thème et entrent dans le tirage aléatoire', () => {
+    expect(normalizeThemeSetting('custom-abc123', [dark])).toBe('custom-abc123');
+    expect(resolveTheme('custom-abc123', Math.random, undefined, [dark]).icon.bg).toBe('#f0e0d0');
+    const random = seeded(11);
+    const drawn = new Set(Array.from({ length: 400 }, () => resolveTheme(RANDOM_THEME, random, undefined, [dark]).id));
+    expect(drawn.has('custom-abc123')).toBe(true);
+  });
+
+  it('modifier la palette affichée la réapplique, la supprimer revient au défaut', () => {
+    sent.length = 0;
+    initTheme('custom-abc123', [dark]);
+    expect(getActiveTheme().id).toBe('custom-abc123');
+    applyThemeSetting('custom-abc123', [{ ...dark, bg: '#000000' }]);
+    expect(getActiveTheme().icon.bg).toBe('#000000');
+    expect(sent).toHaveLength(1);
+    applyThemeSetting('custom-abc123', []);
+    expect(getActiveTheme().id).toBe(DEFAULT_THEME);
+    expect(sent).toHaveLength(2);
+  });
+
+  it('en mode aléatoire, une palette perso tirée puis modifiée reste affichée', () => {
+    initTheme(RANDOM_THEME, [dark]);
+    // Force le tirage sur la palette perso, puis la modifie.
+    applyThemeSetting('custom-abc123', [dark]);
+    applyThemeSetting(RANDOM_THEME, [dark]);
+    const before = getActiveTheme().id;
+    applyThemeSetting(RANDOM_THEME, [dark, { ...dark, id: 'custom-other1', name: 'Autre' }]);
+    expect(getActiveTheme().id).toBe(before);
   });
 });

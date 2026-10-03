@@ -22,8 +22,8 @@ export interface ThemePalette {
   onAccent?: string;
   /** Logo sur l'interface sombre : sans fond. */
   logo: { dls: string; gm: string };
-  /** Icône (fenêtre, zone de notification, exécutable) : avec fond. */
-  icon: { bg: string; dls: string; gm: string };
+  /** Icône (fenêtre, zone de notification, exécutable) : avec fond, à coins arrondis si `rounded`. */
+  icon: { bg: string; dls: string; gm: string; rounded?: boolean };
 }
 
 /** Palette prédéfinie ; son nom affiché vit dans le renderer (THEME_LABELS, lib/themes.ts). */
@@ -59,13 +59,71 @@ export const THEMES: ThemeDefinition[] = [
   { id: 'original', accent: '#e6e6e6', logo: { dls: '#ffffff', gm: '#ffffff' }, icon: { bg: '#ffffff', dls: '#000000', gm: '#000000' } }
 ];
 
-export function findTheme(id: string | undefined): ThemeDefinition | undefined {
-  return THEMES.find(theme => theme.id === id);
+/** Palette créée par l'utilisateur (réglage `customThemes`) : les trois couleurs de l'icône. */
+export interface CustomTheme {
+  id: string;
+  name: string;
+  dls: string;
+  gm: string;
+  bg: string;
+  /** Coins arrondis pour le fond de l'icône. */
+  rounded: boolean;
 }
 
-/** Réglage reconnu : palette existante, `random` ou `turbo` ; sinon le thème par défaut. */
-export function normalizeThemeSetting(value: unknown): string {
-  return typeof value === 'string' && (value === RANDOM_THEME || value === TURBO_THEME || findTheme(value)) ? value : DEFAULT_THEME;
+export const MAX_CUSTOM_THEMES = 30;
+export const MAX_CUSTOM_THEME_NAME = 40;
+const CUSTOM_THEME_ID = /^custom-[a-z0-9]{4,24}$/;
+
+/** Rayon des coins arrondis de l'icône, en fraction de son côté. */
+export const ICON_CORNER_RADIUS = 0.2;
+
+/** Palettes perso reçues du renderer ou relues des réglages : forme et couleurs vérifiées, doublons et excédent retirés. */
+export function sanitizeCustomThemes(value: unknown): CustomTheme[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: CustomTheme[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const theme = item as Partial<CustomTheme>;
+    if (typeof theme.id !== 'string' || !CUSTOM_THEME_ID.test(theme.id) || seen.has(theme.id)) continue;
+    if (![theme.dls, theme.gm, theme.bg].every(isHexColor)) continue;
+    const name = typeof theme.name === 'string' ? theme.name.replace(/\s+/g, ' ').trim().slice(0, MAX_CUSTOM_THEME_NAME) : '';
+    if (!name) continue;
+    seen.add(theme.id);
+    result.push({ id: theme.id, name, dls: theme.dls!.toLowerCase(), gm: theme.gm!.toLowerCase(), bg: theme.bg!.toLowerCase(), rounded: theme.rounded === true });
+    if (result.length >= MAX_CUSTOM_THEMES) break;
+  }
+  return result;
+}
+
+/** Nouvel id de palette perso (jamais réutilisé en pratique : aléatoire). */
+export function newCustomThemeId(random: () => number = Math.random): string {
+  return 'custom-' + Array.from({ length: 10 }, () => '0123456789abcdefghijklmnopqrstuvwxyz'[Math.floor(random() * 36) % 36]).join('');
+}
+
+/**
+ * Palette complète d'une palette perso : l'icône garde exactement ses trois
+ * couleurs ; sur l'interface sombre, le logo et l'accent (la plus colorée des
+ * trois) sont éclaircis si besoin pour rester lisibles.
+ */
+export function customToTheme(custom: CustomTheme): ThemeDefinition {
+  const accent = readable([custom.gm, custom.dls, custom.bg].reduce((best, color) => (chroma(color) > chroma(best) ? color : best)), UI_BACKGROUND, 3);
+  return {
+    id: custom.id,
+    accent,
+    logo: { dls: readable(custom.dls, UI_BACKGROUND, 3), gm: readable(custom.gm, UI_BACKGROUND, 3) },
+    icon: { bg: custom.bg, dls: custom.dls, gm: custom.gm, rounded: custom.rounded }
+  };
+}
+
+export function findTheme(id: string | undefined, customs: CustomTheme[] = []): ThemeDefinition | undefined {
+  const custom = customs.find(theme => theme.id === id);
+  return custom ? customToTheme(custom) : THEMES.find(theme => theme.id === id);
+}
+
+/** Réglage reconnu : palette existante (prédéfinie ou perso), `random` ou `turbo` ; sinon le thème par défaut. */
+export function normalizeThemeSetting(value: unknown, customs: CustomTheme[] = []): string {
+  return typeof value === 'string' && (value === RANDOM_THEME || value === TURBO_THEME || findTheme(value, customs)) ? value : DEFAULT_THEME;
 }
 
 function toActive(theme: ThemeDefinition): ActiveTheme {
@@ -74,18 +132,19 @@ function toActive(theme: ThemeDefinition): ActiveTheme {
 }
 
 /**
- * Thème à appliquer pour un réglage. `random` : une palette au hasard,
- * différente de `previousId` quand c'est possible (relancer le tirage change
- * vraiment les couleurs).
+ * Thème à appliquer pour un réglage. `random` : une palette au hasard parmi
+ * les prédéfinies et les perso, différente de `previousId` quand c'est
+ * possible (relancer le tirage change vraiment les couleurs).
  */
-export function resolveTheme(setting: unknown, random: () => number = Math.random, previousId?: string): ActiveTheme {
-  const value = normalizeThemeSetting(setting);
+export function resolveTheme(setting: unknown, random: () => number = Math.random, previousId?: string, customs: CustomTheme[] = []): ActiveTheme {
+  const value = normalizeThemeSetting(setting, customs);
   if (value === TURBO_THEME) return generateTurboTheme(random);
   if (value === RANDOM_THEME) {
-    const pool = THEMES.length > 1 ? THEMES.filter(theme => theme.id !== previousId) : THEMES;
+    const all = [...THEMES, ...customs.map(customToTheme)];
+    const pool = all.length > 1 ? all.filter(theme => theme.id !== previousId) : all;
     return toActive(pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))]);
   }
-  return toActive(findTheme(value) ?? THEMES[0]);
+  return toActive(findTheme(value, customs) ?? THEMES[0]);
 }
 
 // --- Couleurs ---
@@ -131,6 +190,31 @@ function hslToHex(h: number, s: number, l: number): string {
   const a = sat * Math.min(light, 1 - light);
   const f = (n: number) => light - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
   return '#' + [f(0), f(8), f(4)].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+}
+
+function hexToHsl(hex: string): [number, number, number] {
+  const [r, g, b] = channels(hex).map(c => c / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l * 100];
+  const d = max - min;
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s * 100, l * 100];
+}
+
+/** Intensité de la couleur (0 gris … 1 couleur pure). */
+function chroma(hex: string): number {
+  const values = channels(hex);
+  return (Math.max(...values) - Math.min(...values)) / 255;
+}
+
+/** Même teinte, luminosité poussée jusqu'au contraste voulu avec `against` (inchangée si déjà lisible). */
+export function readable(hex: string, against: string, min: number): string {
+  if (contrastRatio(hex, against) >= min) return hex;
+  const [h, s, l] = hexToHsl(hex);
+  return contrasted(h, s, l, against, min);
 }
 
 /** Fond de l'interface (--color-bg), sur lequel le logo et l'accent doivent rester lisibles. */
