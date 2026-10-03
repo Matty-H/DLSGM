@@ -1,89 +1,78 @@
 <div align="center">
 
-<img src="docs/logo/dlsgm-horizontal-neon.svg" alt="DLSGM" width="420">
+<img src="docs/logo/dlsgm-horizontal-neon.svg" alt="DLSGM" width="380">
 
-**Your DLsite library, finally organized.**
+<h3>Your DLsite games, finally looking like a real library.</h3>
 
-All your DLsite games in one place, with their covers, details and play time.
-Launch them in one click, with a mouse, a keyboard or a controller.
+Drop your games in a folder. DLSGM finds them, fetches their covers and details, and lets you launch them in one click, with a mouse, a keyboard or a controller.
 
-[![Download](https://img.shields.io/github/v/release/Matty-H/DLSGM?label=Download&style=for-the-badge&color=ff3ea5)](https://github.com/Matty-H/DLSGM/releases/latest)
+<a href="https://github.com/Matty-H/DLSGM/releases/latest"><img src="docs/badges/download.svg" alt="Download DLSGM" height="56"></a>
 
-![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=flat-square)
-![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-555555?style=flat-square)
-![Languages](https://img.shields.io/badge/English%20%C2%B7%20Fran%C3%A7ais%20%C2%B7%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555555?style=flat-square)
-![Free](https://img.shields.io/badge/Free-no%20ads-2ea44f?style=flat-square)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/badges/windows-dark.svg">
+  <img src="docs/badges/windows-light.svg" alt="Windows 10 / 11" height="40">
+</picture>
+&nbsp;
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/badges/macos-dark.svg">
+  <img src="docs/badges/macos-light.svg" alt="macOS (Apple Silicon)" height="40">
+</picture>
 
 <br>
 
-<img src="docs/screenshots/home.png" alt="DLSGM home screen: “Recently played”, “To finish” and “Recently added” shelves" width="900">
+<img src="docs/screenshots/navigation.gif" alt="DLSGM in action: the home screen, the library, then a game's page with its play time, release date, size on disk and tags" width="900">
+
+<sub>Adult covers stay blurred until you click them.</sub>
 
 </div>
 
+<br>
+
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/library.png" alt="Library with search, filters and sorting"></td>
-    <td width="50%"><img src="docs/screenshots/game-page.png" alt="Game page: play time, release date, size, tags and collections"></td>
+    <td width="33%" valign="top">
+      <h3>📚 It fills itself</h3>
+      <p>Point DLSGM to your games folder: every title gets its cover, circle, tags and screenshots. Even if a work leaves DLsite, its page stays with you.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🔎 Find it in seconds</h3>
+      <p>Search, filter by tag or circle, sort by play time or size. Build collections by hand, or let your own rules fill them.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>▶️ One click to play</h3>
+      <p>DLSGM counts your play time and backs up your saves every time you quit a game. Something went wrong? Go back to an earlier save.</p>
+    </td>
   </tr>
   <tr>
-    <td align="center"><sub>The library, with R18 content blurred</sub></td>
-    <td align="center"><sub>Every game gets its own page: play time, tags, rating and collections</sub></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="docs/screenshots/settings.png" alt="In-game tools settings"></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><sub>In-game tools, set up in a few clicks</sub></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="docs/screenshots/themes.png" alt="Theme settings: color palettes, Random and Super random turbo 2000 remix"></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><sub>Pick your colors, or let DLSGM pick new ones at every startup</sub></td>
+    <td width="33%" valign="top">
+      <h3>📦 Drop an archive, play</h3>
+      <p><code>.zip</code>, <code>.rar</code> or <code>.7z</code>: DLSGM extracts it to the right place, keeps Japanese file names intact and tries the usual passwords.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🎮 Tools while you play</h3>
+      <p>On Windows: an overlay on top of the game (Shift+Tab), screenshots of the game window, and the meaning of every Japanese word on screen, with furigana, offline.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🤫 Discreet when needed</h3>
+      <p><b>Alt+Space</b> hides DLSGM instantly. Adult covers are blurred in the library. Everything stays on your computer: no account, no cloud.</p>
+    </td>
   </tr>
 </table>
 
----
+## Make it yours
 
-## Why DLSGM?
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/themes.png" alt="Theme settings: fourteen color palettes, Random and Super random turbo 2000 remix"></td>
+    <td width="50%"><img src="docs/screenshots/settings.png" alt="In-game tools settings: overlay and auto-clicker"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>14 color palettes</b>, your own, or brand-new colors at every startup with <i>Super random turbo 2000 remix</i></sub></td>
+    <td align="center"><sub><b>In-game tools</b>, set up in a few clicks</sub></td>
+  </tr>
+</table>
 
-Are your DLsite games piling up in folders with cryptic names like `RJ01234567`, with no picture or description? DLSGM recognizes them automatically, fetches their details from DLsite and shows them in a clean library inspired by game consoles.
-
-Everything stays on your computer: no account, no cloud.
-
----
-
-## What DLSGM does for you
-
-### A library that fills itself
-Point DLSGM to the folder where your games are: it finds each title, its circle, tags, release date, cover and screenshots. Even if a work disappears from DLsite one day, its page stays with you.
-
-### Find the right game in seconds
-Search, filter by tag, circle or type, sort by date, play time or size on disk. Sort your games into collections, or let DLSGM fill them based on your own rules. The home screen shows what you haven't finished yet.
-
-### Just play
-One click to launch. DLSGM tracks your play time, backs up your saves every time you close a game, and lets you go back to an earlier save if something goes wrong.
-
-### Hassle-free installs
-Drop a downloaded archive (`.zip`, `.rar`, `.7z`): DLSGM extracts it to the right place, handles Japanese file names and tries the usual passwords. You can also send a game to another PC at home.
-
-### Tools while you play *(Windows)*
-- **Overlay** on top of the game (Shift+Tab): play time, screenshots and tools, without leaving the game.
-- **Screenshots** of the game window only (Ctrl+F8), sorted by game.
-- **Japanese reading help** (F10): the meaning of each word and kanji shown on screen, with furigana readings, offline.
-- **Launch in Japanese locale** and **sandboxed launch**, for the games that need them.
-- **Auto-clicker** and **macro recorder**, enabled only for the games you choose.
-
-### Discreet when needed
-**Alt+Space** hides DLSGM instantly. Adult covers can be blurred in the library.
-
-### Your colors
-Fourteen color themes for the interface, the logo and the icon, Neon Tokyo by default. Or let chance decide: **Random** picks one at every startup, and **Super random turbo 2000 remix** makes up brand-new colors every time.
-
-### In your language
-The interface is available in English, French and Japanese, and follows your system language by default. Want DLSGM in your language? [Translating it](TRANSLATING.md) only takes one file, no programming needed.
-
----
+DLSGM speaks **English, French and Japanese** and follows your system language. Want it in yours? [Translating it](TRANSLATING.md) takes one file, no programming needed.
 
 ## Installation
 
@@ -99,9 +88,7 @@ The interface is available in English, French and Japanese, and follows your sys
    The other files on the page are used for updates: no need to download them.
 3. Launch DLSGM and choose the folder that contains your games in the Settings.
 
----
-
-## Organizing your games
+### Organizing your games
 
 DLSGM recognizes a game by its DLsite number. Each game needs its own folder, named exactly after that number, inside your games folder:
 
@@ -114,30 +101,55 @@ My games/
 
 The number is in the address of the game's DLsite page. If your folders have names like `[RJ01234567] Title v1.2`, DLSGM offers to rename them for you.
 
----
-
 ## FAQ
 
-**Windows shows “Windows protected your PC”.**
+<details>
+<summary><b>Windows shows “Windows protected your PC”.</b></summary>
+<br>
 DLSGM is not signed with a paid certificate, which triggers this warning. Click “More info”, then “Run anyway”.
+</details>
 
-**My Mac refuses to open the app.**
+<details>
+<summary><b>My Mac refuses to open the app.</b></summary>
+<br>
 Right-click DLSGM in Applications, choose “Open”, then confirm. On recent macOS versions, go to System Settings › Privacy & Security and click “Open Anyway”.
+</details>
 
-**A game has no details.**
+<details>
+<summary><b>A game has no details.</b></summary>
+<br>
 Some works are only visible on DLsite from Japan. Try again with a VPN set to Japan: the page will be filled in on the next scan.
+</details>
 
-**How do I update DLSGM?**
+<details>
+<summary><b>How do I get the Japanese reading help?</b></summary>
+<br>
+Download the dictionary once in Settings › In-game tools; it then works offline. Windows must also be able to read Japanese text: Windows Settings › Time & language › Language › Add a language › Japanese (optical character recognition is enough). DLSGM tells you if it's missing.
+</details>
+
+<details>
+<summary><b>How do I update DLSGM?</b></summary>
+<br>
 With the installer, DLSGM tells you when a new version is out and installs it if you agree. The check can be turned off or run by hand in Settings › Updates. The portable version tells you too, but you download the new version yourself.
+</details>
 
-**How do I change the language?**
+<details>
+<summary><b>How do I change the language?</b></summary>
+<br>
 Settings › Display › Interface language. Tags can be shown in English or in the original Japanese (Settings › Library › Tag language).
+</details>
 
-**Is my data sent anywhere?**
+<details>
+<summary><b>Is my data sent anywhere?</b></summary>
+<br>
 No. Your library, ratings and play time stay on your computer. DLSGM only contacts DLsite (for game details and pictures) and GitHub (for updates). If you choose an online translation service, only the text to translate is sent to it.
+</details>
 
-**I want to report a problem or suggest an idea.**
-Open a ticket in the [Issues](https://github.com/Matty-H/DLSGM/issues) tab.
+<details>
+<summary><b>I want to report a problem or suggest an idea.</b></summary>
+<br>
+Open a ticket in the <a href="https://github.com/Matty-H/DLSGM/issues">Issues</a> tab.
+</details>
 
 ---
 
@@ -147,6 +159,6 @@ DLSGM is free, under the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/
 
 DLSGM is not affiliated with or endorsed by DLsite.
 
-Want to translate DLSGM? See [translating guide](TRANSLATING.md). Are you a developer? See the [contributing guide](CONTRIBUTING.md).
+Want to translate DLSGM? See the [translating guide](TRANSLATING.md). Are you a developer? See the [contributing guide](CONTRIBUTING.md).
 
 </div>

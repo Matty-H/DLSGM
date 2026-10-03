@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="172" height="40" viewBox="0 0 172 40" role="img" aria-label="Windows 10 / 11">
+  <title>Windows 10 / 11</title>
+  <rect x="0.75" y="0.75" width="170.5" height="38.5" rx="19.25" fill="none" stroke="#3d444d" stroke-width="1.5"/>
+  <g transform="translate(16 11) scale(0.75)" fill="#f0f6fc"><path d="M0,0H11.377V11.372H0ZM12.623,0H24V11.372H12.623ZM0,12.623H11.377V24H0Zm12.623,0H24V24H12.623"/></g>
+  <text x="44" y="25.5" fill="#f0f6fc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" textLength="112" lengthAdjust="spacingAndGlyphs">Windows 10 / 11</text>
+</svg>

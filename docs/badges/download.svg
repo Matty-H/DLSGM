@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="56" viewBox="0 0 260 56" role="img" aria-label="Download DLSGM">
+  <title>Download DLSGM</title>
+  <rect width="260" height="56" rx="12" fill="#ff3ea5"/>
+  <g transform="translate(30 16)" fill="none" stroke="#1a1033" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 2v14M6 10.5l6 6 6-6M3 22h18"/>
+  </g>
+  <text x="68" y="35" fill="#1a1033" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" textLength="162" lengthAdjust="spacingAndGlyphs">Download DLSGM</text>
+</svg>
