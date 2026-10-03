@@ -40,4 +40,5 @@ export const COMMON: Messages = {
   "Rechercher…": { en: "Search…", ja: "検索…" },
   "Filtrer la liste": { en: "Filter the list", ja: "リストを絞り込み" },
   "Aucun résultat.": { en: "No result.", ja: "該当なし。" },
+  "Téléchargement de la mise à jour {version} : {percent} %": { en: "Downloading update {version}: {percent}%", ja: "アップデート {version} をダウンロード中：{percent}%" },
 };

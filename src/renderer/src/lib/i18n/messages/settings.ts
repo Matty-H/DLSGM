@@ -140,4 +140,5 @@ export const SETTINGS: Messages = {
   "{n} tag(s) anglais sans équivalent japonais connu (fiches récupérées autrefois en anglais) : {tags}. « Mettre à jour toutes les fiches » (Stockage) les repasse en japonais.": { en: "{n} English tag(s) with no known Japanese equivalent (entries fetched in English in the past): {tags}. “Update all entries” (Storage) switches them back to Japanese.", ja: "対応する日本語が不明な英語タグ {n} 件（以前に英語で取得した作品情報）：{tags}。「すべての作品情報を更新」（ストレージ）で日本語に戻せます。" },
   "Oublier {password}": { en: "Forget {password}", ja: "{password} を削除" },
   "Oublier": { en: "Forget", ja: "削除" },
+  "portable": { en: "portable", ja: "ポータブル版" },
 };
