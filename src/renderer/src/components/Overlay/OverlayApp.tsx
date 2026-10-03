@@ -9,6 +9,7 @@ import OverlayTextractor from './OverlayTextractor';
 import CaptureGallery from '../CaptureGallery/CaptureGallery';
 import type { OverlayState } from '../../../../shared/ipc-types';
 import { t, uiLocale } from '../../lib/i18n.js';
+import Logo from '../Logo/Logo';
 import Trans from '../Trans/Trans';
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -107,8 +108,7 @@ export default function OverlayApp() {
     <div className="flex h-screen w-screen items-center justify-end bg-black/55 p-3 font-body text-text sm:p-8">
       <div className="flex max-h-full w-[440px] max-w-full flex-col gap-4 overflow-y-auto">
         <div className="flex items-center gap-3">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-extrabold text-white">DL</span>
-          <span className="flex-1 text-[15px] font-extrabold tracking-wide">DLSGM</span>
+          <span className="flex-1"><Logo variant="horizontal" height={20} /></span>
           <span className="text-[12px] text-text-muted">
             <Trans text={t('{shift} + {tab} ou {esc} pour fermer')} values={{ shift: <span className="kbd">{t('Maj')}</span>, tab: <span className="kbd">Tab</span>, esc: <span className="kbd">{t('Échap')}</span> }} />
           </span>

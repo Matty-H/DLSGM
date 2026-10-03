@@ -120,7 +120,7 @@ export default function CollectionGamePicker({
                 >
                   <span
                     className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-sm border ${
-                      checked ? 'border-accent bg-accent text-white' : 'border-divider'
+                      checked ? 'border-accent bg-accent text-on-accent' : 'border-divider'
                     }`}
                   >
                     {byRules ? <Sparkles size={12} strokeWidth={2.5} /> : checked && <Check size={13} strokeWidth={3} />}

@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS: Settings = {
   closeToTray: false,
   checkUpdatesOnStartup: true,
   uiLanguage: 'system',
+  theme: 'neon',
   workspaceFolder: '',
   piaRetry: false,
   piaRegion: 'jp-tokyo',

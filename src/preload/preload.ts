@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { ArchiveImportProgress, AutoClickerStatus, DictionaryStatus, ElectronAPI, GameDiskUsage, MacroRecorderStatus, OcrView, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress, UpdateDownloadProgress } from '../shared/ipc-types';
+import type { ActiveTheme } from '../shared/themes';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -259,6 +260,17 @@ const electronAPI: ElectronAPI = {
   },
   getAppUpdateInfo: () => ipcRenderer.invoke('get-app-update-info'),
   getSystemLanguages: () => ipcRenderer.invoke('get-system-languages'),
+  quitApp: () => ipcRenderer.send('quit-app'),
+  getActiveTheme: () => ipcRenderer.invoke('get-active-theme'),
+  rerollTheme: () => ipcRenderer.invoke('reroll-theme'),
+  setAppIcon: (pngDataUrl) => ipcRenderer.send('set-app-icon', pngDataUrl),
+  onThemeChanged: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, theme: ActiveTheme) => callback(theme);
+    ipcRenderer.on('theme-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('theme-changed', listener);
+    };
+  },
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   onUpdateDownloadProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: UpdateDownloadProgress | null) => callback(progress);

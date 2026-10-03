@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron';
+import { app, BrowserWindow, Menu, Tray, nativeImage, type NativeImage } from 'electron';
 import zlib from 'zlib';
 import { tm } from './i18n';
 
@@ -12,12 +12,14 @@ import { tm } from './i18n';
 let tray: Tray | null = null;
 let enabled = false;
 let quitting = false;
+// Icône aux couleurs du thème (src/main/theme.ts), dès que la fenêtre principale l'a dessinée.
+let themeIcon: NativeImage | null = null;
 
 app.on('before-quit', () => {
   quitting = true;
 });
 
-/** PNG RGBA minimal (pas de fichier d'icône dans le dépôt) : disque bleu accent, cercle blanc au centre. */
+/** PNG RGBA minimal, en attendant l'icône du thème : disque bleu accent, cercle blanc au centre. */
 function drawIcon(size: number): Buffer {
   const rows: Buffer[] = [];
   const center = (size - 1) / 2;
@@ -53,6 +55,22 @@ function drawIcon(size: number): Buffer {
   ]);
 }
 
+/** Icône de la zone de notification : 16 px, et 32 px pour les écrans à 200 %. */
+function trayImage(source: NativeImage): NativeImage {
+  const image = nativeImage.createEmpty();
+  for (const scaleFactor of [1, 1.5, 2]) {
+    const size = Math.round(16 * scaleFactor);
+    image.addRepresentation({ scaleFactor, buffer: source.resize({ width: size, height: size, quality: 'best' }).toPNG() });
+  }
+  return image;
+}
+
+/** Nouvelle icône du thème : appliquée tout de suite si l'icône est affichée. */
+export function setTrayIcon(image: NativeImage): void {
+  themeIcon = trayImage(image);
+  tray?.setImage(themeIcon);
+}
+
 function showWindow(getWindow: () => BrowserWindow | null): void {
   const window = getWindow();
   if (!window) return;
@@ -77,7 +95,7 @@ export function setTrayEnabled(value: boolean, getWindow: () => BrowserWindow | 
     return;
   }
   if (!tray) {
-    tray = new Tray(nativeImage.createFromBuffer(drawIcon(32)));
+    tray = new Tray(themeIcon ?? nativeImage.createFromBuffer(drawIcon(32)));
     tray.setToolTip('DLSGM');
     tray.on('click', () => showWindow(getWindow));
   }

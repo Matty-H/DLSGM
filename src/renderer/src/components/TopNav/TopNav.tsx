@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LayoutGrid, BarChart3, Maximize, Minimize, Settings, ArrowLeftRight, House, Heart } from 'lucide-react';
 import { msg, t, tr, uiLocale } from '../../lib/i18n.js';
+import Logo from '../Logo/Logo';
 
 export type AppTab = 'home' | 'library' | 'wishlist' | 'stats' | 'share' | 'settings';
 
@@ -46,11 +47,9 @@ export default function TopNav({ activeTab, onTabChange, isFullscreen, onToggleF
     // leur place (libellés des autres onglets en infobulle) ; la liste défile
     // horizontalement en dernier recours au lieu de déborder de la fenêtre.
     <header className="flex flex-shrink-0 items-center gap-2 px-4 pb-2 pt-4 sm:px-6">
-      <div className="mr-2 flex flex-shrink-0 items-center gap-2 text-[17px] font-extrabold tracking-wide lg:mr-6">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-extrabold text-white">
-          DL
-        </span>
-        <span className="hidden md:inline">DLSGM</span>
+      <div className="mr-2 flex flex-shrink-0 items-center lg:mr-6">
+        <Logo variant="square" height={28} className="md:hidden" />
+        <Logo variant="horizontal" height={24} className="hidden md:block" />
       </div>
       <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
         {TABS.map(({ id, label, Icon }) => {

@@ -1,13 +1,13 @@
 <div align="center">
 
-# DLSGM
+<img src="docs/logo/dlsgm-horizontal-neon.svg" alt="DLSGM" width="420">
 
 **Your DLsite library, finally organized.**
 
 All your DLsite games in one place, with their covers, details and play time.
 Launch them in one click, with a mouse, a keyboard or a controller.
 
-[![Download](https://img.shields.io/github/v/release/Matty-H/DLSGM?label=Download&style=for-the-badge&color=1a9fff)](https://github.com/Matty-H/DLSGM/releases/latest)
+[![Download](https://img.shields.io/github/v/release/Matty-H/DLSGM?label=Download&style=for-the-badge&color=ff3ea5)](https://github.com/Matty-H/DLSGM/releases/latest)
 
 ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=flat-square)
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-555555?style=flat-square)
@@ -34,6 +34,12 @@ Launch them in one click, with a mouse, a keyboard or a controller.
   </tr>
   <tr>
     <td colspan="2" align="center"><sub>In-game tools, set up in a few clicks</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/themes.png" alt="Theme settings: color palettes, Random and Super random turbo 2000 remix"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><sub>Pick your colors, or let DLSGM pick new ones at every startup</sub></td>
   </tr>
 </table>
 
@@ -70,6 +76,9 @@ Drop a downloaded archive (`.zip`, `.rar`, `.7z`): DLSGM extracts it to the righ
 
 ### Discreet when needed
 **Alt+Space** hides DLSGM instantly. Adult covers can be blurred in the library.
+
+### Your colors
+Fourteen color themes for the interface, the logo and the icon, Neon Tokyo by default. Or let chance decide: **Random** picks one at every startup, and **Super random turbo 2000 remix** makes up brand-new colors every time.
 
 ### In your language
 The interface is available in English, French and Japanese, and follows your system language by default. Want DLSGM in your language? [Translating it](TRANSLATING.md) only takes one file, no programming needed.
@@ -138,6 +147,6 @@ DLSGM is free, under the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/
 
 DLSGM is not affiliated with or endorsed by DLsite.
 
-Want to translate DLSGM? See [TRANSLATING.md](TRANSLATING.md). Are you a developer? See the [contributing guide](CONTRIBUTING.md).
+Want to translate DLSGM? See [translating guide](TRANSLATING.md). Are you a developer? See the [contributing guide](CONTRIBUTING.md).
 
 </div>

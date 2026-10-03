@@ -8,6 +8,7 @@ import TriggerZonesApp from './components/ClickerHud/TriggerZonesApp';
 import MacroHudApp from './components/ClickerHud/MacroHudApp';
 import OcrViewApp from './components/OcrView/OcrViewApp';
 import { getUiLanguage, resolveUiLanguage, setUiLanguage } from './lib/i18n.js';
+import { initActiveTheme } from './hooks/activeTheme';
 import './index.css';
 
 const container = document.getElementById('root');
@@ -35,7 +36,9 @@ async function initLanguage(): Promise<void> {
   document.documentElement.lang = getUiLanguage();
 }
 
-initLanguage().finally(() => {
+// Thème de couleur (le même dans toutes les fenêtres, tiré par main) ; seule
+// la fenêtre principale dessine l'icône de l'application à ses couleurs.
+Promise.allSettled([initLanguage(), initActiveTheme(Root === App)]).finally(() => {
   createRoot(container).render(
     <StrictMode>
       <Root />

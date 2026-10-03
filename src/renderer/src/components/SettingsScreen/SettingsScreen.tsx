@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Camera, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
+import { Power, Camera, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
@@ -26,6 +26,8 @@ import type { MacroRecorderSettings } from '../../lib/macros.js';
 import type { PixelTriggerSettings as TriggerSettings } from '../../lib/pixelTrigger.js';
 import type { AutoClickerSettings as ClickerSettings } from '../../lib/autoClicker.js';
 import Select from '../Select/Select';
+import ThemePicker from '../ThemePicker/ThemePicker';
+import { normalizeThemeSetting } from '../../../../shared/themes';
 import { msg, t, tr, uiLanguages } from '../../lib/i18n.js';
 
 
@@ -238,6 +240,7 @@ export default function SettingsScreen({
   const [refreshRate, setRefreshRate] = useState(settings.refreshRate);
   const [language, setLanguage] = useState(settings.language);
   const [uiLanguage, setUiLanguageSetting] = useState(settings.uiLanguage ?? 'system');
+  const [theme, setTheme] = useState(normalizeThemeSetting(settings.theme));
   const [blurAdultContent, setBlurAdultContent] = useState(settings.blurAdultContent);
   const [sandboxLaunch, setSandboxLaunch] = useState(settings.sandboxLaunch);
   const [startFullscreen, setStartFullscreen] = useState(settings.startFullscreen);
@@ -285,6 +288,7 @@ export default function SettingsScreen({
     setRefreshRate(settings.refreshRate);
     setLanguage(settings.language);
     setUiLanguageSetting(settings.uiLanguage ?? 'system');
+    setTheme(normalizeThemeSetting(settings.theme));
     setBlurAdultContent(settings.blurAdultContent);
     setSandboxLaunch(settings.sandboxLaunch);
     setStartFullscreen(settings.startFullscreen);
@@ -369,6 +373,7 @@ export default function SettingsScreen({
     refreshRate !== settings.refreshRate ||
     language !== settings.language ||
     uiLanguage !== (settings.uiLanguage ?? 'system') ||
+    theme !== normalizeThemeSetting(settings.theme) ||
     blurAdultContent !== settings.blurAdultContent ||
     sandboxLaunch !== settings.sandboxLaunch ||
     startFullscreen !== settings.startFullscreen ||
@@ -409,6 +414,7 @@ export default function SettingsScreen({
       refreshRate,
       language,
       uiLanguage,
+      theme,
       blurAdultContent,
       sandboxLaunch,
       startFullscreen,
@@ -470,6 +476,17 @@ export default function SettingsScreen({
           {isDirty && <span className="text-[12px] text-text-muted">{t('Modifications non enregistrées')}</span>}
           <button type="button" onClick={handleSave} disabled={!isDirty || !proxyValid || !collectionsValid} className="btn btn-primary btn-block py-3">
             {t('Enregistrer')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (isDirty && !window.confirm(t('Quitter sans enregistrer les modifications ?'))) return;
+              window.electronAPI.quitApp();
+            }}
+            className="btn btn-ghost btn-block"
+          >
+            <Power size={16} strokeWidth={2.25} />
+            {t('Quitter DLSGM')}
           </button>
           {appInfo && (
             <span className="text-center text-[11px] tabular-nums text-text-muted">
@@ -644,6 +661,13 @@ export default function SettingsScreen({
                 className="w-[200px]"
               />
             </SettingRow>
+            <div className="border-b border-divider pt-4">
+              <div className="text-[15px] font-semibold">{t('Thème')}</div>
+              <div className="mb-3 mt-1 text-[13px] leading-relaxed text-text-muted">
+                {t("Couleurs de l'interface, du logo et de l'icône. « Aléatoire » tire un thème à chaque démarrage, « Super random turbo 2000 remix » invente les couleurs à chaque démarrage.")}
+              </div>
+              <ThemePicker value={theme} savedValue={normalizeThemeSetting(settings.theme)} onChange={setTheme} />
+            </div>
             <SettingRow label={t('Flouter le contenu adulte (R18)')} description={t("Les jaquettes R18 restent floutées dans la grille jusqu'à un clic.")}>
               <input
                 type="checkbox"

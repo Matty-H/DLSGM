@@ -41,6 +41,8 @@ import { checkForUpdates, getAppUpdateInfo } from './updater';
 import { setMainLanguage, systemLanguages, tm } from './i18n';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
 import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import { applyThemeIcon, applyThemeSetting, getActiveTheme, iconFromDataUrl, rerollTheme } from './theme';
+import { DEFAULT_THEME } from '../shared/themes';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 60000;
@@ -95,7 +97,8 @@ const settingsStore = new Store('settings.db', {
   localeEmulatorPath: '',
   screenshot: { enabled: true, hotkey: 'Ctrl+F8' },
   checkUpdatesOnStartup: true,
-  uiLanguage: 'system'
+  uiLanguage: 'system',
+  theme: DEFAULT_THEME
 });
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
@@ -1515,6 +1518,9 @@ export function setupIpcHandlers(
 
   // --- Mises à jour ---
   ipcMain.handle('get-app-update-info', () => getAppUpdateInfo());
+  // Bouton « Quitter DLSGM » des paramètres : quitte vraiment, même avec la
+  // réduction dans la zone de notification (tray.ts laisse passer app.quit).
+  ipcMain.on('quit-app', () => app.quit());
   ipcMain.handle('check-for-updates', () => checkForUpdates({ manual: true, getWindow }));
 
   // --- Gestion des Paramètres ---
@@ -1524,6 +1530,17 @@ export function setupIpcHandlers(
 
   ipcMain.handle('get-system-languages', () => systemLanguages());
 
+  // --- Thème de couleur (src/main/theme.ts) ---
+  ipcMain.handle('get-active-theme', () => getActiveTheme());
+  ipcMain.handle('reroll-theme', () => rerollTheme());
+  ipcMain.on('set-app-icon', (event, dataUrl: unknown) => {
+    // Seule la fenêtre principale dessine l'icône (l'overlay et les témoins ont le même thème).
+    const window = getWindow();
+    if (!window || event.sender !== window.webContents) return;
+    const image = iconFromDataUrl(dataUrl);
+    if (image) applyThemeIcon(window, image);
+  });
+
   ipcMain.handle('save-settings', async (event: IpcMainInvokeEvent, newSettings: AppSettings) => {
     // Mot de passe du proxy : chiffré à part, jamais en clair dans settings.db
     // (le renderer ne renvoie que le masque, ou un nouveau mot de passe).
@@ -1532,6 +1549,7 @@ export function setupIpcHandlers(
     await settingsStore.setAll({ ...newSettings, ...proxy } as unknown as Record<string, unknown>);
     // Langue de l'interface changée : chaque fenêtre la relit à son chargement.
     setMainLanguage(newSettings.uiLanguage);
+    applyThemeSetting(newSettings.theme);
     if (previous.uiLanguage !== newSettings.uiLanguage) {
       setTimeout(() => {
         for (const window of BrowserWindow.getAllWindows()) {

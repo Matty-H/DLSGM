@@ -32,6 +32,8 @@ export interface AppSettings {
   checkUpdatesOnStartup: boolean;
   /** `system` ou le code d'une langue (lib/i18n.ts). */
   uiLanguage: string;
+  /** Thème de couleur (src/shared/themes.ts) : id d'une palette, `random` ou `turbo`. */
+  theme?: string;
   selectedSort: string;
 
 
