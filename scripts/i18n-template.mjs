@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Modèle de traduction : `npm run i18n:template <code>` crée ou complète
 // locales/<code>.json (voir TRANSLATING.md). Toutes les clés utilisées par le
 // code, triées, avec une valeur vide pour celles qui manquent ; les
