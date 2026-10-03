@@ -1,9 +1,9 @@
-## Quel fichier télécharger ?
+## Which file should I download?
 
-| Système | Fichier | Mises à jour |
+| System | File | Updates |
 |---|---|---|
-| Windows | `DLSGM-<version>-Windows-Installeur.exe` | Proposées et installées depuis DLSGM |
-| Windows | `DLSGM-<version>-Windows-Portable.exe` | Signalées par un pop-up, à retélécharger ici |
-| macOS (Apple Silicon) | `DLSGM-<version>-macOS-arm64.dmg` | Proposées et installées depuis DLSGM |
+| Windows | `DLSGM-<version>-Windows-Installeur.exe` | Offered and installed from DLSGM |
+| Windows | `DLSGM-<version>-Windows-Portable.exe` | Announced by a pop-up, download again here |
+| macOS (Apple Silicon) | `DLSGM-<version>-macOS-arm64.dmg` | Offered and installed from DLSGM |
 
-Les autres fichiers (`.blockmap`, `latest*.yml`, `-maj-auto.zip`) servent aux mises à jour automatiques : inutile de les télécharger.
+The other files (`.blockmap`, `latest*.yml`, `-maj-auto.zip`) are used by automatic updates: no need to download them.
