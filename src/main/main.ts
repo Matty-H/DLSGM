@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
 import { setMainLanguage } from './i18n';
+import { finishPendingInstall } from './updater';
 import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic, captureFilePath, runStartupUpdateCheck } from './ipc-handlers';
 import { applyDlsiteProxy } from './dlsite-net';
 import { hideInsteadOfClose, setTrayEnabled } from './tray';
@@ -144,6 +145,9 @@ app.whenReady().then(async () => {
       await applyDlsiteProxy(settings.dlsiteProxy, settings.dlsiteProxySecret);
     })
     .catch(error => console.error('Application des paramètres au démarrage impossible:', error));
+  // Mise à jour encore en cours d'installation (DLSGM relancé juste après sa
+  // fermeture) : on attend la fin et on redémarre sur la nouvelle version.
+  if (app.isPackaged && (await finishPendingInstall().catch(() => false))) return;
   createWindow();
 
   // Vérification des mises à jour (build packagée uniquement — en dev, il

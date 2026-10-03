@@ -120,9 +120,9 @@ describe('processus principal', () => {
     expect(errors).toEqual([]);
     expect(catalog.languages).toEqual(uiLanguages());
     expect(setMainLanguage('ja')).toBe('ja');
-    // Même clé, traduction propre à chaque section.
-    expect(tm('Mettre à jour')).toBe('更新する');
-    expect(catalog.files.get('ja')!.ui['Mettre à jour']).toBe('更新');
+    // Le processus principal lit la section main, pas ui.
+    expect(tm('Mettre à jour maintenant')).toBe('今すぐアップデート');
+    expect(catalog.files.get('ja')!.ui['Mettre à jour maintenant']).toBeUndefined();
     setMainLanguage('fr');
   });
 
