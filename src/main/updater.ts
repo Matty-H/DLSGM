@@ -1,3 +1,6 @@
+import { execFile } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 import { app, dialog, net, shell, type BrowserWindow, type MessageBoxOptions } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
@@ -7,9 +10,11 @@ import { tm } from './i18n';
 /**
  * Mises à jour via GitHub Releases (config `publish` d'electron-builder).
  *
- * - Installeur NSIS (Windows) et zip (macOS) : electron-updater télécharge et
- *   installe, mais seulement si l'utilisateur accepte (pas de téléchargement
- *   automatique).
+ * - Installeur NSIS (Windows) et zip (macOS) : une nouvelle version est
+ *   téléchargée dès qu'elle est trouvée (barre de progression dans
+ *   l'interface), puis l'utilisateur choisit : installer maintenant (l'app se
+ *   ferme, s'installe en silence et se relance) ou au redémarrage
+ *   (installation silencieuse quand il ferme DLSGM).
  * - Version portable (et build de dev) : electron-updater ne sait pas
  *   remplacer un .exe portable ; on interroge l'API GitHub et on se contente
  *   d'un pop-up qui renvoie vers la page de téléchargement.
@@ -91,7 +96,108 @@ function reportProgress(getWindow: () => BrowserWindow | null, progress: UpdateD
   window.webContents.send('update-download-progress', progress);
 }
 
-async function downloadAndOfferRestart(getWindow: () => BrowserWindow | null, version: string): Promise<void> {
+// --- Installation à la fermeture : reprise si DLSGM est relancé pendant ---------
+//
+// L'installation silencieuse lancée à la fermeture dure plusieurs secondes,
+// sans rien afficher. Relancé entre-temps, DLSGM serait encore l'ancienne
+// version et reproposerait la mise à jour : on note la version en attente,
+// et un démarrage qui trouve l'installeur encore actif attend sa fin, puis
+// redémarre sur la nouvelle version.
+
+const PENDING_FILE = 'pending-update.json';
+const INSTALL_WAIT_MS = 5 * 60_000;
+
+function pendingFile(): string {
+  return path.join(app.getPath('userData'), PENDING_FILE);
+}
+
+function writePendingInstall(version: string): void {
+  try {
+    fs.writeFileSync(pendingFile(), JSON.stringify({ version }));
+  } catch (error) {
+    log.warn('Mise à jour en attente non notée :', error);
+  }
+}
+
+function readPendingInstall(): string | null {
+  try {
+    const { version } = JSON.parse(fs.readFileSync(pendingFile(), 'utf8')) as { version?: unknown };
+    return typeof version === 'string' ? version : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingInstall(): void {
+  fs.rmSync(pendingFile(), { force: true });
+}
+
+/** Installeur de mise à jour en cours d'exécution (lancé depuis le cache d'electron-updater). */
+function updateInstallerRunning(): Promise<boolean> {
+  if (process.platform !== 'win32') return Promise.resolve(false);
+  const script = "@(Get-Process | Where-Object { $_.Path -like '*\\dlsgm-updater\\pending\\*' }).Count";
+  return new Promise(resolve => {
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 15_000 }, (error, stdout) =>
+      resolve(!error && Number(String(stdout).trim()) > 0)
+    );
+  });
+}
+
+export interface PendingInstallDeps {
+  installerRunning?: () => Promise<boolean>;
+  sleep?: (ms: number) => Promise<void>;
+  /** Fin de l'attente : relance sur la nouvelle version (app.relaunch + exit par défaut). */
+  restart?: () => void;
+}
+
+/**
+ * Au démarrage, avant d'ouvrir la fenêtre : si une mise à jour s'installe
+ * encore (fermeture juste avant), affiche « Installation de la mise à jour… »,
+ * attend la fin de l'installeur puis relance DLSGM. Renvoie true dans ce cas
+ * (le démarrage normal ne doit pas continuer).
+ */
+export async function finishPendingInstall(deps: PendingInstallDeps = {}): Promise<boolean> {
+  const version = readPendingInstall();
+  if (!version) return false;
+  if (compareVersions(version, app.getVersion()) <= 0) {
+    clearPendingInstall(); // déjà installée
+    return false;
+  }
+  const installerRunning = deps.installerRunning ?? updateInstallerRunning;
+  if (!(await installerRunning())) {
+    // Rien en cours (installation pas lancée ou échouée) : la vérification habituelle la reproposera.
+    clearPendingInstall();
+    return false;
+  }
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
+  const notice = new AbortController();
+  void dialog
+    .showMessageBox({
+      type: 'info',
+      title: 'DLSGM',
+      message: tm('Installation de la mise à jour {version}…', { version }),
+      detail: tm('DLSGM redémarrera tout seul une fois la mise à jour installée.'),
+      buttons: ['OK'],
+      noLink: true,
+      signal: notice.signal
+    })
+    .catch(() => undefined);
+  const deadline = Date.now() + INSTALL_WAIT_MS;
+  while (Date.now() < deadline && (await installerRunning())) await sleep(1000);
+  notice.abort();
+  clearPendingInstall();
+  (deps.restart ?? (() => {
+    app.relaunch();
+    app.exit(0);
+  }))();
+  return true;
+}
+
+/**
+ * Télécharge la mise à jour (barre de progression dans l'interface), puis
+ * demande : maintenant, ou au redémarrage (à la fermeture de DLSGM).
+ */
+async function downloadAndOfferInstall(getWindow: () => BrowserWindow | null, version: string): Promise<void> {
   const onProgress = (progress: { percent: number }) => reportProgress(getWindow, { version, percent: progress.percent });
   autoUpdater.on('download-progress', onProgress);
   reportProgress(getWindow, { version, percent: 0 });
@@ -101,32 +207,32 @@ async function downloadAndOfferRestart(getWindow: () => BrowserWindow | null, ve
     autoUpdater.removeListener('download-progress', onProgress);
     reportProgress(getWindow, null);
   }
-  const restart = await showBox(getWindow, {
+  // Notée dans les deux cas : un DLSGM relancé pendant l'installation attendra sa fin.
+  writePendingInstall(version);
+  const choice = await showBox(getWindow, {
     type: 'info',
     title: tm('Mise à jour prête'),
     message: tm('La version {version} est téléchargée.', { version }),
-    detail: tm('Elle sera installée au redémarrage de DLSGM.'),
-    buttons: [tm('Redémarrer maintenant'), tm('Au prochain lancement')],
+    detail: tm("Maintenant : DLSGM se ferme, installe la mise à jour et redémarre. Au redémarrage : elle s'installe quand vous fermez DLSGM."),
+    buttons: [tm('Mettre à jour maintenant'), tm('Au redémarrage')],
     defaultId: 0,
     cancelId: 1,
     noLink: true
   });
   // Installation silencieuse (/S) puis relance : sans ces arguments,
   // electron-updater ouvre l'assistant de l'installeur NSIS, comme une
-  // première installation. « Au prochain lancement » installe aussi en
-  // silence, à la fermeture (autoInstallOnAppQuit).
-  if (restart === 0) autoUpdater.quitAndInstall(true, true);
+  // première installation. « Au redémarrage » installe aussi en silence, à
+  // la fermeture (autoInstallOnAppQuit).
+  if (choice === 0) autoUpdater.quitAndInstall(true, true);
 }
 
 export interface CheckOptions {
   /** Vérification demandée depuis les Paramètres : on signale aussi « à jour » et les erreurs. */
   manual: boolean;
   getWindow: () => BrowserWindow | null;
-  /** Bouton « Ne plus vérifier au démarrage » (vérification au démarrage uniquement). */
-  disableStartupCheck?: () => Promise<void>;
 }
 
-export async function checkForUpdates({ manual, getWindow, disableStartupCheck }: CheckOptions): Promise<UpdateCheckResult> {
+export async function checkForUpdates({ manual, getWindow }: CheckOptions): Promise<UpdateCheckResult> {
   if (checking) return { status: 'busy' };
   checking = true;
   const current = app.getVersion();
@@ -170,34 +276,20 @@ export async function checkForUpdates({ manual, getWindow, disableStartupCheck }
       return { status: 'available', version: latest };
     }
 
-    const buttons = [tm('Mettre à jour'), tm('Plus tard')];
-    if (!manual && disableStartupCheck) buttons.push(tm('Ne plus vérifier au démarrage'));
-    const choice = await showBox(getWindow, {
-      type: 'question',
-      title: tm('Mise à jour disponible'),
-      message: tm('La version {version} de DLSGM est disponible.', { version: latest }),
-      detail: tm("Version installée : {version}. Voulez-vous la télécharger et l'installer ?", { version: current })
-        + (buttons.length > 2 ? '\n\n' + tm('La vérification au démarrage peut être réactivée dans Paramètres › Mises à jour.') : ''),
-      buttons,
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true
-    });
-    if (choice === 0) {
-      // Erreur affichée même au démarrage : l'utilisateur vient de demander l'installation.
-      await downloadAndOfferRestart(getWindow, latest).catch(async (error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        log.error('Téléchargement de la mise à jour impossible :', message);
-        await showBox(getWindow, {
-          type: 'error',
-          title: tm('Mises à jour'),
-          message: tm('Le téléchargement de la mise à jour a échoué.'),
-          detail: message,
-          buttons: ['OK'],
-          noLink: true
-        });
+    await downloadAndOfferInstall(getWindow, latest).catch(async (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error('Téléchargement de la mise à jour impossible :', message);
+      // Au démarrage, un échec réseau reste dans le journal : rien n'a été demandé.
+      if (!manual) return;
+      await showBox(getWindow, {
+        type: 'error',
+        title: tm('Mises à jour'),
+        message: tm('Le téléchargement de la mise à jour a échoué.'),
+        detail: message,
+        buttons: ['OK'],
+        noLink: true
       });
-    } else if (choice === 2) await disableStartupCheck?.();
+    });
     return { status: 'available', version: latest };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

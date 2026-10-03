@@ -32,7 +32,7 @@ French is the original language of the app. **Each French text is used as the ke
   - **`locale`** sets how dates and numbers are written (for example `de-DE`, `es-ES` or `pt-BR`).
 - **`ui`** holds the texts of the app's windows.
 - **`main`** holds pop-up dialogs, the notification area menu and error messages.
-  - Some French texts appear in both sections. Translate them in both places. They can be translated differently: in Japanese, the "Mettre à jour" (Update) button reads 更新 in the settings and 更新する in the update pop-up.
+  - Some French texts appear in both sections. Translate them in both places. They can be translated differently if the context calls for it (for example a short button label in the settings and a longer one in a pop-up).
 - **An empty text (`""`) is shown in English.** A partial translation is fine: the app shows what is translated and uses English for the rest. You don't need to translate everything at once.
 
 As soon as the file is in the `locales/` folder, the language appears in the settings. With "System language" selected, the app also opens in that language on computers set up for it.

@@ -144,21 +144,10 @@ export function isInside(parent: string, child: string): boolean {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-/**
- * Vérification des mises à jour au démarrage, si l'option est active. Le
- * bouton « Ne plus vérifier au démarrage » du pop-up décoche l'option et
- * prévient la fenêtre principale (sinon sa copie des paramètres la recocherait).
- */
+/** Vérification des mises à jour au démarrage, si l'option est active (Paramètres › Mises à jour). */
 export async function runStartupUpdateCheck(getWindow: () => BrowserWindow | null): Promise<void> {
   if ((await getSettings()).checkUpdatesOnStartup === false) return;
-  await checkForUpdates({
-    manual: false,
-    getWindow,
-    disableStartupCheck: async () => {
-      await settingsStore.set('checkUpdatesOnStartup', false);
-      notifySettingsChanged?.();
-    }
-  });
+  await checkForUpdates({ manual: false, getWindow });
 }
 
 /** Paramètres persistés (lus par main.ts au démarrage, ex: plein écran). */
