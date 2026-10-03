@@ -26,6 +26,7 @@ import type { MacroRecorderSettings } from '../../lib/macros.js';
 import type { PixelTriggerSettings as TriggerSettings } from '../../lib/pixelTrigger.js';
 import type { AutoClickerSettings as ClickerSettings } from '../../lib/autoClicker.js';
 import Select from '../Select/Select';
+import { msg, t, tr } from '../../lib/i18n.js';
 
 
 export interface SettingsScreenProps {
@@ -47,7 +48,6 @@ export interface SettingsScreenProps {
   initialCollectionId?: string | null;
 }
 
-/** Mise à jour groupée des fiches depuis DLsite (Paramètres › Stockage). */
 /** Version installée et vérification manuelle ; les pop-ups (mise à jour disponible, à jour, erreur) viennent de main. */
 function UpdateCheck() {
   const [info, setInfo] = useState<AppUpdateInfo | null>(null);
@@ -72,10 +72,10 @@ function UpdateCheck() {
   };
 
   const mode = !info ? '' : info.portable
-    ? 'Version portable : une nouvelle version est signalée par un pop-up, à télécharger soi-même sur GitHub.'
+    ? t('Version portable : une nouvelle version est signalée par un pop-up, à télécharger soi-même sur GitHub.')
     : info.selfUpdate
-      ? 'Version installée : une nouvelle version peut être téléchargée et installée depuis DLSGM.'
-      : 'Version de développement : une nouvelle version est seulement signalée.';
+      ? t('Version installée : une nouvelle version peut être téléchargée et installée depuis DLSGM.')
+      : t('Version de développement : une nouvelle version est seulement signalée.');
 
   return (
     <SettingRow
@@ -83,12 +83,13 @@ function UpdateCheck() {
       description={<>{mode}{error && <span className="mt-1 block text-danger">{error}</span>}</>}
     >
       <button type="button" onClick={check} disabled={checking} className="btn">
-        {checking ? 'Vérification…' : 'Rechercher une mise à jour'}
+        {checking ? t('Vérification…') : t('Rechercher une mise à jour')}
       </button>
     </SettingRow>
   );
 }
 
+/** Mise à jour groupée des fiches depuis DLsite (Paramètres › Stockage). */
 function BulkMetadataUpdate({ onDone }: { onDone: () => void }) {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<BulkUpdateResult | null>(null);
@@ -97,8 +98,8 @@ function BulkMetadataUpdate({ onDone }: { onDone: () => void }) {
 
   const start = async () => {
     const confirmed = window.confirm(
-      'Récupérer à nouveau les métadonnées de toutes les fiches depuis DLsite, en japonais avec leurs traductions anglaises ?\n\n' +
-        'Titres, cercles et tags passeront tous en japonais (langue de référence). Images, notes, tags perso, temps de jeu et collections ne sont pas touchés, ni les fiches modifiées à la main. Une copie de la base est faite avant.'
+      t('Récupérer à nouveau les métadonnées de toutes les fiches depuis DLsite, en japonais avec leurs traductions anglaises ?') + '\n\n' +
+        t('Titres, cercles et tags passeront tous en japonais (langue de référence). Images, notes, tags perso, temps de jeu et collections ne sont pas touchés, ni les fiches modifiées à la main. Une copie de la base est faite avant.')
     );
     if (!confirmed) return;
     cancelRef.current = false;
@@ -117,13 +118,10 @@ function BulkMetadataUpdate({ onDone }: { onDone: () => void }) {
 
   return (
     <SettingRow
-      label="Mettre à jour toutes les fiches"
+      label={t('Mettre à jour toutes les fiches')}
       description={
         <>
-          Récupère à nouveau chaque fiche depuis DLsite en japonais (langue de référence), avec les traductions anglaises :
-          une bibliothèque récupérée en plusieurs langues redevient homogène (ex: « cat 3 » et « 猫3 », même cercle), le
-          dictionnaire des tags se complète, et les anciennes fiches gagnent l'identifiant de cercle. Une fiche dont la récupération échoue (œuvre
-          retirée, restriction régionale) reste telle quelle. Copie de la base dans userData/db_backups avant de commencer.
+          {t("Récupère à nouveau chaque fiche depuis DLsite en japonais (langue de référence), avec les traductions anglaises : une bibliothèque récupérée en plusieurs langues redevient homogène (ex: « cat 3 » et « 猫3 », même cercle), le dictionnaire des tags se complète, et les anciennes fiches gagnent l'identifiant de cercle. Une fiche dont la récupération échoue (œuvre retirée, restriction régionale) reste telle quelle. Copie de la base dans userData/db_backups avant de commencer.")}
           {progress && (
             <span className="mt-2 block text-text-secondary">
               {progress.done} / {progress.total}…
@@ -131,12 +129,12 @@ function BulkMetadataUpdate({ onDone }: { onDone: () => void }) {
           )}
           {result && (
             <span className="mt-2 block text-text-secondary">
-              {result.cancelled ? 'Interrompu. ' : ''}
-              {result.updated.length} mise{result.updated.length > 1 ? 's' : ''} à jour
-              {result.skipped.length > 0 && ` · ${result.skipped.length} ignorée${result.skipped.length > 1 ? 's' : ''} (modifiées à la main ou en échec)`}
+              {result.cancelled ? t('Interrompu.') + ' ' : ''}
+              {result.updated.length > 1 ? t('{n} mises à jour', { n: result.updated.length }) : t('{n} mise à jour', { n: result.updated.length })}
+              {result.skipped.length > 0 && ' · ' + (result.skipped.length > 1 ? t('{n} ignorées (modifiées à la main ou en échec)', { n: result.skipped.length }) : t('{n} ignorée (modifiée à la main ou en échec)', { n: result.skipped.length }))}
               {result.failed.length > 0 && (
                 <span className="block text-danger">
-                  Échec, fiche conservée : {result.failed.map(f => f.gameId).join(', ')}
+                  {t('Échec, fiche conservée : {ids}', { ids: result.failed.map(f => f.gameId).join(', ') })}
                 </span>
               )}
             </span>
@@ -147,11 +145,11 @@ function BulkMetadataUpdate({ onDone }: { onDone: () => void }) {
     >
       {progress ? (
         <button type="button" onClick={() => (cancelRef.current = true)} className="btn">
-          Interrompre
+          {t('Interrompre')}
         </button>
       ) : (
         <button type="button" onClick={start} className="btn">
-          Mettre à jour
+          {t('Mettre à jour')}
         </button>
       )}
     </SettingRow>
@@ -159,10 +157,10 @@ function BulkMetadataUpdate({ onDone }: { onDone: () => void }) {
 }
 
 const REFRESH_PRESETS = [
-  { value: 0, label: 'Jamais (manuel)' },
-  { value: 30, label: 'Toutes les 30 min' },
-  { value: 60, label: 'Toutes les heures' },
-  { value: 1440, label: 'Une fois par jour' }
+  { value: 0, label: msg('Jamais (manuel)') },
+  { value: 30, label: msg('Toutes les 30 min') },
+  { value: 60, label: msg('Toutes les heures') },
+  { value: 1440, label: msg('Une fois par jour') }
 ];
 
 /** Ramène une valeur libre de rafraîchissement (minutes) au préréglage le plus proche. */
@@ -175,15 +173,15 @@ function nearestPreset(minutes: number): number {
 export type SettingsSection = 'library' | 'network' | 'display' | 'launch' | 'clicker' | 'collections' | 'genres' | 'storage' | 'updates';
 
 const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
-  { id: 'library', label: 'Bibliothèque', Icon: Library },
-  { id: 'network', label: 'Réseau & VPN', Icon: Globe },
-  { id: 'display', label: 'Affichage', Icon: Eye },
-  { id: 'launch', label: 'Lancement', Icon: Gamepad2 },
-  { id: 'clicker', label: 'Outils en jeu', Icon: MousePointerClick },
-  { id: 'collections', label: 'Collections', Icon: Layers },
-  { id: 'genres', label: 'Traduction des tags', Icon: Languages },
-  { id: 'storage', label: 'Stockage', Icon: HardDrive },
-  { id: 'updates', label: 'Mises à jour', Icon: RefreshCw }
+  { id: 'library', label: msg('Bibliothèque'), Icon: Library },
+  { id: 'network', label: msg('Réseau & VPN'), Icon: Globe },
+  { id: 'display', label: msg('Affichage'), Icon: Eye },
+  { id: 'launch', label: msg('Lancement'), Icon: Gamepad2 },
+  { id: 'clicker', label: msg('Outils en jeu'), Icon: MousePointerClick },
+  { id: 'collections', label: msg('Collections'), Icon: Layers },
+  { id: 'genres', label: msg('Traduction des tags'), Icon: Languages },
+  { id: 'storage', label: msg('Stockage'), Icon: HardDrive },
+  { id: 'updates', label: msg('Mises à jour'), Icon: RefreshCw }
 ];
 
 /** Ligne de réglage SteamOS : libellé et description à gauche, contrôle à droite. */
@@ -239,12 +237,14 @@ export default function SettingsScreen({
   const [destinationFolder, setDestinationFolder] = useState(settings.destinationFolder);
   const [refreshRate, setRefreshRate] = useState(settings.refreshRate);
   const [language, setLanguage] = useState(settings.language);
+  const [uiLanguage, setUiLanguageSetting] = useState(settings.uiLanguage ?? 'system');
   const [blurAdultContent, setBlurAdultContent] = useState(settings.blurAdultContent);
   const [sandboxLaunch, setSandboxLaunch] = useState(settings.sandboxLaunch);
   const [startFullscreen, setStartFullscreen] = useState(settings.startFullscreen);
   const storedProxyForm = useMemo(() => parseProxyForm(settings.dlsiteProxy ?? ''), [settings.dlsiteProxy]);
   const [proxyForm, setProxyForm] = useState<ProxyFormValue>(storedProxyForm ?? EMPTY_PROXY_FORM);
   const [proxyTest, setProxyTest] = useState<string | null>(null);
+  const [proxyTestFailed, setProxyTestFailed] = useState(false);
   const [collections, setCollections] = useState<GameCollection[]>(settings.collections ?? []);
   const [homeShelves, setHomeShelves] = useState<Record<string, HomeShelfPrefs>>(settings.homeShelves ?? {});
   const [showWipNetwork, setShowWipNetwork] = useState(false);
@@ -279,6 +279,7 @@ export default function SettingsScreen({
     setDestinationFolder(settings.destinationFolder);
     setRefreshRate(settings.refreshRate);
     setLanguage(settings.language);
+    setUiLanguageSetting(settings.uiLanguage ?? 'system');
     setBlurAdultContent(settings.blurAdultContent);
     setSandboxLaunch(settings.sandboxLaunch);
     setStartFullscreen(settings.startFullscreen);
@@ -331,7 +332,7 @@ export default function SettingsScreen({
     };
   }, [textractorPath]);
 
-  // Racine effective quand le champ est vide (Documents/DLSGM/Travaux), pour l'afficher.
+  // Racine effective quand le champ est vide (Documents/DLSGM/Work), pour l'afficher.
   useEffect(() => {
     if (settings.workspaceFolder) return;
     window.electronAPI.getWorkspaceRoot().then(setDefaultWorkspaceRoot).catch(() => undefined);
@@ -362,6 +363,7 @@ export default function SettingsScreen({
     destinationFolder !== settings.destinationFolder ||
     refreshRate !== settings.refreshRate ||
     language !== settings.language ||
+    uiLanguage !== (settings.uiLanguage ?? 'system') ||
     blurAdultContent !== settings.blurAdultContent ||
     sandboxLaunch !== settings.sandboxLaunch ||
     startFullscreen !== settings.startFullscreen ||
@@ -401,6 +403,7 @@ export default function SettingsScreen({
       destinationFolder,
       refreshRate,
       language,
+      uiLanguage,
       blurAdultContent,
       sandboxLaunch,
       startFullscreen,
@@ -428,7 +431,7 @@ export default function SettingsScreen({
 
   const handleResetImages = async () => {
     const confirmed = window.confirm(
-      'Supprimer et retélécharger toutes les jaquettes et images depuis DLsite ? Cette action est irréversible et peut prendre du temps.'
+      t('Supprimer et retélécharger toutes les jaquettes et images depuis DLsite ? Cette action est irréversible et peut prendre du temps.')
     );
     if (!confirmed) return;
     setIsResettingImages(true);
@@ -443,7 +446,7 @@ export default function SettingsScreen({
   return (
     <div className="animate-steam-in flex min-h-0 flex-1 gap-6 overflow-hidden px-6 pb-6 pt-4">
       <nav className="flex w-[240px] flex-shrink-0 flex-col gap-1">
-        <h1 className="mb-4 px-3">Paramètres</h1>
+        <h1 className="mb-4 px-3">{t('Paramètres')}</h1>
         {SECTIONS.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -454,14 +457,14 @@ export default function SettingsScreen({
             }`}
           >
             <Icon size={18} strokeWidth={2.25} />
-            {label}
+            {tr(label)}
           </button>
         ))}
 
         <div className="mt-auto flex flex-col gap-2 px-1">
-          {isDirty && <span className="text-[12px] text-text-muted">Modifications non enregistrées</span>}
+          {isDirty && <span className="text-[12px] text-text-muted">{t('Modifications non enregistrées')}</span>}
           <button type="button" onClick={handleSave} disabled={!isDirty || !proxyValid || !collectionsValid} className="btn btn-primary btn-block py-3">
-            Enregistrer
+            {t('Enregistrer')}
           </button>
         </div>
       </nav>
@@ -469,27 +472,25 @@ export default function SettingsScreen({
       <div data-scroll-root className="panel max-h-full min-h-0 flex-1 self-start overflow-y-auto px-6 py-2">
         {section === 'library' && (
           <>
-            <SettingRow label="Dossier de bibliothèque" description={destinationFolder || 'Aucun dossier sélectionné'}>
+            <SettingRow label={t('Dossier de bibliothèque')} description={destinationFolder || t('Aucun dossier sélectionné')}>
               <button type="button" onClick={handleBrowse} className="btn">
                 <FolderOpen size={16} strokeWidth={2.25} />
-                Parcourir
+                {t('Parcourir')}
               </button>
             </SettingRow>
 
             <SettingRow
-              label="Dossier des travaux"
+              label={t('Dossier des travaux')}
               description={
                 <>
-                  Un sous-dossier par jeu (<span className="font-mono">&lt;ID&gt;</span>) pour ranger ce que tu fais sur un jeu
-                  (data mining, extractions, notes), ouvert depuis sa page. Hors du dossier du jeu : jamais envoyé en
-                  partage réseau, jamais touché par les patchs ni supprimé.
-                  <span className="mt-1 block text-text-secondary">{workspaceFolder || `${defaultWorkspaceRoot} (par défaut)`}</span>
+                  {t('Un sous-dossier par jeu (<ID>) pour ranger ce que tu fais sur un jeu (data mining, extractions, notes), ouvert depuis sa page. Hors du dossier du jeu : jamais envoyé en partage réseau, jamais touché par les patchs ni supprimé.')}
+                  <span className="mt-1 block text-text-secondary">{workspaceFolder || t('{path} (par défaut)', { path: defaultWorkspaceRoot })}</span>
                 </>
               }
             >
               {workspaceFolder && (
-                <button type="button" onClick={() => setWorkspaceFolder('')} className="btn btn-ghost" title="Revenir au dossier par défaut">
-                  Par défaut
+                <button type="button" onClick={() => setWorkspaceFolder('')} className="btn btn-ghost" title={t('Revenir au dossier par défaut')}>
+                  {t('Par défaut')}
                 </button>
               )}
               <button
@@ -501,40 +502,40 @@ export default function SettingsScreen({
                 className="btn"
               >
                 <FolderOpen size={16} strokeWidth={2.25} />
-                Parcourir
+                {t('Parcourir')}
               </button>
             </SettingRow>
 
             <SettingRow
-              label="Mots de passe d'archives"
-              description="Essayés automatiquement à chaque import (en plus de ceux trouvés dans les fichiers texte de l'archive et du nom du site en tête de son nom). Ajoutés depuis le bilan d'un import ; supprimés ici immédiatement."
+              label={t("Mots de passe d'archives")}
+              description={t("Essayés automatiquement à chaque import (en plus de ceux trouvés dans les fichiers texte de l'archive et du nom du site en tête de son nom). Ajoutés depuis le bilan d'un import ; supprimés ici immédiatement.")}
             >
               <ArchivePasswords />
             </SettingRow>
 
-            <SettingRow label="Rafraîchissement du cache"
- description="Relit périodiquement le cache pour afficher les données mises à jour en arrière-plan.">
+            <SettingRow label={t('Rafraîchissement du cache')}
+ description={t('Relit périodiquement le cache pour afficher les données mises à jour en arrière-plan.')}>
               <Select
                 value={nearestPreset(refreshRate)}
-                options={REFRESH_PRESETS}
+                options={REFRESH_PRESETS.map(p => ({ ...p, label: tr(p.label) }))}
                 onChange={setRefreshRate}
-                aria-label="Fréquence de rafraîchissement du cache"
+                aria-label={t('Fréquence de rafraîchissement du cache')}
                 className="w-[200px]"
               />
             </SettingRow>
 
             <SettingRow
-              label="Langue des tags"
-              description="Les fiches sont toujours récupérées en japonais (langue de référence), avec la traduction anglaise de DLsite. Choisis la langue dans laquelle afficher les tags ; titres et cercles restent en japonais (la recherche trouve aussi leur nom anglais)."
+              label={t('Langue des tags')}
+              description={t('Les fiches sont toujours récupérées en japonais (langue de référence), avec la traduction anglaise de DLsite. Choisis la langue dans laquelle afficher les tags ; titres et cercles restent en japonais (la recherche trouve aussi leur nom anglais).')}
             >
               <div className="seg">
                 <label className="seg-opt">
                   <input type="radio" name="language" checked={language === 'en_US'} onChange={() => setLanguage('en_US')} />
-                  English (traduction)
+                  {t('English (traduction)')}
                 </label>
                 <label className="seg-opt">
                   <input type="radio" name="language" checked={language === 'ja_JP'} onChange={() => setLanguage('ja_JP')} />
-                  日本語 (original)
+                  {t('日本語 (original)')}
                 </label>
               </div>
             </SettingRow>
@@ -544,10 +545,8 @@ export default function SettingsScreen({
         {section === 'network' && (
           <>
             <div className="mt-4 rounded-md bg-bg-deep px-4 py-3 text-[13px] leading-relaxed text-text-secondary">
-              <span className="font-semibold text-text">Section en cours de développement.</span> Une prochaine version se
-              branchera de façon plus fiable à un VPN (SOCKS5, OpenVPN ou WireGuard). En attendant, pour les œuvres réservées
-              au Japon : allume ton VPN sur le Japon (ex: PIA, région jp-tokyo) avant de lancer un scan ou « Mettre à jour
-              toutes les fiches », en laissant le proxy vide.
+              <span className="font-semibold text-text">{t('Section en cours de développement.')}</span>{' '}
+              {t('Une prochaine version se branchera de façon plus fiable à un VPN (SOCKS5, OpenVPN ou WireGuard). En attendant, pour les œuvres réservées au Japon : allume ton VPN sur le Japon (ex: PIA, région jp-tokyo) avant de lancer un scan ou « Mettre à jour toutes les fiches », en laissant le proxy vide.')}
             </div>
             <IpChecker />
             <button
@@ -557,26 +556,24 @@ export default function SettingsScreen({
               className="btn btn-ghost my-2 self-start"
             >
               {showWipNetwork ? <ChevronDown size={16} strokeWidth={2.25} /> : <ChevronRight size={16} strokeWidth={2.25} />}
-              Proxy et PIA <WipBadge />
+              {t('Proxy et PIA')} <WipBadge />
             </button>
             {showWipNetwork && (
               <>
                 <SettingRow
                   label={
                     <>
-                      Proxy pour DLsite <WipBadge />
+                      {t('Proxy pour DLsite')} <WipBadge />
                     </>
                   }
                   description={
                     <>
-                      Utilisé pour les fiches et les images DLsite, en permanence (ex: un proxy japonais pour les œuvres
-                      restreintes par région). Aucun : proxy de Windows. Le mot de passe est chiffré (Windows) et ne
-                      s'affiche plus ensuite. Un proxy de navigateur (extension) n'a pas d'effet ici, il faut son adresse.
+                      {t("Utilisé pour les fiches et les images DLsite, en permanence (ex: un proxy japonais pour les œuvres restreintes par région). Aucun : proxy de Windows. Le mot de passe est chiffré (Windows) et ne s'affiche plus ensuite. Un proxy de navigateur (extension) n'a pas d'effet ici, il faut son adresse.")}
                       {storedProxyForm === null && (
-                        <span className="mt-1 block text-danger">Adresse enregistrée illisible : {settings.dlsiteProxy}</span>
+                        <span className="mt-1 block text-danger">{t('Adresse enregistrée illisible : {address}', { address: settings.dlsiteProxy })}</span>
                       )}
                       {proxyTest && proxyTest !== 'running' && (
-                        <span className={`mt-1 block ${proxyTest.startsWith('Échec') ? 'text-danger' : 'text-text-secondary'}`}>{proxyTest}</span>
+                        <span className={`mt-1 block ${proxyTestFailed ? 'text-danger' : 'text-text-secondary'}`}>{proxyTest}</span>
                       )}
                       {proxyError && <span className="mt-1 block text-danger">{proxyError}</span>}
                       <span className="mt-3 block">
@@ -589,18 +586,20 @@ export default function SettingsScreen({
                     type="button"
                     className="btn"
                     disabled={proxyTest === 'running' || proxyDirty}
-                    title={proxyDirty ? "Enregistre d'abord le proxy" : 'Tester l’accès à DLsite avec ce proxy'}
+                    title={proxyDirty ? t("Enregistre d'abord le proxy") : t('Tester l’accès à DLsite avec ce proxy')}
                     onClick={async () => {
                       setProxyTest('running');
+                      setProxyTestFailed(false);
                       try {
                         const { status, ms } = await window.electronAPI.testDlsiteConnection();
-                        setProxyTest(status < 400 ? `DLsite répond (HTTP ${status}, ${ms} ms).` : `DLsite répond, mais avec une erreur HTTP ${status}.`);
+                        setProxyTest(status < 400 ? t('DLsite répond (HTTP {status}, {ms} ms).', { status, ms }) : t('DLsite répond, mais avec une erreur HTTP {status}.', { status }));
                       } catch (error) {
-                        setProxyTest(`Échec : ${ipcErrorMessage(error)}`);
+                        setProxyTestFailed(true);
+                        setProxyTest(t('Échec : {error}', { error: ipcErrorMessage(error) }));
                       }
                     }}
                   >
-                    {proxyTest === 'running' ? 'Test…' : 'Tester'}
+                    {proxyTest === 'running' ? t('Test…') : t('Tester')}
                   </button>
                 </SettingRow>
 
@@ -619,35 +618,52 @@ export default function SettingsScreen({
 
         {section === 'display' && (
           <>
-            <SettingRow label="Flouter le contenu adulte (R18)" description="Les jaquettes R18 restent floutées dans la grille jusqu'à un clic.">
+            <SettingRow
+              label={t("Langue de l'interface")}
+              description={t('Par défaut, celle du système (français, anglais ou japonais ; anglais pour toute autre langue). Changer de langue recharge la fenêtre.')}
+            >
+              <Select
+                value={uiLanguage}
+                options={[
+                  { value: 'system' as const, label: t('Langue du système') },
+                  { value: 'fr' as const, label: 'Français' },
+                  { value: 'en' as const, label: 'English' },
+                  { value: 'ja' as const, label: '日本語' }
+                ]}
+                onChange={setUiLanguageSetting}
+                aria-label={t("Langue de l'interface")}
+                className="w-[200px]"
+              />
+            </SettingRow>
+            <SettingRow label={t('Flouter le contenu adulte (R18)')} description={t("Les jaquettes R18 restent floutées dans la grille jusqu'à un clic.")}>
               <input
                 type="checkbox"
                 className="toggle"
-                aria-label="Flouter le contenu adulte"
+                aria-label={t('Flouter le contenu adulte')}
                 checked={blurAdultContent}
                 onChange={e => setBlurAdultContent(e.target.checked)}
               />
             </SettingRow>
             <SettingRow
-              label="Démarrer en plein écran"
-              description="F11, le bouton en haut à droite ou le bouton View de la manette basculent le plein écran à tout moment."
+              label={t('Démarrer en plein écran')}
+              description={t('F11, le bouton en haut à droite ou le bouton View de la manette basculent le plein écran à tout moment.')}
             >
               <input
                 type="checkbox"
                 className="toggle"
-                aria-label="Démarrer en plein écran"
+                aria-label={t('Démarrer en plein écran')}
                 checked={startFullscreen}
                 onChange={e => setStartFullscreen(e.target.checked)}
               />
             </SettingRow>
             <SettingRow
-              label="Réduire dans la zone de notification"
-              description="Fermer la fenêtre la cache au lieu de quitter : le suivi du temps de jeu, la copie des sauvegardes et la réception réseau local continuent. Clic sur l'icône pour rouvrir, « Quitter » dans son menu pour quitter."
+              label={t('Réduire dans la zone de notification')}
+              description={t("Fermer la fenêtre la cache au lieu de quitter : le suivi du temps de jeu, la copie des sauvegardes et la réception réseau local continuent. Clic sur l'icône pour rouvrir, « Quitter » dans son menu pour quitter.")}
             >
               <input
                 type="checkbox"
                 className="toggle"
-                aria-label="Réduire dans la zone de notification"
+                aria-label={t('Réduire dans la zone de notification')}
                 checked={closeToTray}
                 onChange={e => setCloseToTray(e.target.checked)}
               />
@@ -658,39 +674,36 @@ export default function SettingsScreen({
         {section === 'launch' && (
           <>
           <SettingRow
-            label="Copier les sauvegardes à la fermeture d'un jeu"
-            description="Copie les dossiers de sauvegarde détectés (page du jeu › Outils) dans les données de DLSGM à chaque fin de partie, si quelque chose a changé. Les 10 dernières copies automatiques sont gardées par jeu ; restauration depuis la page du jeu."
+            label={t("Copier les sauvegardes à la fermeture d'un jeu")}
+            description={t('Copie les dossiers de sauvegarde détectés (page du jeu › Outils) dans les données de DLSGM à chaque fin de partie, si quelque chose a changé. Les 10 dernières copies automatiques sont gardées par jeu ; restauration depuis la page du jeu.')}
           >
             <input
               type="checkbox"
               className="toggle"
-              aria-label="Copier les sauvegardes à la fermeture d'un jeu"
+              aria-label={t("Copier les sauvegardes à la fermeture d'un jeu")}
               checked={autoBackupSaves}
               onChange={e => setAutoBackupSaves(e.target.checked)}
             />
           </SettingRow>
           <SettingRow
-            label="Lancer les jeux dans Sandboxie-Plus"
+            label={t('Lancer les jeux dans Sandboxie-Plus')}
             description={
               <>
-                Chaque jeu tourne dans sa propre sandbox : ce qu'il écrit hors de son dossier (AppData, registre) y est
-                isolé au lieu de polluer Windows. Son dossier reste en accès direct (sauvegardes locales, patchs). Ce
-                n'est pas une machine virtuelle : ça limite les dégâts d'un exécutable douteux sans les rendre impossibles.
+                {t("Chaque jeu tourne dans sa propre sandbox : ce qu'il écrit hors de son dossier (AppData, registre) y est isolé au lieu de polluer Windows. Son dossier reste en accès direct (sauvegardes locales, patchs). Ce n'est pas une machine virtuelle : ça limite les dégâts d'un exécutable douteux sans les rendre impossibles.")}
                 {sandboxieStatus && (
                   <span className={`mt-2 block ${!sandboxieStatus.available && sandboxLaunch ? 'text-danger' : ''}`}>
                     {sandboxieStatus.available ? (
-                      `Sandboxie détecté : ${sandboxieStatus.installDir}`
+                      t('Sandboxie détecté : {path}', { path: sandboxieStatus.installDir ?? '' })
                     ) : (
                       <>
-                        Sandboxie-Plus n'est pas installé
-                        {sandboxLaunch && ' — les jeux ne pourront pas être lancés tant que ce sera le cas'}.{' '}
+                        {sandboxLaunch ? t("Sandboxie-Plus n'est pas installé — les jeux ne pourront pas être lancés tant que ce sera le cas.") : t("Sandboxie-Plus n'est pas installé.")}{' '}
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 font-semibold text-accent hover:underline"
                           onClick={() => window.electronAPI.openExternal('https://sandboxie-plus.com/downloads/')}
                         >
                           <Download size={13} strokeWidth={2.5} />
-                          Télécharger
+                          {t('Télécharger')}
                         </button>
                       </>
                     )}
@@ -702,28 +715,26 @@ export default function SettingsScreen({
             <input
               type="checkbox"
               className="toggle"
-              aria-label="Lancer les jeux dans Sandboxie-Plus"
+              aria-label={t('Lancer les jeux dans Sandboxie-Plus')}
               checked={sandboxLaunch}
               onChange={e => setSandboxLaunch(e.target.checked)}
             />
           </SettingRow>
           <SettingRow
-            label="Dossier de Locale Emulator"
+            label={t('Dossier de Locale Emulator')}
             description={
               <>
-                Pour « Lancer en japonais » (page du jeu) : les jeux qui supposent un Windows japonais (textes illisibles,
-                plantage au démarrage, fichiers mal nommés) tournent en locale japonaise sans changer celle du PC. Jeux
-                32 bits seulement. Lance une fois <span className="font-mono">LEInstaller.exe</span> après l'avoir décompressé.
+                {t("Pour « Lancer en japonais » (page du jeu) : les jeux qui supposent un Windows japonais (textes illisibles, plantage au démarrage, fichiers mal nommés) tournent en locale japonaise sans changer celle du PC. Jeux 32 bits seulement. Lance une fois LEInstaller.exe après l'avoir décompressé.")}
                 <span className={`mt-1 block ${localeEmulatorPath && leStatus && !leStatus.installed ? 'text-danger' : 'text-text-secondary'}`}>
                   {!localeEmulatorPath
-                    ? 'Aucun dossier choisi.'
+                    ? t('Aucun dossier choisi.')
                     : !leStatus
                       ? localeEmulatorPath
                       : !leStatus.found
-                        ? `${localeEmulatorPath} — LEProc.exe introuvable`
+                        ? t('{path} — LEProc.exe introuvable', { path: localeEmulatorPath })
                         : leStatus.installed
-                          ? `${localeEmulatorPath} — prêt`
-                          : `${localeEmulatorPath} — pas encore installé (lance LEInstaller.exe une fois)`}
+                          ? t('{path} — prêt', { path: localeEmulatorPath })
+                          : t('{path} — pas encore installé (lance LEInstaller.exe une fois)', { path: localeEmulatorPath })}
                 </span>
                 {!localeEmulatorPath && (
                   <button
@@ -732,7 +743,7 @@ export default function SettingsScreen({
                     onClick={() => window.electronAPI.openExternal('https://github.com/xupefei/Locale-Emulator/releases')}
                   >
                     <Download size={13} strokeWidth={2.5} />
-                    Télécharger Locale Emulator
+                    {t('Télécharger Locale Emulator')}
                   </button>
                 )}
               </>
@@ -747,23 +758,22 @@ export default function SettingsScreen({
               className="btn"
             >
               <FolderOpen size={16} strokeWidth={2.25} />
-              Parcourir
+              {t('Parcourir')}
             </button>
           </SettingRow>
           <SettingRow
-            label="Dossier de Textractor"
+            label={t('Dossier de Textractor')}
             description={
               <>
-                Pour « Lancer avec Textractor » (page du jeu) : le dossier de Textractor, avec ses sous-dossiers
-                <span className="font-mono"> x86</span> et <span className="font-mono">x64</span> (TextractorCLI.exe).
+                {t('Pour « Lancer avec Textractor » (page du jeu) : le dossier de Textractor, avec ses sous-dossiers x86 et x64 (TextractorCLI.exe).')}
                 <span className={`mt-1 block ${textractorPath && textractorFound && !textractorFound.x86 && !textractorFound.x64 ? 'text-danger' : 'text-text-secondary'}`}>
                   {!textractorPath
-                    ? 'Aucun dossier choisi.'
+                    ? t('Aucun dossier choisi.')
                     : !textractorFound
                       ? textractorPath
                       : textractorFound.x86 || textractorFound.x64
-                        ? `${textractorPath} — ${[textractorFound.x86 && '32 bits', textractorFound.x64 && '64 bits'].filter(Boolean).join(' et ')}`
-                        : `${textractorPath} — TextractorCLI.exe introuvable`}
+                        ? `${textractorPath} — ${textractorFound.x86 && textractorFound.x64 ? t('32 et 64 bits') : textractorFound.x86 ? t('32 bits') : t('64 bits')}`
+                        : t('{path} — TextractorCLI.exe introuvable', { path: textractorPath })}
                 </span>
                 {!textractorPath && (
                   <button
@@ -772,7 +782,7 @@ export default function SettingsScreen({
                     onClick={() => window.electronAPI.openExternal('https://github.com/Artikash/Textractor/releases')}
                   >
                     <Download size={13} strokeWidth={2.5} />
-                    Télécharger Textractor
+                    {t('Télécharger Textractor')}
                   </button>
                 )}
               </>
@@ -787,16 +797,16 @@ export default function SettingsScreen({
               className="btn"
             >
               <FolderOpen size={16} strokeWidth={2.25} />
-              Parcourir
+              {t('Parcourir')}
             </button>
           </SettingRow>
-          <SettingRow label="Texte extrait par Textractor" description="Le fil choisi dans l'overlay (Maj+Tab) part au presse-papiers (pour un dictionnaire ou un traducteur), dans un fichier du jour du dossier de travaux, ou les deux.">
+          <SettingRow label={t('Texte extrait par Textractor')} description={t("Le fil choisi dans l'overlay (Maj+Tab) part au presse-papiers (pour un dictionnaire ou un traducteur), dans un fichier du jour du dossier de travaux, ou les deux.")}>
             <div className="seg">
               {(
                 [
-                  ['clipboard', 'Presse-papiers'],
-                  ['file', 'Fichier'],
-                  ['both', 'Les deux']
+                  ['clipboard', t('Presse-papiers')],
+                  ['file', t('Fichier')],
+                  ['both', t('Les deux')]
                 ] as const
               ).map(([value, label]) => (
                 <label key={value} className="seg-opt">
@@ -807,38 +817,38 @@ export default function SettingsScreen({
             </div>
           </SettingRow>
           <SettingRow
-            label="Extracteur d'images RPG Maker"
-            description="Ajoute « Extraire images et sons » sur la page des jeux RPG Maker MV / MZ chiffrés (.rpgmvp, .png_, .ogg_…) : les fichiers sont déchiffrés dans le dossier de travaux du jeu, jamais dans le dossier du jeu."
+            label={t("Extracteur d'images RPG Maker")}
+            description={t('Ajoute « Extraire images et sons » sur la page des jeux RPG Maker MV / MZ chiffrés (.rpgmvp, .png_, .ogg_…) : les fichiers sont déchiffrés dans le dossier de travaux du jeu, jamais dans le dossier du jeu.')}
           >
-            <input type="checkbox" className="toggle" aria-label="Extracteur d'images RPG Maker" checked={rpgMakerExtractor} onChange={e => setRpgMakerExtractor(e.target.checked)} />
+            <input type="checkbox" className="toggle" aria-label={t("Extracteur d'images RPG Maker")} checked={rpgMakerExtractor} onChange={e => setRpgMakerExtractor(e.target.checked)} />
           </SettingRow>
           </>
         )}
 
         {section === 'clicker' && (
           <>
-            <ToolGroup Icon={PanelsTopLeft} title="Overlay en jeu" summary={<>Maj+Tab pendant une partie lancée depuis DLSGM — c'est là qu'on ajoute les outils ci-dessous à un jeu.</>}>
+            <ToolGroup Icon={PanelsTopLeft} title={t('Overlay en jeu')} summary={t("Maj+Tab pendant une partie lancée depuis DLSGM — c'est là qu'on ajoute les outils ci-dessous à un jeu.")}>
               <SettingRow
-                label="Activer l'overlay (Maj+Tab)"
-                description="Affiche par-dessus le jeu : temps de session, temps de jeu total, et une case par outil pour l'ajouter à ce jeu. Fenêtré ou plein écran sans bordure seulement (pas le plein écran exclusif). Maj+Tab n'est pris que pendant la partie."
+                label={t("Activer l'overlay (Maj+Tab)")}
+                description={t("Affiche par-dessus le jeu : temps de session, temps de jeu total, et une case par outil pour l'ajouter à ce jeu. Fenêtré ou plein écran sans bordure seulement (pas le plein écran exclusif). Maj+Tab n'est pris que pendant la partie.")}
               >
-                <input type="checkbox" className="toggle" aria-label="Overlay en jeu" checked={overlayEnabled} onChange={e => setOverlayEnabled(e.target.checked)} />
+                <input type="checkbox" className="toggle" aria-label={t('Overlay en jeu')} checked={overlayEnabled} onChange={e => setOverlayEnabled(e.target.checked)} />
               </SettingRow>
             </ToolGroup>
 
-            <ToolGroup Icon={MousePointerClick} title="Auto-clicker" summary={<>Clics à intervalle régulier, au curseur ou sur un point fixe — raccourci {autoClicker.hotkey}.</>}>
+            <ToolGroup Icon={MousePointerClick} title={t('Auto-clicker')} summary={t('Clics à intervalle régulier, au curseur ou sur un point fixe — raccourci {hotkey}.', { hotkey: autoClicker.hotkey })}>
               <AutoClickerSettings value={autoClicker} onChange={setAutoClicker} isDirty={clickerDirty} />
             </ToolGroup>
 
-            <ToolGroup Icon={ScanEye} title="Détecteur de rythme" summary={<>Clique (ou appuie sur une touche) quand une note passe dans une zone — raccourci {pixelTrigger.hotkey}.</>}>
+            <ToolGroup Icon={ScanEye} title={t('Détecteur de rythme')} summary={t('Clique (ou appuie sur une touche) quand une note passe dans une zone — raccourci {hotkey}.', { hotkey: pixelTrigger.hotkey })}>
               <PixelTriggerSettings value={pixelTrigger} onChange={setPixelTrigger} clickerHotkey={autoClicker.hotkey} isDirty={triggerDirty} />
             </ToolGroup>
 
-            <ToolGroup Icon={Clapperboard} title="Enregistreur de macros" summary={<>Enregistre clics et touches dans le jeu, puis les rejoue — {macroRecorder.recordHotkey} enregistre, {macroRecorder.playHotkey} rejoue.</>}>
+            <ToolGroup Icon={Clapperboard} title={t('Enregistreur de macros')} summary={t('Enregistre clics et touches dans le jeu, puis les rejoue — {record} enregistre, {play} rejoue.', { record: macroRecorder.recordHotkey, play: macroRecorder.playHotkey })}>
               <MacroSettings value={macroRecorder} onChange={setMacroRecorder} takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey, ocrTranslate.hotkey, screenshot.hotkey]} isDirty={macroDirty} />
             </ToolGroup>
 
-            <ToolGroup Icon={Languages} title="Traduction à l'écran" summary={<>Lit le texte du jeu (OCR de Windows) et affiche sa traduction par-dessus — raccourci {ocrTranslate.hotkey}.</>}>
+            <ToolGroup Icon={Languages} title={t("Traduction à l'écran")} summary={t('Lit le texte du jeu (OCR de Windows) et affiche sa traduction par-dessus — raccourci {hotkey}.', { hotkey: ocrTranslate.hotkey })}>
               <OcrSettings
                 value={ocrTranslate}
                 onChange={setOcrTranslate}
@@ -847,19 +857,19 @@ export default function SettingsScreen({
               />
             </ToolGroup>
 
-            <ToolGroup Icon={Camera} title="Captures d'écran" summary={<>La fenêtre du jeu seule, dans le dossier de travaux du jeu (captures/) — raccourci {screenshot.hotkey}.</>}>
+            <ToolGroup Icon={Camera} title={t("Captures d'écran")} summary={t('La fenêtre du jeu seule, dans le dossier de travaux du jeu (captures/) — raccourci {hotkey}.', { hotkey: screenshot.hotkey })}>
               <SettingRow
-                label="Activer les captures"
-                description="Pendant une partie lancée depuis DLSGM, le raccourci capture la fenêtre du jeu (pas tout l'écran) dans <travaux>/<ID>/captures/ : jamais envoyées en partage réseau, gardées si le jeu est supprimé. Galerie sur la page du jeu et dans l'overlay. Les témoins et fenêtres de DLSGM n'apparaissent pas sur les captures."
+                label={t('Activer les captures')}
+                description={t("Pendant une partie lancée depuis DLSGM, le raccourci capture la fenêtre du jeu (pas tout l'écran) dans <travaux>/<ID>/captures/ : jamais envoyées en partage réseau, gardées si le jeu est supprimé. Galerie sur la page du jeu et dans l'overlay. Les témoins et fenêtres de DLSGM n'apparaissent pas sur les captures.")}
               >
-                <input type="checkbox" className="toggle" aria-label="Activer les captures" checked={screenshot.enabled} onChange={e => setScreenshot({ ...screenshot, enabled: e.target.checked })} />
+                <input type="checkbox" className="toggle" aria-label={t('Activer les captures')} checked={screenshot.enabled} onChange={e => setScreenshot({ ...screenshot, enabled: e.target.checked })} />
               </SettingRow>
-              <SettingRow label="Raccourci" description="Différent de ceux des autres outils.">
+              <SettingRow label={t('Raccourci')} description={t('Différent de ceux des autres outils.')}>
                 <Select
                   value={screenshot.hotkey}
                   options={HOTKEY_OPTIONS.filter(o => ![autoClicker.hotkey, pixelTrigger.hotkey, macroRecorder.recordHotkey, macroRecorder.playHotkey, ocrTranslate.hotkey].some(k => k.toLowerCase() === o.value.toLowerCase()))}
                   onChange={hotkey => setScreenshot({ ...screenshot, hotkey })}
-                  aria-label="Raccourci de capture"
+                  aria-label={t('Raccourci de capture')}
                   className="w-[150px]"
                 />
               </SettingRow>
@@ -889,11 +899,11 @@ export default function SettingsScreen({
           <>
           <BulkMetadataUpdate onDone={onMetadataUpdated} />
           <SettingRow
-            label="Cache images"
-            description="Supprime et retélécharge toutes les jaquettes et images depuis DLsite. Irréversible, et peut prendre du temps."
+            label={t('Cache images')}
+            description={t('Supprime et retélécharge toutes les jaquettes et images depuis DLsite. Irréversible, et peut prendre du temps.')}
           >
             <button type="button" onClick={handleResetImages} disabled={isResettingImages} className="btn">
-              {isResettingImages ? 'Réinitialisation en cours…' : 'Réinitialiser'}
+              {isResettingImages ? t('Réinitialisation en cours…') : t('Réinitialiser')}
             </button>
           </SettingRow>
           </>
@@ -903,13 +913,13 @@ export default function SettingsScreen({
           <>
           <UpdateCheck />
           <SettingRow
-            label="Rechercher une mise à jour au démarrage"
-            description="Quelques secondes après le lancement, DLSGM regarde sur GitHub si une nouvelle version existe et propose de l'installer (version installée) ou la signale (version portable). Rien n'est téléchargé sans votre accord."
+            label={t('Rechercher une mise à jour au démarrage')}
+            description={t("Quelques secondes après le lancement, DLSGM regarde sur GitHub si une nouvelle version existe et propose de l'installer (version installée) ou la signale (version portable). Rien n'est téléchargé sans votre accord.")}
           >
             <input
               type="checkbox"
               className="toggle"
-              aria-label="Rechercher une mise à jour au démarrage"
+              aria-label={t('Rechercher une mise à jour au démarrage')}
               checked={checkUpdatesOnStartup}
               onChange={e => setCheckUpdatesOnStartup(e.target.checked)}
             />

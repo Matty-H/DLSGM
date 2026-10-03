@@ -56,7 +56,7 @@ export interface AppSettings {
   closeToTray: boolean;
   /**
    * Racine des dossiers de travaux (data mining...) : `<racine>/<ID>/`.
-   * Vide = Documents/DLSGM/Travaux. Voir src/main/workspace.ts.
+   * Vide = Documents/DLSGM/Work. Voir src/main/workspace.ts.
    */
   workspaceFolder: string;
   /**
@@ -82,6 +82,8 @@ export interface AppSettings {
   screenshot: ScreenshotSettings;
   /** Chercher une nouvelle version au démarrage (Paramètres › Mises à jour). */
   checkUpdatesOnStartup: boolean;
+  /** Langue de l'interface ; `system` = celle du système si fr/en/ja, sinon anglais. */
+  uiLanguage: 'system' | 'fr' | 'en' | 'ja';
 }
 
 /** Version de l'application et mode d'installation (src/main/updater.ts). */
@@ -230,6 +232,8 @@ export interface OcrView {
   blocks: (OcrBlock & { translation: string | null; words?: DictToken[] })[];
   error: string | null;
   engine: OcrTranslateSettings['engine'];
+  /** Langue des sens demandée (dictionnaire : français si JMdict en a, sinon anglais). */
+  target?: string;
 }
 
 /** Résultat de l'extraction des ressources RPG Maker (voir src/main/rpgmaker-assets.ts). */
@@ -915,6 +919,8 @@ export interface ElectronAPI {
 
   // Gestion des paramètres
   getSettings(): Promise<AppSettings>;
+  /** Langues préférées du système (app.getPreferredSystemLanguages). */
+  getSystemLanguages(): Promise<string[]>;
   saveSettings(settings: AppSettings): Promise<boolean>;
   updateLanguage(lang: string): void;
 
@@ -1015,7 +1021,7 @@ export interface ElectronAPI {
   getGameWorkspace(gameId: string): Promise<GameWorkspaceInfo>;
   /** Crée le dossier s'il n'existe pas encore, puis l'ouvre dans l'explorateur. */
   openGameWorkspace(gameId: string): Promise<GameWorkspaceInfo>;
-  /** Racine effective (paramètre, ou Documents/DLSGM/Travaux si vide). */
+  /** Racine effective (paramètre, ou Documents/DLSGM/Work si vide). */
   getWorkspaceRoot(): Promise<string>;
 
   // Copies des sauvegardes (voir src/main/save-backups.ts)

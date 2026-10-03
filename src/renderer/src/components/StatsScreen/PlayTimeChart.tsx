@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { WeeklyPlayTime } from '../../lib/statsManager.js';
 import { formatSessionDuration } from '../../lib/timeFormatter.js';
+import { t, uiLocale } from '../../lib/i18n.js';
 
 const CHART_HEIGHT = 160;
 
-const shortDate = (date: Date) => date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+const shortDate = (date: Date) => date.toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' });
 
 /**
  * Histogramme du temps de jeu par semaine (une seule série : pas de
@@ -22,14 +23,14 @@ export default function PlayTimeChart({ weeks }: { weeks: WeeklyPlayTime[] }) {
     <div>
       <div className="relative flex gap-3">
         <div className="flex flex-col justify-between text-right text-[11px] tabular-nums text-text-muted" style={{ height: CHART_HEIGHT }}>
-          <span>{maxHours} h</span>
+          <span>{t('{h} h', { h: maxHours })}</span>
           <span>0</span>
         </div>
         <div className="relative flex-1 border-b border-divider" style={{ height: CHART_HEIGHT }}>
           <div className="absolute inset-x-0 top-0 border-t border-dashed border-divider" />
           <div className="absolute inset-0 flex items-end gap-[2px]">
             {weeks.map((week, i) => {
-              const label = `Semaine du ${shortDate(week.weekStart)} : ${week.seconds > 0 ? formatSessionDuration(week.seconds) : 'aucune session'}`;
+              const label = t('Semaine du {date} : {time}', { date: shortDate(week.weekStart), time: week.seconds > 0 ? formatSessionDuration(week.seconds) : t('aucune session') });
               return (
                 <div
                   key={week.weekStart.toISOString()}
@@ -47,8 +48,8 @@ export default function PlayTimeChart({ weeks }: { weeks: WeeklyPlayTime[] }) {
                   )}
                   {hovered === i && (
                     <div className="pointer-events-none absolute bottom-full z-10 mb-1 whitespace-nowrap rounded-sm bg-surface-3 px-2 py-1 text-[12px] shadow-lg">
-                      <div className="text-text-muted">Semaine du {shortDate(week.weekStart)}</div>
-                      <div className="font-semibold tabular-nums">{week.seconds > 0 ? formatSessionDuration(week.seconds) : 'Aucune session'}</div>
+                      <div className="text-text-muted">{t('Semaine du {date}', { date: shortDate(week.weekStart) })}</div>
+                      <div className="font-semibold tabular-nums">{week.seconds > 0 ? formatSessionDuration(week.seconds) : t('Aucune session')}</div>
                     </div>
                   )}
                 </div>
@@ -59,7 +60,7 @@ export default function PlayTimeChart({ weeks }: { weeks: WeeklyPlayTime[] }) {
       </div>
       <div className="ml-[calc(2ch+12px)] mt-1.5 flex justify-between text-[11px] text-text-muted">
         <span>{shortDate(weeks[0].weekStart)}</span>
-        <span>Cette semaine</span>
+        <span>{t('Cette semaine')}</span>
       </div>
     </div>
   );

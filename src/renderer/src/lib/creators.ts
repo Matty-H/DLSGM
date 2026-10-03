@@ -1,4 +1,5 @@
 import type { GameCacheEntry } from './cacheManager.js';
+import { msg } from './i18n.js';
 
 /**
  * Champs créateurs d'une fiche (cercle, auteur, série…) et correspondance
@@ -20,18 +21,19 @@ export type CreatorField =
   | 'voice_actor'
   | 'music';
 
+/** Clés de traduction : afficher avec tr(). */
 export const CREATOR_FIELD_LABELS: Record<CreatorField, string> = {
-  circle: 'Cercle',
-  brand: 'Marque',
-  publisher: 'Éditeur',
-  label: 'Label',
-  series: 'Série',
-  author: 'Auteur',
-  writer: 'Scénariste',
-  scenario: 'Scénario',
-  illustration: 'Illustration',
-  voice_actor: 'Voix',
-  music: 'Musique'
+  circle: msg('Cercle'),
+  brand: msg('Marque'),
+  publisher: msg('Éditeur'),
+  label: msg('Label'),
+  series: msg('Série'),
+  author: msg('Auteur'),
+  writer: msg('Scénariste'),
+  scenario: msg('Scénario'),
+  illustration: msg('Illustration'),
+  voice_actor: msg('Voix'),
+  music: msg('Musique')
 };
 
 /** Filtre "même cercle / auteur / série..." : correspondance exacte sur un champ. */

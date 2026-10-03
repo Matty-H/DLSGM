@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { Transform, type Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import type { GameMetadata, LanPeer, LanReceiverStatus, LanSendRequest, LanSendResult, LanTransferProgress } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Échange de jeux en réseau local, de PC à PC.
@@ -193,7 +194,7 @@ async function readJsonBody(req: http.IncomingMessage, limit: number): Promise<u
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > limit) throw new HttpError(413, 'Requête trop volumineuse.');
+    if (size > limit) throw new HttpError(413, tm('Requête trop volumineuse.'));
     chunks.push(chunk as Buffer);
   }
   try {
@@ -282,12 +283,12 @@ export class LanShare {
   }
 
   async startReceiver(port: number): Promise<LanReceiverStatus> {
-    if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Port invalide (1024 à 65535).');
-    if (port === DISCOVERY_PORT) throw new Error(`Le port ${DISCOVERY_PORT} est réservé à la découverte.`);
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error(tm('Port invalide (1024 à 65535).'));
+    if (port === DISCOVERY_PORT) throw new Error(tm('Le port {port} est réservé à la découverte.', { port: DISCOVERY_PORT }));
     if (this.server) await this.stopReceiver();
 
     const destinationFolder = await this.deps.getDestinationFolder();
-    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error('Dossier de jeux non configuré ou introuvable.');
+    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
     // Restes d'une réception interrompue (crash, arrêt brutal).
     await fs.promises.rm(path.join(destinationFolder, INCOMING_DIR), { recursive: true, force: true });
 
@@ -305,7 +306,7 @@ export class LanShare {
 
     await new Promise<void>((resolve, reject) => {
       server.once('error', (error: NodeJS.ErrnoException) => {
-        reject(new Error(error.code === 'EADDRINUSE' ? `Le port ${port} est déjà utilisé.` : error.message));
+        reject(new Error(error.code === 'EADDRINUSE' ? tm('Le port {port} est déjà utilisé.', { port }) : error.message));
       });
       server.listen(port, '0.0.0.0', () => resolve());
     });
@@ -331,7 +332,7 @@ export class LanShare {
     this.discovery?.close();
     this.discovery = null;
 
-    await Promise.all([...this.transfers.values()].map(t => this.cancelTransfer(t, 'Réception fermée.')));
+    await Promise.all([...this.transfers.values()].map(t => this.cancelTransfer(t, tm('Réception fermée.'))));
     if (server) {
       server.closeAllConnections();
       await new Promise<void>(resolve => server.close(() => resolve()));
@@ -362,7 +363,7 @@ export class LanShare {
 
     this.authFailures++;
     if (this.authFailures >= MAX_AUTH_FAILURES) {
-      const reason = 'Trop de codes erronés reçus : la réception a été fermée par sécurité.';
+      const reason = tm('Trop de codes erronés reçus : la réception a été fermée par sécurité.');
       // Différé : on répond d'abord à cette requête.
       setImmediate(() => {
         this.stopReceiver(reason)
@@ -370,7 +371,7 @@ export class LanShare {
           .catch(error => console.error('Arrêt de la réception LAN:', error));
       });
     }
-    throw new HttpError(401, 'Code incorrect.');
+    throw new HttpError(401, tm('Code incorrect.'));
   }
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -388,7 +389,7 @@ export class LanShare {
     }
     if (parts.length >= 3 && parts[0] === 'dlsgm' && parts[1] === 'transfer') {
       const transfer = this.transfers.get(parts[2]);
-      if (!transfer) throw new HttpError(404, 'Transfert inconnu ou expiré.');
+      if (!transfer) throw new HttpError(404, tm('Transfert inconnu ou expiré.'));
       transfer.lastActivity = Date.now();
 
       if (req.method === 'PUT' && parts[3] === 'file') {
@@ -401,27 +402,27 @@ export class LanShare {
         return;
       }
       if (req.method === 'DELETE' && parts.length === 3) {
-        await this.cancelTransfer(transfer, "Annulé par l'envoyeur.");
+        await this.cancelTransfer(transfer, tm("Annulé par l'envoyeur."));
         sendJson(res, 200, { ok: true });
         return;
       }
     }
-    throw new HttpError(404, 'Route inconnue.');
+    throw new HttpError(404, tm('Route inconnue.'));
   }
 
   private async handleOffer(req: http.IncomingMessage): Promise<{ transferId: string }> {
     const body = await readJsonBody(req, MAX_OFFER_BYTES) as Record<string, unknown>;
     const gameId = body?.gameId;
-    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new HttpError(400, 'ID de jeu invalide.');
+    if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new HttpError(400, tm('ID de jeu invalide.'));
     if (!Array.isArray(body.files) || body.files.length === 0 || body.files.length > MAX_FILES) {
-      throw new HttpError(400, 'Liste de fichiers invalide.');
+      throw new HttpError(400, tm('Liste de fichiers invalide.'));
     }
-    if (this.transfers.size >= MAX_ACTIVE_TRANSFERS) throw new HttpError(503, 'Trop de transferts en cours, réessaie plus tard.');
-    if ([...this.transfers.values()].some(t => t.gameId === gameId)) throw new HttpError(409, `${gameId} est déjà en cours de réception.`);
+    if (this.transfers.size >= MAX_ACTIVE_TRANSFERS) throw new HttpError(503, tm('Trop de transferts en cours, réessaie plus tard.'));
+    if ([...this.transfers.values()].some(t => t.gameId === gameId)) throw new HttpError(409, tm('{id} est déjà en cours de réception.', { id: gameId }));
 
     const destinationFolder = await this.deps.getDestinationFolder();
-    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new HttpError(503, 'Dossier de jeux du receveur introuvable.');
-    if (fs.existsSync(path.join(destinationFolder, gameId))) throw new HttpError(409, `${gameId} est déjà présent sur ce PC.`);
+    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new HttpError(503, tm('Dossier de jeux du receveur introuvable.'));
+    if (fs.existsSync(path.join(destinationFolder, gameId))) throw new HttpError(409, tm('{id} est déjà présent sur ce PC.', { id: gameId }));
 
     const files = new Map<string, IncomingFile>();
     const lowerCaseKeys = new Set<string>();
@@ -429,31 +430,31 @@ export class LanShare {
     for (const file of body.files as unknown[]) {
       const { path: key, size } = (file ?? {}) as { path?: unknown; size?: unknown };
       if (typeof key !== 'string' || typeof size !== 'number' || !Number.isSafeInteger(size) || size < 0) {
-        throw new HttpError(400, 'Entrée de fichier invalide.');
+        throw new HttpError(400, tm('Entrée de fichier invalide.'));
       }
       const [namespace, ...rest] = key.split('/');
       const valid =
         (namespace === 'game' && safeSegments(rest.join('/'))) ||
         (namespace === 'images' && rest.length === 1 && IMAGE_FILE_REGEX.test(rest[0]));
-      if (!valid) throw new HttpError(400, `Chemin refusé : ${key}`);
+      if (!valid) throw new HttpError(400, tm('Chemin refusé : {path}', { path: key }));
       // Windows ne distingue pas la casse : deux chemins "égaux" s'y écraseraient.
-      if (lowerCaseKeys.has(key.toLowerCase())) throw new HttpError(400, `Fichier en double : ${key}`);
+      if (lowerCaseKeys.has(key.toLowerCase())) throw new HttpError(400, tm('Fichier en double : {path}', { path: key }));
       lowerCaseKeys.add(key.toLowerCase());
       files.set(key, { size, received: false });
       totalBytes += size;
     }
-    if (![...files.keys()].some(k => k.startsWith('game/'))) throw new HttpError(400, 'Aucun fichier de jeu.');
+    if (![...files.keys()].some(k => k.startsWith('game/'))) throw new HttpError(400, tm('Aucun fichier de jeu.'));
 
     const dirs: string[][] = [];
     for (const dir of Array.isArray(body.dirs) ? body.dirs as unknown[] : []) {
       const segments = safeSegments(dir);
-      if (!segments) throw new HttpError(400, `Dossier refusé : ${String(dir)}`);
+      if (!segments) throw new HttpError(400, tm('Dossier refusé : {path}', { path: String(dir) }));
       dirs.push(segments);
     }
 
     const { bavail, bsize } = await fs.promises.statfs(destinationFolder);
     if (totalBytes > bavail * bsize) {
-      throw new HttpError(507, `Espace disque insuffisant sur le receveur (${(totalBytes / 1e9).toFixed(1)} Go nécessaires).`);
+      throw new HttpError(507, tm('Espace disque insuffisant sur le receveur ({gb} Go nécessaires).', { gb: (totalBytes / 1e9).toFixed(1) }));
     }
 
     const id = crypto.randomUUID();
@@ -502,11 +503,11 @@ export class LanShare {
 
   private async handleFile(t: IncomingTransfer, key: string | null, req: http.IncomingMessage): Promise<{ sha256: string }> {
     const entry = key ? t.files.get(key) : undefined;
-    if (!key || !entry) throw new HttpError(400, `Fichier non annoncé : ${key}`);
-    if (entry.received || t.writing.has(key) || t.completing) throw new HttpError(409, `Fichier déjà reçu : ${key}`);
+    if (!key || !entry) throw new HttpError(400, tm('Fichier non annoncé : {path}', { path: String(key) }));
+    if (entry.received || t.writing.has(key) || t.completing) throw new HttpError(409, tm('Fichier déjà reçu : {path}', { path: key }));
 
     const target = path.join(t.stagingDir, ...key.split('/'));
-    if (!isInside(t.stagingDir, target)) throw new HttpError(400, `Chemin refusé : ${key}`);
+    if (!isInside(t.stagingDir, target)) throw new HttpError(400, tm('Chemin refusé : {path}', { path: key }));
 
     t.writing.add(key);
     t.uploads.add(req);
@@ -518,7 +519,7 @@ export class LanShare {
         transform: (chunk: Buffer, _encoding, callback) => {
           bytes += chunk.length;
           if (bytes > entry.size) {
-            callback(new HttpError(400, `Fichier plus gros qu'annoncé : ${key}`));
+            callback(new HttpError(400, tm("Fichier plus gros qu'annoncé : {path}", { path: key })));
             return;
           }
           hash.update(chunk);
@@ -530,7 +531,7 @@ export class LanShare {
       });
       // 'wx' : jamais d'écriture à travers un fichier (ou lien) déjà présent.
       await pipeline(req, counter, fs.createWriteStream(target, { flags: 'wx' }));
-      if (bytes !== entry.size) throw new HttpError(400, `Fichier incomplet : ${key}`);
+      if (bytes !== entry.size) throw new HttpError(400, tm('Fichier incomplet : {path}', { path: key }));
       entry.received = true;
       t.doneFiles++;
       t.report.call();
@@ -539,7 +540,7 @@ export class LanShare {
       t.receivedBytes -= bytes;
       await fs.promises.rm(target, { force: true }).catch(() => undefined);
       // Upload coupé (annulation, envoyeur fermé) : pas une erreur serveur.
-      if ((error as NodeJS.ErrnoException).code === 'ERR_STREAM_PREMATURE_CLOSE') throw new HttpError(400, `Envoi interrompu : ${key}`);
+      if ((error as NodeJS.ErrnoException).code === 'ERR_STREAM_PREMATURE_CLOSE') throw new HttpError(400, tm('Envoi interrompu : {path}', { path: key }));
       throw error;
     } finally {
       t.writing.delete(key);
@@ -548,14 +549,14 @@ export class LanShare {
   }
 
   private async handleComplete(t: IncomingTransfer): Promise<void> {
-    if (t.completing) throw new HttpError(409, 'Finalisation déjà en cours.');
+    if (t.completing) throw new HttpError(409, tm('Finalisation déjà en cours.'));
     const missing = [...t.files.entries()].find(([, f]) => !f.received);
-    if (missing || t.writing.size > 0) throw new HttpError(409, `Fichier manquant : ${missing?.[0] ?? '(en cours)'}`);
+    if (missing || t.writing.size > 0) throw new HttpError(409, tm('Fichier manquant : {path}', { path: missing?.[0] ?? tm('(en cours)') }));
     t.completing = true;
 
     try {
       const finalDir = path.join(t.destinationFolder, t.gameId);
-      if (fs.existsSync(finalDir)) throw new HttpError(409, `${t.gameId} est apparu sur ce PC entre-temps.`);
+      if (fs.existsSync(finalDir)) throw new HttpError(409, tm('{id} est apparu sur ce PC entre-temps.', { id: t.gameId }));
 
       const stagedGame = path.join(t.stagingDir, 'game');
       for (const segments of t.dirs) await fs.promises.mkdir(path.join(stagedGame, ...segments), { recursive: true });
@@ -600,7 +601,7 @@ export class LanShare {
     const now = Date.now();
     for (const t of this.transfers.values()) {
       if (!t.completing && t.writing.size === 0 && now - t.lastActivity > TRANSFER_IDLE_TIMEOUT_MS) {
-        this.cancelTransfer(t, "Plus de nouvelles de l'envoyeur.").catch(() => undefined);
+        this.cancelTransfer(t, tm("Plus de nouvelles de l'envoyeur.")).catch(() => undefined);
       }
     }
   }
@@ -661,13 +662,13 @@ export class LanShare {
 
   async sendGames(request: LanSendRequest, getGameDir: (gameId: string) => Promise<string>): Promise<LanSendResult> {
     const { host, port, code, gameIds } = request ?? {};
-    if (typeof host !== 'string' || !/^[a-zA-Z0-9.\-]{1,253}$/.test(host)) throw new Error('Adresse invalide.');
-    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port invalide.');
-    if (typeof code !== 'string' || !/^\d{6}$/.test(code)) throw new Error('Le code doit comporter 6 chiffres.');
+    if (typeof host !== 'string' || !/^[a-zA-Z0-9.\-]{1,253}$/.test(host)) throw new Error(tm('Adresse invalide.'));
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(tm('Port invalide.'));
+    if (typeof code !== 'string' || !/^\d{6}$/.test(code)) throw new Error(tm('Le code doit comporter 6 chiffres.'));
     if (!Array.isArray(gameIds) || gameIds.length === 0 || gameIds.some(id => typeof id !== 'string' || !GAME_ID_REGEX.test(id))) {
-      throw new Error('Sélection de jeux invalide.');
+      throw new Error(tm('Sélection de jeux invalide.'));
     }
-    if (this.sendAbort) throw new Error('Un envoi est déjà en cours.');
+    if (this.sendAbort) throw new Error(tm('Un envoi est déjà en cours.'));
 
     const abort = new AbortController();
     this.sendAbort = abort;
@@ -678,7 +679,7 @@ export class LanShare {
     try {
       const hello = await client.json('GET', '/dlsgm/hello');
       if (hello.protocol !== PROTOCOL_VERSION) {
-        throw new Error("Version de DLSGM différente sur l'autre PC : mets les deux à jour.");
+        throw new Error(tm("Version de DLSGM différente sur l'autre PC : mets les deux à jour."));
       }
       const peer = typeof hello.name === 'string' ? hello.name : host;
 
@@ -716,7 +717,7 @@ export class LanShare {
     let transferId: string | null = null;
 
     try {
-      if (!fs.existsSync(gameDir)) throw new Error('Dossier du jeu introuvable.');
+      if (!fs.existsSync(gameDir)) throw new Error(tm('Dossier du jeu introuvable.'));
       const { files, dirs } = await collectGameFiles(gameDir);
       const imgDir = path.join(this.deps.getImgCacheDir(), gameId);
       if (fs.existsSync(imgDir)) {
@@ -738,7 +739,7 @@ export class LanShare {
         dirs,
         metadata: shareableMetadata(await this.deps.getCacheEntry(gameId))
       });
-      if (typeof offer.transferId !== 'string') throw new Error('Réponse inattendue du receveur.');
+      if (typeof offer.transferId !== 'string') throw new Error(tm('Réponse inattendue du receveur.'));
       transferId = offer.transferId;
 
       for (const file of files) {
@@ -763,8 +764,8 @@ export class LanShare {
             body,
             file.size
           );
-          if (sent !== file.size) throw new Error(`${file.key} a changé pendant l'envoi.`);
-          if (reply.sha256 !== hash.digest('hex')) throw new Error(`Somme de contrôle différente pour ${file.key}.`);
+          if (sent !== file.size) throw new Error(tm("{path} a changé pendant l'envoi.", { path: file.key }));
+          if (reply.sha256 !== hash.digest('hex')) throw new Error(tm('Somme de contrôle différente pour {path}.', { path: file.key }));
         } catch (error) {
           progress.transferredBytes -= sent;
           throw error;
@@ -865,7 +866,7 @@ async function collectGameFiles(gameDir: string): Promise<{ files: FileToSend[];
     }
   };
   await walk(gameDir, []);
-  if (files.length === 0) throw new Error('Le dossier du jeu est vide.');
+  if (files.length === 0) throw new Error(tm('Le dossier du jeu est vide.'));
   return { files, dirs };
 }
 
@@ -910,14 +911,14 @@ class LanClient {
             // corps non JSON : traité via le statut
           }
           if (res.statusCode === 200) resolve(data);
-          else reject(new Error(typeof data.error === 'string' ? data.error : `Erreur HTTP ${res.statusCode}`));
+          else reject(new Error(typeof data.error === 'string' ? data.error : tm('Erreur HTTP {status}', { status: String(res.statusCode) })));
         });
       });
-      req.on('timeout', () => req.destroy(new Error("L'autre PC ne répond plus.")));
+      req.on('timeout', () => req.destroy(new Error(tm("L'autre PC ne répond plus."))));
       req.on('error', (error: NodeJS.ErrnoException) => {
-        if (this.signal.aborted) reject(new Error('Envoi annulé.'));
-        else if (error.code === 'ECONNREFUSED') reject(new Error(`Connexion refusée par ${this.host}:${this.port} (réception fermée ?).`));
-        else if (error.code === 'EHOSTUNREACH' || error.code === 'ETIMEDOUT') reject(new Error(`${this.host} injoignable.`));
+        if (this.signal.aborted) reject(new Error(tm('Envoi annulé.')));
+        else if (error.code === 'ECONNREFUSED') reject(new Error(tm('Connexion refusée par {host}:{port} (réception fermée ?).', { host: this.host, port: this.port })));
+        else if (error.code === 'EHOSTUNREACH' || error.code === 'ETIMEDOUT') reject(new Error(tm('{host} injoignable.', { host: this.host })));
         else reject(error);
       });
       if (isStream) {

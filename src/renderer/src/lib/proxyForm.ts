@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 /**
  * Formulaire du proxy DLsite (type, hôte, port, identifiant, mot de passe)
  * ⇄ adresse enregistrée dans `dlsiteProxy`
@@ -58,13 +60,13 @@ export function parseProxyForm(value: string): ProxyForm | null {
 export function proxyFormError(form: ProxyForm): string | null {
   if (form.type === '') return null;
   const host = form.host.trim();
-  if (!host) return "Indique l'hôte du proxy.";
-  if (!/^[A-Za-z0-9.-]+$/.test(host) && !/^[0-9A-Fa-f:.]+$/.test(host)) return 'Hôte invalide (nom, IPv4 ou IPv6).';
+  if (!host) return t("Indique l'hôte du proxy.");
+  if (!/^[A-Za-z0-9.-]+$/.test(host) && !/^[0-9A-Fa-f:.]+$/.test(host)) return t('Hôte invalide (nom, IPv4 ou IPv6).');
   const port = Number(form.port);
-  if (!/^\d{1,5}$/.test(form.port.trim()) || port < 1 || port > 65535) return 'Port invalide (1 à 65535).';
+  if (!/^\d{1,5}$/.test(form.port.trim()) || port < 1 || port > 65535) return t('Port invalide (1 à 65535).');
   const hasCredentials = form.username !== '' || form.password !== '';
-  if (hasCredentials && form.type === 'socks4') return "SOCKS4 n'accepte pas d'identifiants : choisis SOCKS5.";
-  if (form.password !== '' && form.username === '') return 'Un mot de passe demande un identifiant.';
+  if (hasCredentials && form.type === 'socks4') return t("SOCKS4 n'accepte pas d'identifiants : choisis SOCKS5.");
+  if (form.password !== '' && form.username === '') return t('Un mot de passe demande un identifiant.');
   return null;
 }
 

@@ -1,6 +1,7 @@
 import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { tm } from './i18n';
 
 /**
  * Intégration Sandboxie-Plus (Windows) : chaque jeu est lancé dans sa propre
@@ -91,8 +92,7 @@ async function set(sbieIni: string, section: string, setting: string, value: str
   const result = await run(sbieIni, ['set', section, setting, value]);
   if (result.code !== 0) {
     throw new Error(
-      `Sandboxie a refusé la modification de sa configuration (${section} ${setting}, code ${result.code}). ` +
-      "Vérifie dans Sandboxie-Plus que la configuration n'est pas réservée aux administrateurs ou protégée par mot de passe."
+      tm("Sandboxie a refusé la modification de sa configuration ({setting}, code {code}). Vérifie dans Sandboxie-Plus que la configuration n'est pas réservée aux administrateurs ou protégée par mot de passe.", { setting: `${section} ${setting}`, code: String(result.code) })
     );
   }
 }
@@ -117,7 +117,7 @@ export async function ensureGameBox(sandboxieDir: string, gameId: string, gamePa
     await set(sbieIni, box, 'DropAdminRights', 'y');
 
     if (!(await boxExists(sbieIni, box))) {
-      throw new Error(`Impossible de créer la sandbox ${box} dans Sandboxie.`);
+      throw new Error(tm('Impossible de créer la sandbox {box} dans Sandboxie.', { box }));
     }
   }
 
@@ -180,5 +180,5 @@ export function sandboxedCommand(sandboxieDir: string, box: string, executablePa
  */
 export async function deleteGameBox(sandboxieDir: string, gameId: string): Promise<void> {
   const result = await run(path.join(sandboxieDir, 'Start.exe'), [`/box:${boxNameFor(gameId)}`, 'delete_sandbox_silent']);
-  if (result.code !== 0) throw new Error(`Sandboxie n'a pas pu vider la sandbox (code ${result.code}).`);
+  if (result.code !== 0) throw new Error(tm("Sandboxie n'a pas pu vider la sandbox (code {code}).", { code: String(result.code) }));
 }

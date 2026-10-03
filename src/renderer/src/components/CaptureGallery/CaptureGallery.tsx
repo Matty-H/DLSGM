@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, FolderOpen, Trash2, X } from 'lucide-react';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import { captureSrc, formatCaptureDate } from '../../lib/captures.js';
 import type { CaptureInfo } from '../../../../shared/ipc-types';
+import { t } from '../../lib/i18n.js';
 
 export interface CaptureGalleryProps {
   gameId: string;
@@ -50,7 +51,7 @@ export default function CaptureGallery({ gameId, limit, inOverlay = false }: Cap
   return (
     <div className="flex flex-col gap-2">
       {captures.length === 0 ? (
-        <p className="m-0 text-[12px] text-text-muted">Aucune capture pour ce jeu.</p>
+        <p className="m-0 text-[12px] text-text-muted">{t('Aucune capture pour ce jeu.')}</p>
       ) : (
         <div className={`grid gap-2 ${inOverlay ? 'grid-cols-3' : 'grid-cols-4'}`}>
           {shown.map((capture, i) => (
@@ -67,34 +68,34 @@ export default function CaptureGallery({ gameId, limit, inOverlay = false }: Cap
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-muted">
-        {captures.length > shown.length && <span>{captures.length - shown.length} de plus</span>}
+        {captures.length > shown.length && <span>{t('{n} de plus', { n: captures.length - shown.length })}</span>}
         {!inOverlay && (
           <button type="button" className="btn btn-ghost py-1 text-[12px]" onClick={() => window.electronAPI.openCapturesFolder(gameId)}>
             <FolderOpen size={13} strokeWidth={2.25} />
-            Ouvrir le dossier
+            {t('Ouvrir le dossier')}
           </button>
         )}
       </div>
       {error && <p className="m-0 text-[12px] text-danger">{error}</p>}
 
       {current && open !== null && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/85 p-6" role="dialog" aria-label="Capture">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/85 p-6" role="dialog" aria-label={t('Capture')}>
           <img src={captureSrc(gameId, current.file)} alt="" className="max-h-[80vh] max-w-full rounded-sm object-contain shadow-2xl" />
           <div className="flex items-center gap-2 text-[13px] text-white">
-            <button type="button" className="btn btn-icon" disabled={open === 0} onClick={() => setOpen(open - 1)} aria-label="Plus récente">
+            <button type="button" className="btn btn-icon" disabled={open === 0} onClick={() => setOpen(open - 1)} aria-label={t('Plus récente')}>
               <ChevronLeft size={16} strokeWidth={2.5} />
             </button>
             <span className="tabular-nums">
               {formatCaptureDate(current.date)} · {open + 1}/{captures.length}
             </span>
-            <button type="button" className="btn btn-icon" disabled={open === captures.length - 1} onClick={() => setOpen(open + 1)} aria-label="Plus ancienne">
+            <button type="button" className="btn btn-icon" disabled={open === captures.length - 1} onClick={() => setOpen(open + 1)} aria-label={t('Plus ancienne')}>
               <ChevronRight size={16} strokeWidth={2.5} />
             </button>
             <button type="button" className="btn btn-ghost" onClick={() => remove(current.file)}>
               <Trash2 size={14} strokeWidth={2.25} />
-              Corbeille
+              {t('Corbeille')}
             </button>
-            <button type="button" className="btn btn-icon" onClick={() => setOpen(null)} aria-label="Fermer">
+            <button type="button" className="btn btn-icon" onClick={() => setOpen(null)} aria-label={t('Fermer')}>
               <X size={16} strokeWidth={2.5} />
             </button>
           </div>

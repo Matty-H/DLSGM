@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { FolderOpen, Globe, Pencil, RotateCcw, TriangleAlert } from 'lucide-react';
+import { t } from '../../lib/i18n.js';
 
 export interface FetchFailedViewProps {
   gameId: string;
@@ -38,33 +39,33 @@ export default function FetchFailedView({ gameId, error, onRetry, onManualEdit, 
         </span>
         <div>
           <h3 className="mb-0.5">{gameId}</h3>
-          <p className="m-0 text-text-secondary">Échec de la récupération des données.</p>
+          <p className="m-0 text-text-secondary">{t('Échec de la récupération des données.')}</p>
         </div>
       </div>
-      <p className="mb-5 rounded-sm bg-bg-deep px-3 py-2 font-mono text-[13px] text-text-secondary">{error || 'Erreur inconnue'}</p>
+      <p className="mb-5 rounded-sm bg-bg-deep px-3 py-2 font-mono text-[13px] text-text-secondary">{error || t('Erreur inconnue')}</p>
       {looksRegionLocked && (
         <p className="mb-4 mt-0 text-[13px] text-text-secondary">
-          DLsite n'a renvoyé aucune donnée : souvent une œuvre à restriction régionale, visible seulement depuis le Japon.
+          {t("DLsite n'a renvoyé aucune donnée : souvent une œuvre à restriction régionale, visible seulement depuis le Japon.")}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={onRetry} className="btn btn-primary">
           <RotateCcw size={15} strokeWidth={2.25} />
-          Réessayer
+          {t('Réessayer')}
         </button>
         {onRetryVpn && (
           <button type="button" onClick={retryVpn} disabled={vpnBusy} className={`btn ${looksRegionLocked ? 'btn-primary' : ''}`}>
             <Globe size={15} strokeWidth={2.25} />
-            {vpnBusy ? 'Connexion au VPN…' : 'Réessayer via le VPN (Japon)'}
+            {vpnBusy ? t('Connexion au VPN…') : t('Réessayer via le VPN (Japon)')}
           </button>
         )}
         <button type="button" onClick={onManualEdit} className="btn">
           <Pencil size={15} strokeWidth={2.25} />
-          Modifier manuellement
+          {t('Modifier manuellement')}
         </button>
         <button type="button" onClick={onOpenFolder} className="btn btn-ghost">
           <FolderOpen size={15} strokeWidth={2.25} />
-          Ouvrir le dossier
+          {t('Ouvrir le dossier')}
         </button>
       </div>
       {vpnError && <p className="mb-0 mt-3 text-[13px] text-danger">{vpnError}</p>}

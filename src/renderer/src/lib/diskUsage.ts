@@ -1,10 +1,11 @@
 import type { DiskInfo, DiskUsageReport, GameDiskUsage } from '../../../shared/ipc-types';
+import { t, uiLocale } from './i18n.js';
 
 export type { DiskInfo, DiskUsageReport, GameDiskUsage };
 
 /** Octets → « 850 Mo », « 1,2 Go », « 1,05 To » (unités décimales, comme l'Explorateur en Go… à peu près). */
 export function formatBytes(bytes: number): string {
-  const units = ['o', 'Ko', 'Mo', 'Go', 'To'];
+  const units = [t('o'), t('Ko'), t('Mo'), t('Go'), t('To')];
   let value = Math.max(0, bytes);
   let unit = 0;
   while (value >= 1000 && unit < units.length - 1) {
@@ -12,7 +13,7 @@ export function formatBytes(bytes: number): string {
     unit++;
   }
   const digits = unit >= 3 ? (value < 10 ? 2 : 1) : 0;
-  return `${value.toLocaleString('fr-FR', { maximumFractionDigits: digits })} ${units[unit]}`;
+  return `${value.toLocaleString(uiLocale(), { maximumFractionDigits: digits })} ${units[unit]}`;
 }
 
 export interface DiskSummary extends DiskInfo {

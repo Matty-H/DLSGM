@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { listGameProcesses } from './textractor';
 import type { LaunchGameResult } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Lancement en locale japonaise avec Locale Emulator (Windows), option par
@@ -66,11 +67,11 @@ export async function runWithLocaleEmulator({
   let launcherFailure: string | null = null;
   const child = spawn(leProc, [executablePath], { cwd: path.dirname(executablePath), stdio: 'ignore' });
   child.on('error', (error: Error) => {
-    launcherFailure = `Locale Emulator n'a pas pu démarrer : ${error.message}`;
+    launcherFailure = tm("Locale Emulator n'a pas pu démarrer : {error}", { error: error.message });
   });
   child.on('exit', (code: number | null) => {
     if (code !== 0) {
-      launcherFailure = `Locale Emulator a échoué (code ${code}). S'il vient d'être décompressé, lance une fois LEInstaller.exe ; sinon décoche « Lancer en japonais » pour ce jeu.`;
+      launcherFailure = tm("Locale Emulator a échoué (code {code}). S'il vient d'être décompressé, lance une fois LEInstaller.exe ; sinon décoche « Lancer en japonais » pour ce jeu.", { code: String(code) });
     }
   });
 
@@ -86,7 +87,7 @@ export async function runWithLocaleEmulator({
   }
   if (!seenAt && launcherFailure) return { success: false, error: launcherFailure };
   if (!seenAt) {
-    return { success: false, error: "Le jeu n'a pas démarré sous Locale Emulator (profil japonais manquant, ou jeu 64 bits : Locale Emulator ne gère que les jeux 32 bits)." };
+    return { success: false, error: tm("Le jeu n'a pas démarré sous Locale Emulator (profil japonais manquant, ou jeu 64 bits : Locale Emulator ne gère que les jeux 32 bits).") };
   }
   for (;;) {
     await sleep(pollMs);

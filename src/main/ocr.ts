@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DPI_AWARE_CS } from './auto-clicker';
 import type { OcrBlock, OcrLine, OcrTranslateSettings } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Lecture du texte affiché par le jeu avec l'OCR intégré de Windows
@@ -157,7 +158,7 @@ export class OcrReader {
   }
 
   private start(): Promise<string[]> {
-    if (process.platform !== 'win32') return Promise.reject(new Error("L'OCR n'est disponible que sous Windows."));
+    if (process.platform !== 'win32') return Promise.reject(new Error(tm("L'OCR n'est disponible que sous Windows.")));
     if (this.ready) return this.ready;
     const scriptPath = path.join(this.scriptDir, 'ocr.ps1');
     fs.writeFileSync(scriptPath, OCR_WORKER_SCRIPT, 'utf8');
@@ -188,7 +189,7 @@ export class OcrReader {
           const job = message.id ? this.pending.get(message.id) : undefined;
           if (!job || !message.id) continue;
           this.pending.delete(message.id);
-          if (message.error) job.reject(new Error(message.error === 'nolang' ? 'Langue OCR non installée dans Windows.' : message.error));
+          if (message.error) job.reject(new Error(message.error === 'nolang' ? tm('Langue OCR non installée dans Windows.') : message.error));
           // ConvertTo-Json rend un objet seul (et non un tableau) pour une seule ligne.
           else job.resolve(([] as OcrLine[]).concat(message.lines ?? []));
         }
@@ -196,7 +197,7 @@ export class OcrReader {
       worker.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
       worker.on('error', reject);
       worker.on('exit', code => {
-        const error = new Error(stderr.trim() || `OCR arrêté (code ${code})`);
+        const error = new Error(stderr.trim() || tm('OCR arrêté (code {code})', { code: String(code) }));
         reject(error);
         for (const job of this.pending.values()) job.reject(error);
         this.pending.clear();

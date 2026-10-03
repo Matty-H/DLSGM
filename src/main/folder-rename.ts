@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { parseReleaseName, readInstallInfo, writeInstallInfo } from './release-names';
 import type { FolderRenameResult, MisnamedFolder } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Assistant de renommage : les dossiers du dossier de jeux dont le nom
@@ -46,11 +47,11 @@ export function renameMisnamedFolders(destinationFolder: string, folders: string
   for (const folder of folders) {
     const candidate = candidates.get(folder);
     if (!candidate) {
-      results.push({ folder, error: 'Dossier introuvable ou déjà renommé.' });
+      results.push({ folder, error: tm('Dossier introuvable ou déjà renommé.') });
       continue;
     }
     if (candidate.conflict || done.has(candidate.gameId)) {
-      results.push({ folder, error: `Un dossier ${candidate.gameId} existe déjà (ou plusieurs dossiers portent cet ID) : rien n'a été renommé.` });
+      results.push({ folder, error: tm("Un dossier {id} existe déjà (ou plusieurs dossiers portent cet ID) : rien n'a été renommé.", { id: candidate.gameId }) });
       continue;
     }
     const source = path.join(destinationFolder, folder);
@@ -61,7 +62,7 @@ export function renameMisnamedFolders(destinationFolder: string, folders: string
         fs.renameSync(source, temporary);
         fs.renameSync(temporary, target);
       } else {
-        if (fs.existsSync(target)) throw new Error(`${candidate.gameId} existe déjà.`);
+        if (fs.existsSync(target)) throw new Error(tm('{id} existe déjà.', { id: candidate.gameId }));
         fs.renameSync(source, target);
       }
       done.add(candidate.gameId);

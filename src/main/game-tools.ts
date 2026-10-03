@@ -4,6 +4,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import extractZip from 'extract-zip';
 import type { EngineInfo, GameEngine, InstalledPatch, SaveLocation } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Outils par jeu : détection du moteur, emplacements de sauvegarde, et
@@ -178,7 +179,7 @@ export function detectEngine(root: string, exePath: string | null): EngineInfo {
   const arch = exePath && exePath.toLowerCase().endsWith('.exe') ? readPeArch(exePath) : null;
   const make = (engine: GameEngine, extra: Partial<EngineInfo> = {}): EngineInfo => ({
     engine,
-    label: ENGINE_LABELS[engine],
+    label: engine === 'unknown' ? tm('Inconnu') : ENGINE_LABELS[engine],
     arch,
     ...extra
   });
@@ -253,20 +254,20 @@ export function findSaveLocations(root: string, exePath: string | null, info: En
     case 'rpgmaker-mv':
     case 'rpgmaker-mz': {
       const web = findRpgMakerWebRoot(root);
-      if (web) candidates.push({ label: 'Sauvegardes', path: web.saveDir });
+      if (web) candidates.push({ label: 'Saves', path: web.saveDir });
       break;
     }
     case 'rpgmaker-vxace':
     case 'rpgmaker-vx':
     case 'rpgmaker-xp':
       // Fichiers SaveNN.rvdata2/.rvdata/.rxdata à la racine du jeu.
-      candidates.push({ label: 'Dossier du jeu (SaveNN)', path: root, fileFilter: /^Save\d+\.(rvdata2?|rxdata)$/i });
+      candidates.push({ label: 'Game folder (SaveNN)', path: root, fileFilter: /^Save\d+\.(rvdata2?|rxdata)$/i });
       break;
     case 'wolf':
-      candidates.push({ label: 'Sauvegardes', path: path.join(root, 'Save') });
+      candidates.push({ label: 'Saves', path: path.join(root, 'Save') });
       break;
     case 'renpy': {
-      candidates.push({ label: 'Sauvegardes (jeu)', path: path.join(root, 'game', 'saves') });
+      candidates.push({ label: 'Saves (game)', path: path.join(root, 'game', 'saves') });
       try {
         const options = fs.readFileSync(path.join(root, 'game', 'options.rpy'), 'utf8');
         const match = options.match(/config\.save_directory\s*=\s*["']([^"']+)["']/);
@@ -277,19 +278,19 @@ export function findSaveLocations(root: string, exePath: string | null, info: En
       break;
     }
     case 'kirikiri':
-      candidates.push({ label: 'Sauvegardes', path: path.join(root, 'savedata') });
+      candidates.push({ label: 'Saves', path: path.join(root, 'savedata') });
       break;
     case 'godot':
       if (exeBase) {
         candidates.push({ label: 'Godot (Roaming)', path: path.join(roaming, 'Godot', 'app_userdata', exeBase) });
-        candidates.push({ label: 'Godot (Roaming, dossier dédié)', path: path.join(roaming, exeBase) });
+        candidates.push({ label: 'Godot (Roaming, dedicated folder)', path: path.join(roaming, exeBase) });
       }
       break;
     case 'unreal': {
       const project = listDir(root).find(e => e !== 'Engine' && isDir(path.join(root, e, 'Binaries')));
       if (project) {
         candidates.push({ label: 'Unreal (LocalAppData)', path: path.join(localAppData, project, 'Saved', 'SaveGames') });
-        candidates.push({ label: 'Unreal (jeu)', path: path.join(root, project, 'Saved', 'SaveGames') });
+        candidates.push({ label: 'Unreal (game)', path: path.join(root, project, 'Saved', 'SaveGames') });
       }
       break;
     }
@@ -366,7 +367,7 @@ function applyPatchFromDirectory(
   const patchId = `${Date.now()}`;
   const backupDir = path.join(gameDir, META_DIR, 'backup', patchId);
   const files = walkFiles(sourceDir).filter(rel => !rel.split(path.sep).includes(META_DIR));
-  if (files.length === 0) throw new Error('Le patch ne contient aucun fichier.');
+  if (files.length === 0) throw new Error(tm('Le patch ne contient aucun fichier.'));
 
   const added: string[] = [];
   const overwritten: string[] = [];
@@ -445,7 +446,7 @@ export async function applyUserPatch(gameDir: string, installRoot: string, sourc
     return applyPatchFromDirectory(gameDir, installRoot, resolvePatchRoot(sourcePath, installRoot), { name, kind: 'custom' });
   }
   if (!sourcePath.toLowerCase().endsWith('.zip')) {
-    throw new Error('Seuls les patchs .zip ou les dossiers sont pris en charge.');
+    throw new Error(tm('Seuls les patchs .zip ou les dossiers sont pris en charge.'));
   }
   return withTempDir(async tempDir => {
     await extractZip(sourcePath, { dir: tempDir });
@@ -468,11 +469,11 @@ async function getVerifiedDownload(key: keyof typeof DOWNLOADS): Promise<string>
   if (exists(target) && hashOf(fs.readFileSync(target)) === sha256) return target;
 
   const response = await fetch(url, { signal: AbortSignal.timeout(120000) });
-  if (!response.ok) throw new Error(`Téléchargement impossible (${response.status}) : ${url}`);
+  if (!response.ok) throw new Error(tm('Téléchargement impossible ({status}) : {url}', { status: response.status, url }));
   const buffer = Buffer.from(await response.arrayBuffer());
   const actual = hashOf(buffer);
   if (actual !== sha256) {
-    throw new Error(`Somme de contrôle invalide pour ${path.basename(target)} (attendu ${sha256}, obtenu ${actual}).`);
+    throw new Error(tm('Somme de contrôle invalide pour {file} (attendu {expected}, obtenu {actual}).', { file: path.basename(target), expected: sha256, actual }));
   }
   fs.mkdirSync(downloadsDir, { recursive: true });
   fs.writeFileSync(target, buffer);
@@ -489,16 +490,16 @@ export async function installAutoTranslator(
   info: EngineInfo,
   targetLanguage: string
 ): Promise<InstalledPatch> {
-  if (process.platform !== 'win32') throw new Error('Installation automatique disponible sous Windows uniquement.');
-  if (info.engine !== 'unity') throw new Error(`BepInEx ne s'applique qu'aux jeux Unity (moteur détecté : ${info.label}).`);
+  if (process.platform !== 'win32') throw new Error(tm('Installation automatique disponible sous Windows uniquement.'));
+  if (info.engine !== 'unity') throw new Error(tm("BepInEx ne s'applique qu'aux jeux Unity (moteur détecté : {engine}).", { engine: info.label }));
   if (info.unityBackend === 'il2cpp') {
-    throw new Error("Jeu Unity IL2CPP : nécessite BepInEx 6 (pré-version), pas encore pris en charge. Seuls les jeux Unity Mono le sont.");
+    throw new Error(tm("Jeu Unity IL2CPP : nécessite BepInEx 6 (pré-version), pas encore pris en charge. Seuls les jeux Unity Mono le sont."));
   }
-  if (!info.arch) throw new Error("Architecture de l'exécutable inconnue (x64/x86) : impossible de choisir la bonne version de BepInEx.");
+  if (!info.arch) throw new Error(tm("Architecture de l'exécutable inconnue (x64/x86) : impossible de choisir la bonne version de BepInEx."));
   if (exists(path.join(installRoot, 'BepInEx', 'core'))) {
-    throw new Error('BepInEx est déjà présent dans ce jeu (installé hors de DLSGM ?).');
+    throw new Error(tm('BepInEx est déjà présent dans ce jeu (installé hors de DLSGM ?).'));
   }
-  if (!/^[a-z]{2}(-[A-Za-z]{2,4})?$/.test(targetLanguage)) throw new Error(`Langue invalide : ${targetLanguage}`);
+  if (!/^[a-z]{2}(-[A-Za-z]{2,4})?$/.test(targetLanguage)) throw new Error(tm('Langue invalide : {language}', { language: targetLanguage }));
 
   const bepinexZip = await getVerifiedDownload(info.arch === 'x64' ? 'bepinex-x64' : 'bepinex-x86');
   const xunityZip = await getVerifiedDownload('xunity-bepinex');

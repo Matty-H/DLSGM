@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import type { AutoClickerSettings, AutoClickerStatus, ClickerButton } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Auto-clicker façon OP Auto Clicker (Windows) : clics (simples ou doubles)
@@ -316,7 +317,7 @@ export class AutoClicker {
 
   /** Lance le worker (compilation C# : une à deux secondes la première fois). */
   warmUp(): Promise<void> {
-    if (!this.status.available) return Promise.reject(new Error("L'auto-clicker n'est disponible que sous Windows."));
+    if (!this.status.available) return Promise.reject(new Error(tm("L'auto-clicker n'est disponible que sous Windows.")));
     if (this.ready) return this.ready;
     const scriptPath = path.join(this.options.scriptDir, 'auto-clicker.ps1');
     fs.writeFileSync(scriptPath, WORKER_SCRIPT, 'utf8');
@@ -349,13 +350,13 @@ export class AutoClicker {
       worker.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
       worker.on('error', error => {
         reject(error);
-        if (this.worker === worker) this.reset(`Démarrage de l'auto-clicker impossible : ${error.message}`);
+        if (this.worker === worker) this.reset(tm("Démarrage de l'auto-clicker impossible : {error}", { error: error.message }));
       });
       worker.on('exit', code => {
-        const message = stderr.trim() || `le worker s'est arrêté (code ${code})`;
+        const message = stderr.trim() || tm("le worker s'est arrêté (code {code})", { code: String(code) });
         reject(new Error(message));
         // Un worker remplacé (dispose puis relance) ne touche pas au nouveau.
-        if (this.worker === worker) this.reset(`Auto-clicker arrêté : ${message}`);
+        if (this.worker === worker) this.reset(tm('Auto-clicker arrêté : {error}', { error: message }));
       });
     });
     return this.ready;

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CircleCheck, FolderPen, TriangleAlert, X } from 'lucide-react';
 import type { FolderRenameResult, MisnamedFolder } from '../../../../shared/ipc-types';
 import { releaseLabel } from '../../lib/releaseInfo.js';
+import { t } from '../../lib/i18n.js';
 
 export interface FolderRenameAssistantProps {
   folders: MisnamedFolder[];
@@ -12,10 +13,8 @@ export interface FolderRenameAssistantProps {
   onDismissResults: () => void;
 }
 
-const CONFLICT_LABEL: Record<NonNullable<MisnamedFolder['conflict']>, string> = {
-  exists: 'un dossier porte déjà cet ID',
-  duplicate: 'plusieurs dossiers pour cet ID'
-};
+const conflictLabel = (conflict: NonNullable<MisnamedFolder['conflict']>) =>
+  conflict === 'exists' ? t('un dossier porte déjà cet ID') : t('plusieurs dossiers pour cet ID');
 
 /**
  * Bandeau de la bibliothèque : dossiers qui contiennent un ID sans être
@@ -48,15 +47,16 @@ export default function FolderRenameAssistant({ folders, results, busy, onRename
         <p className="m-0 min-w-0 flex-1">
           {folders.length > 0 ? (
             <>
-              {folders.length > 1 ? `${folders.length} dossiers contiennent` : '1 dossier contient'} un ID DLsite sans être nommé{folders.length > 1 ? 's' : ''}{' '}
-              exactement d'après lui : la bibliothèque ne {folders.length > 1 ? 'les' : 'le'} voit pas. Renommer ?
-              <span className="block text-text-secondary">L'ancien nom (version, DLC) reste visible sur la page du jeu. Un dossier existant n'est jamais écrasé.</span>
+              {folders.length > 1
+                ? t("{n} dossiers contiennent un ID DLsite sans être nommés exactement d'après lui : la bibliothèque ne les voit pas. Renommer ?", { n: folders.length })
+                : t("1 dossier contient un ID DLsite sans être nommé exactement d'après lui : la bibliothèque ne le voit pas. Renommer ?")}
+              <span className="block text-text-secondary">{t("L'ancien nom (version, DLC) reste visible sur la page du jeu. Un dossier existant n'est jamais écrasé.")}</span>
             </>
           ) : (
-            'Renommage terminé.'
+            t('Renommage terminé.')
           )}
         </p>
-        <button type="button" onClick={onDismiss} aria-label="Ignorer jusqu'au prochain lancement" title="Ignorer jusqu'au prochain lancement" className="btn btn-ghost btn-icon flex-shrink-0">
+        <button type="button" onClick={onDismiss} aria-label={t("Ignorer jusqu'au prochain lancement")} title={t("Ignorer jusqu'au prochain lancement")} className="btn btn-ghost btn-icon flex-shrink-0">
           <X size={16} strokeWidth={2.25} />
         </button>
       </div>
@@ -76,7 +76,7 @@ export default function FolderRenameAssistant({ folders, results, busy, onRename
                 <span className="flex-shrink-0 text-text-secondary">→</span>
                 <span className="flex-shrink-0 font-mono font-semibold">{folder.gameId}</span>
                 {releaseLabel(folder) && <span className="flex-shrink-0 text-text-secondary">({releaseLabel(folder)})</span>}
-                {folder.conflict && <span className="flex-shrink-0 text-danger">— {CONFLICT_LABEL[folder.conflict]}</span>}
+                {folder.conflict && <span className="flex-shrink-0 text-danger">— {conflictLabel(folder.conflict)}</span>}
               </label>
             </li>
           ))}
@@ -103,12 +103,12 @@ export default function FolderRenameAssistant({ folders, results, busy, onRename
       <div className="flex gap-2 pl-7">
         {renamable.length > 0 && (
           <button type="button" onClick={() => onRename([...selected])} disabled={busy || selected.size === 0} className="btn btn-primary py-1 text-[12px]">
-            {busy ? 'Renommage…' : `Renommer (${selected.size})`}
+            {busy ? t('Renommage…') : t('Renommer ({n})', { n: selected.size })}
           </button>
         )}
         {results && (
           <button type="button" onClick={onDismissResults} className="btn btn-ghost py-1 text-[12px]">
-            Fermer le bilan
+            {t('Fermer le bilan')}
           </button>
         )}
       </div>

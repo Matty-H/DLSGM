@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ArchiveImportProgress, ArchiveImportResult } from '../../../shared/ipc-types';
 import { ipcErrorMessage } from '../lib/gameTools.js';
+import { t } from '../lib/i18n.js';
 
 /** Proposition de mettre à la corbeille les archives des imports réussis. */
 export interface ArchiveCleanup {
@@ -34,7 +35,7 @@ export function useArchiveImport(onImported: () => void) {
       if (importIds.length > 0) setCleanup({ importIds, outcome: null, busy: false });
       if (outcome.some(r => r.gameId)) onImported();
     } catch (error) {
-      setResults([{ file: 'Import', error: ipcErrorMessage(error) }]);
+      setResults([{ file: t('Import'), error: ipcErrorMessage(error) }]);
     } finally {
       setRunning(false);
       setProgress(null);
@@ -49,7 +50,7 @@ export function useArchiveImport(onImported: () => void) {
       try {
         result = await window.electronAPI.retryArchiveImport(retryId, password, remember);
       } catch (error) {
-        result = { file: 'Import', error: ipcErrorMessage(error) };
+        result = { file: t('Import'), error: ipcErrorMessage(error) };
       }
       setResults(prev => (prev ?? []).map(r => (r.retryId === retryId ? { ...result, file: r.file } : r)));
       if (result.importId) {

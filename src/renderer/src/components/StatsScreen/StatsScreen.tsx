@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { EyeOff } from 'lucide-react';
 import type { GameCache, GameCacheEntry } from '../../lib/cacheManager.js';
 import { computeLibraryStats, computeWeeklyPlayTime, recentSessions } from '../../lib/statsManager.js';
 import { formatSessionDuration } from '../../lib/timeFormatter.js';
@@ -6,6 +7,9 @@ import PlayTimeChart from './PlayTimeChart';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 import type { GenreNames } from '../../lib/genreNames.js';
 import { collectionBytes, formatBytes, summarizeDisks, type DiskUsageReport } from '../../lib/diskUsage.js';
+import { t, uiLocale } from '../../lib/i18n.js';
+import Trans from '../Trans/Trans';
+import { isAdultBlurred } from '../../lib/adultContent.js';
 
 export interface StatsScreenProps {
   cache: GameCache;
@@ -16,6 +20,9 @@ export interface StatsScreenProps {
   /** Tailles sur le disque (null : pas encore reçues). */
   diskUsage: DiskUsageReport | null;
   onRecomputeSizes: () => void;
+  /** Flou des jaquettes R18 (Paramètres › Affichage), sauf jeux révélés dans la session. */
+  blurAdultContent: boolean;
+  revealedGames: Set<string>;
 }
 
 function StatTile({ kicker, value }: { kicker: string; value: string }) {
@@ -31,7 +38,7 @@ function StatTile({ kicker, value }: { kicker: string; value: string }) {
  * Tuile jaquette cliquable (ouvre la page du jeu) : même ratio 4:3 que les
  * jaquettes de la grille, pour que la couverture ne soit jamais recadrée.
  */
-function StatCoverTile({ kicker, title, imageSrc, onClick }: { kicker: string; title: string; imageSrc: string; onClick: () => void }) {
+function StatCoverTile({ kicker, title, imageSrc, blurred, onClick }: { kicker: string; title: string; imageSrc: string; blurred: boolean; onClick: () => void }) {
   return (
     <button type="button" onClick={onClick} title={title} className="capsule block aspect-[4/3] w-full text-left">
       <img
@@ -41,8 +48,14 @@ function StatCoverTile({ kicker, title, imageSrc, onClick }: { kicker: string; t
           e.currentTarget.onerror = null;
           e.currentTarget.src = PLACEHOLDER_IMAGE;
         }}
-        className="absolute inset-0 h-full w-full object-cover"
+        className={`absolute inset-0 h-full w-full object-cover ${blurred ? 'scale-110 blur-2xl' : ''}`}
       />
+      {blurred && (
+        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-bg/40">
+          <EyeOff size={20} strokeWidth={2} className="text-text-secondary" />
+          <span className="text-xs font-bold tracking-wide">R18</span>
+        </span>
+      )}
       <span className="absolute left-2 top-2 rounded-sm bg-black/70 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider backdrop-blur-sm">
         {kicker}
       </span>
@@ -65,7 +78,8 @@ function BarRow({ label, count, width, labelWidthClass }: { label: string; count
   );
 }
 
-export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpenGame, diskUsage, onRecomputeSizes }: StatsScreenProps) {
+export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpenGame, diskUsage, onRecomputeSizes, blurAdultContent, revealedGames }: StatsScreenProps) {
+  const blurredId = (gameId: string) => isAdultBlurred(cache[gameId]?.age_category, blurAdultContent, revealedGames.has(gameId));
   const stats = useMemo(() => computeLibraryStats(cache, genreNames), [cache, genreNames]);
   const totalHours = Math.round(stats.totalPlayTimeSeconds / 3600);
   const weeks = useMemo(() => computeWeeklyPlayTime(cache), [cache]);
@@ -81,38 +95,38 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
 
   return (
     <div data-scroll-root className="animate-steam-in min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4">
-      <h1 className="mb-5">Ma collection</h1>
+      <h1 className="mb-5">{t('Ma collection')}</h1>
 
       <div className="mb-5 grid grid-cols-5 items-stretch gap-4">
-        <StatTile kicker="Œuvres" value={String(stats.totalGames)} />
-        <StatTile kicker="Temps de jeu cumulé" value={`${totalHours} h`} />
-        <StatTile kicker="Taille de la collection" value={diskUsage && measured > 0 ? formatBytes(collectionBytes(diskUsage)) : '…'} />
+        <StatTile kicker={t('Œuvres')} value={String(stats.totalGames)} />
+        <StatTile kicker={t('Temps de jeu cumulé')} value={t('{h} h', { h: totalHours })} />
+        <StatTile kicker={t('Taille de la collection')} value={diskUsage && measured > 0 ? formatBytes(collectionBytes(diskUsage)) : '…'} />
         {stats.topGame && topGameId ? (
-          <StatCoverTile kicker="La plus jouée" title={stats.topGame.work_name} imageSrc={getWorkImageSrc(topGameId)} onClick={() => onOpenGame(topGameId)} />
+          <StatCoverTile kicker={t('La plus jouée')} title={stats.topGame.work_name} imageSrc={getWorkImageSrc(topGameId)} blurred={blurredId(topGameId)} onClick={() => onOpenGame(topGameId)} />
         ) : (
-          <StatTile kicker="La plus jouée" value="—" />
+          <StatTile kicker={t('La plus jouée')} value="—" />
         )}
         {stats.lastAdded && lastAddedId ? (
-          <StatCoverTile kicker="Dernier ajout" title={stats.lastAdded.work_name} imageSrc={getWorkImageSrc(lastAddedId)} onClick={() => onOpenGame(lastAddedId)} />
+          <StatCoverTile kicker={t('Dernier ajout')} title={stats.lastAdded.work_name} imageSrc={getWorkImageSrc(lastAddedId)} blurred={blurredId(lastAddedId)} onClick={() => onOpenGame(lastAddedId)} />
         ) : (
-          <StatTile kicker="Dernier ajout" value="—" />
+          <StatTile kicker={t('Dernier ajout')} value="—" />
         )}
       </div>
 
       <div className="mb-4 grid grid-cols-[1.4fr_1fr] items-stretch gap-4">
         <div className="panel p-5">
-          <div className="section-title mb-4">Temps de jeu par semaine</div>
+          <div className="section-title mb-4">{t('Temps de jeu par semaine')}</div>
           {sessions.length === 0 ? (
-            <p className="text-sm text-text-muted">L'historique des sessions commence à la prochaine partie lancée depuis DLSGM.</p>
+            <p className="text-sm text-text-muted">{t("L'historique des sessions commence à la prochaine partie lancée depuis DLSGM.")}</p>
           ) : (
             <PlayTimeChart weeks={weeks} />
           )}
         </div>
 
         <div className="panel p-5">
-          <div className="section-title mb-3">Dernières sessions</div>
+          <div className="section-title mb-3">{t('Dernières sessions')}</div>
           {sessions.length === 0 ? (
-            <p className="text-sm text-text-muted">Aucune session enregistrée.</p>
+            <p className="text-sm text-text-muted">{t('Aucune session enregistrée.')}</p>
           ) : (
             sessions.map(session => (
               <button
@@ -123,7 +137,7 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
               >
                 <span className="min-w-0 flex-1 truncate">{session.name}</span>
                 <span className="flex-shrink-0 text-text-muted">
-                  {new Date(session.start).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                  {new Date(session.start).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}
                 </span>
                 <span className="w-[56px] flex-shrink-0 text-right font-semibold tabular-nums">{formatSessionDuration(session.duration)}</span>
               </button>
@@ -134,18 +148,18 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
 
       <div className="panel mb-4 p-5">
         <div className="mb-4 flex items-center gap-3">
-          <div className="section-title flex-1">Place sur le disque</div>
+          <div className="section-title flex-1">{t('Place sur le disque')}</div>
           {diskUsage && diskUsage.pending > 0 && (
             <span className="text-[12px] text-text-muted">
-              Calcul en cours… ({measured}/{measured + diskUsage.pending})
+              {t('Calcul en cours… ({done}/{total})', { done: measured, total: measured + diskUsage.pending })}
             </span>
           )}
-          <button type="button" onClick={onRecomputeSizes} className="btn btn-ghost py-1 text-[12px]" title="Remesurer tous les jeux">
-            Recalculer
+          <button type="button" onClick={onRecomputeSizes} className="btn btn-ghost py-1 text-[12px]" title={t('Remesurer tous les jeux')}>
+            {t('Recalculer')}
           </button>
         </div>
         {disks.length === 0 ? (
-          <p className="text-sm text-text-muted">{diskUsage ? 'Mesure des dossiers en cours…' : 'Chargement…'}</p>
+          <p className="text-sm text-text-muted">{diskUsage ? t('Mesure des dossiers en cours…') : t('Chargement…')}</p>
         ) : (
           <div className="grid grid-cols-2 gap-6">
             {disks.map(disk => {
@@ -153,14 +167,14 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
               return (
                 <div key={disk.root}>
                   <div className="mb-1 flex items-baseline justify-between gap-3 text-[13px]">
-                    <span className="font-bold">Disque {disk.root.replace(/[\\/]$/, '')}</span>
+                    <span className="font-bold">{t('Disque {name}', { name: disk.root.replace(/[\\/]$/, '') })}</span>
                     <span className="text-text-secondary">
-                      Jeux : <span className="font-semibold text-text">{formatBytes(disk.gamesBytes)}</span> ({disk.games})
-                      {disk.freeBytes !== null && <> · libre : {formatBytes(disk.freeBytes)}</>}
+                      <Trans text={t('Jeux : {size} ({count})')} values={{ size: <span className="font-semibold text-text">{formatBytes(disk.gamesBytes)}</span>, count: disk.games }} />
+                      {disk.freeBytes !== null && <> · {t('libre : {size}', { size: formatBytes(disk.freeBytes) })}</>}
                     </span>
                   </div>
                   {disk.totalBytes !== null && used !== null && (
-                    <div className="relative mb-3 h-2 overflow-hidden rounded-full bg-bg-deep" title={`${formatBytes(used)} utilisés sur ${formatBytes(disk.totalBytes)}`}>
+                    <div className="relative mb-3 h-2 overflow-hidden rounded-full bg-bg-deep" title={t('{used} utilisés sur {total}', { used: formatBytes(used), total: formatBytes(disk.totalBytes) })}>
                       <div className="absolute inset-y-0 left-0 bg-white/20" style={{ width: `${(used / disk.totalBytes) * 100}%` }} />
                       <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent to-accent-hover" style={{ width: `${(disk.gamesBytes / disk.totalBytes) * 100}%` }} />
                     </div>
@@ -185,10 +199,10 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
 
       <div className="grid grid-cols-[1.4fr_1fr] items-start gap-4">
         <div className="panel p-5">
-          <div className="section-title mb-4">Répartition par genre</div>
+          <div className="section-title mb-4">{t('Répartition par genre')}</div>
 
           {stats.genreBreakdown.length === 0 ? (
-            <p className="text-sm text-text-muted">Aucune donnée.</p>
+            <p className="text-sm text-text-muted">{t('Aucune donnée.')}</p>
           ) : (
             stats.genreBreakdown.map(row => (
               <BarRow key={row.label} {...row} labelWidthClass="grid-cols-[130px_1fr_32px]" />
@@ -197,14 +211,14 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
         </div>
 
         <div className="panel p-5">
-          <div className="section-title mb-4">Classification d'âge</div>
+          <div className="section-title mb-4">{t("Classification d'âge")}</div>
           {stats.ageBreakdown.map(row => (
             <BarRow key={row.label} {...row} labelWidthClass="grid-cols-[80px_1fr_32px]" />
           ))}
 
-          <div className="section-title mb-2 mt-6">Par catégorie</div>
+          <div className="section-title mb-2 mt-6">{t('Par catégorie')}</div>
           {stats.categoryBreakdown.length === 0 ? (
-            <p className="text-sm text-text-muted">Aucune donnée.</p>
+            <p className="text-sm text-text-muted">{t('Aucune donnée.')}</p>
           ) : (
             stats.categoryBreakdown.map(row => (
               <div key={row.label} className="flex justify-between border-b border-divider py-2 text-[13px] last:border-0">

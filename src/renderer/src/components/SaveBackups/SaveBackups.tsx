@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   BACKUP_REASON_LABELS,
+  saveLocationLabel,
   createSaveBackup,
   deleteSaveBackup,
   formatBytes,
@@ -9,6 +10,7 @@ import {
   restoreSaveBackup,
   type SaveBackup
 } from '../../lib/gameTools.js';
+import { t, tr, uiLocale } from '../../lib/i18n.js';
 
 export interface SaveBackupsProps {
   gameId: string;
@@ -53,23 +55,23 @@ export default function SaveBackups({ gameId, lastPlayed }: SaveBackupsProps) {
   };
 
   const handleCreate = () =>
-    run('create', async () => ((await createSaveBackup(gameId)) ? 'Sauvegardes copiées.' : 'Aucun fichier de sauvegarde à copier pour le moment.'));
+    run('create', async () => ((await createSaveBackup(gameId)) ? t('Sauvegardes copiées.') : t('Aucun fichier de sauvegarde à copier pour le moment.')));
 
   const handleRestore = (backup: SaveBackup) => {
     const confirmed = window.confirm(
-      `Remplacer les sauvegardes actuelles par la copie du ${formatDate(backup.createdAt)} ? L'état actuel est d'abord copié (« Avant restauration »), la restauration peut donc être annulée.`
+      t("Remplacer les sauvegardes actuelles par la copie du {date} ? L'état actuel est d'abord copié (« Avant restauration »), la restauration peut donc être annulée.", { date: formatDate(backup.createdAt) })
     );
     if (!confirmed) return;
     run(`restore-${backup.id}`, async () => {
       const { skipped } = await restoreSaveBackup(gameId, backup.id);
       return skipped.length > 0
-        ? `Restauré, sauf : ${skipped.join(', ')} (emplacement introuvable aujourd'hui).`
-        : 'Sauvegardes restaurées.';
+        ? t("Restauré, sauf : {labels} (emplacement introuvable aujourd'hui).", { labels: skipped.map(saveLocationLabel).join(', ') })
+        : t('Sauvegardes restaurées.');
     });
   };
 
   const handleDelete = (backup: SaveBackup) => {
-    if (!window.confirm(`Supprimer définitivement la copie du ${formatDate(backup.createdAt)} ?`)) return;
+    if (!window.confirm(t('Supprimer définitivement la copie du {date} ?', { date: formatDate(backup.createdAt) }))) return;
     run(`delete-${backup.id}`, async () => {
       await deleteSaveBackup(gameId, backup.id);
       return null;
@@ -81,36 +83,36 @@ export default function SaveBackups({ gameId, lastPlayed }: SaveBackupsProps) {
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <div className="text-[12px] text-text-muted">Copies des sauvegardes</div>
+        <div className="text-[12px] text-text-muted">{t('Copies des sauvegardes')}</div>
         <button type="button" disabled={busy !== null} onClick={handleCreate} className="btn btn-ghost px-2 py-1 text-[13px]">
-          {busy === 'create' ? 'Copie…' : 'Copier maintenant'}
+          {busy === 'create' ? t('Copie…') : t('Copier maintenant')}
         </button>
       </div>
 
       {backups && backups.length === 0 && (
-        <p className="text-text-secondary">Aucune copie. Une copie est faite automatiquement à chaque fermeture du jeu.</p>
+        <p className="text-text-secondary">{t('Aucune copie. Une copie est faite automatiquement à chaque fermeture du jeu.')}</p>
       )}
 
       {visible.map(backup => (
         <div key={backup.id} className="mb-1 flex items-center gap-2 rounded-sm bg-bg-deep px-2.5 py-1.5">
-          <div className="min-w-0 flex-1" title={backup.locations.join(', ')}>
+          <div className="min-w-0 flex-1" title={backup.locations.map(saveLocationLabel).join(', ')}>
             <div className="truncate">{formatDate(backup.createdAt)}</div>
             <div className="truncate text-[12px] text-text-muted">
-              {BACKUP_REASON_LABELS[backup.reason]} · {backup.fileCount} fichier{backup.fileCount > 1 ? 's' : ''} · {formatBytes(backup.totalBytes)}
+              {tr(BACKUP_REASON_LABELS[backup.reason])} · {t('{n} fichier(s)', { n: backup.fileCount })} · {formatBytes(backup.totalBytes)}
             </div>
           </div>
           <button type="button" disabled={busy !== null} onClick={() => handleRestore(backup)} className="btn btn-ghost flex-shrink-0 px-2 py-1 text-[13px]">
-            {busy === `restore-${backup.id}` ? 'Restauration…' : 'Restaurer'}
+            {busy === `restore-${backup.id}` ? t('Restauration…') : t('Restaurer')}
           </button>
           <button type="button" disabled={busy !== null} onClick={() => handleDelete(backup)} className="btn btn-ghost flex-shrink-0 px-2 py-1 text-[13px]">
-            Supprimer
+            {t('Supprimer')}
           </button>
         </div>
       ))}
 
       {backups && backups.length > COLLAPSED_COUNT && (
         <button type="button" onClick={() => setExpanded(e => !e)} className="btn btn-ghost px-2 py-1 text-[13px]">
-          {expanded ? 'Réduire' : `Tout afficher (${backups.length})`}
+          {expanded ? t('Réduire') : t('Tout afficher ({n})', { n: backups.length })}
         </button>
       )}
 
@@ -120,5 +122,5 @@ export default function SaveBackups({ gameId, lastPlayed }: SaveBackupsProps) {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
+  return new Date(iso).toLocaleString(uiLocale(), { dateStyle: 'medium', timeStyle: 'short' });
 }

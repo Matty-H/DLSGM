@@ -1,4 +1,5 @@
 import type { OcrTranslateSettings } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Traduction des blocs lus par l'OCR. Trois moteurs :
@@ -43,7 +44,7 @@ async function request(fetch: FetchLike, url: string, init: Parameters<FetchLike
     }
     return await response.json();
   } catch (error) {
-    if (controller.signal.aborted) throw new Error(`pas de réponse en ${Math.round(timeoutMs / 1000)} s`);
+    if (controller.signal.aborted) throw new Error(tm('pas de réponse en {s} s', { s: Math.round(timeoutMs / 1000) }));
     throw error;
   } finally {
     clearTimeout(timer);
@@ -90,7 +91,7 @@ export async function translateTexts(texts: string[], { settings, apiKey, fetch,
 
   if (settings.engine === 'local') {
     const base = settings.localUrl.trim().replace(/\/+$/, '');
-    if (!/^https?:\/\//i.test(base)) throw new Error('Adresse du serveur local invalide (ex: http://127.0.0.1:11434/v1).');
+    if (!/^https?:\/\//i.test(base)) throw new Error(tm('Adresse du serveur local invalide (ex: http://127.0.0.1:11434/v1).'));
     const prompt = localPrompt(texts, settings.source, settings.target);
     const data = (await request(
       fetch,
@@ -111,12 +112,12 @@ export async function translateTexts(texts: string[], { settings, apiKey, fetch,
       timeoutMs
     )) as { choices?: { message?: { content?: string } }[] };
     const content = data.choices?.[0]?.message?.content;
-    if (typeof content !== 'string') throw new Error('Réponse du serveur local illisible.');
+    if (typeof content !== 'string') throw new Error(tm('Réponse du serveur local illisible.'));
     // Modèles « à raisonnement » : la réflexion entre <think> n'est pas la réponse.
     return parseNumbered(content.replace(/<think>[\s\S]*?<\/think>/g, ''), texts.length);
   }
 
-  if (!apiKey) throw new Error(`Clé ${settings.engine === 'deepl' ? 'DeepL' : 'Google'} non enregistrée (Paramètres › Outils en jeu).`);
+  if (!apiKey) throw new Error(tm('Clé {service} non enregistrée (Paramètres › Outils en jeu).', { service: settings.engine === 'deepl' ? 'DeepL' : 'Google' }));
 
   if (settings.engine === 'deepl') {
     const data = (await request(

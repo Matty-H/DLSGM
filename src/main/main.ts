@@ -2,6 +2,7 @@ import { app, BrowserWindow, globalShortcut, Menu, net, protocol, screen } from 
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
+import { setMainLanguage } from './i18n';
 import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic, captureFilePath, runStartupUpdateCheck } from './ipc-handlers';
 import { applyDlsiteProxy } from './dlsite-net';
 import { hideInsteadOfClose, setTrayEnabled } from './tray';
@@ -138,6 +139,7 @@ app.whenReady().then(async () => {
   // Proxy DLsite avant tout fetch (le premier scan part dès le chargement).
   await getSettings()
     .then(async settings => {
+      setMainLanguage(settings.uiLanguage);
       setTrayEnabled(Boolean(settings.closeToTray), getWindow);
       await applyDlsiteProxy(settings.dlsiteProxy, settings.dlsiteProxySecret);
     })

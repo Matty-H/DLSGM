@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Check } from 'lucide-react';
+import { t } from '../../lib/i18n.js';
 
 export interface SelectOption<T extends string | number = string> {
   value: T;
@@ -241,12 +242,12 @@ export default function Select<T extends string | number = string>({
                 type="search"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Rechercher…"
-                aria-label="Filtrer la liste"
+                placeholder={t('Rechercher…')}
+                aria-label={t('Filtrer la liste')}
                 className="input select-search"
               />
             )}
-            {visibleOptions.length === 0 && <div className="px-3 py-2 text-[13px] text-text-muted">Aucun résultat.</div>}
+            {visibleOptions.length === 0 && <div className="px-3 py-2 text-[13px] text-text-muted">{t('Aucun résultat.')}</div>}
             {visibleOptions.map(option => {
               const isSelected = option.value === value;
               return (

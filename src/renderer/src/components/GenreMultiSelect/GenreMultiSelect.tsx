@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
+import { t } from '../../lib/i18n.js';
 
 export interface GenreMultiSelectProps {
   genres: string[];
@@ -24,7 +25,7 @@ export default function GenreMultiSelect({ genres, selectedGenres, onToggleGenre
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const label = selectedGenres.length === 0 ? 'Tous les genres' : `${selectedGenres.length} genre${selectedGenres.length > 1 ? 's' : ''}`;
+  const label = selectedGenres.length === 0 ? t('Tous les genres') : t('{n} genre(s)', { n: selectedGenres.length });
 
   return (
     <div ref={rootRef} className="relative">
@@ -39,7 +40,7 @@ export default function GenreMultiSelect({ genres, selectedGenres, onToggleGenre
             onClick={onReset}
             className="w-full px-4 py-2.5 text-left text-sm font-semibold text-accent hover:bg-focus hover:text-on-focus"
           >
-            Réinitialiser la sélection
+            {t('Réinitialiser la sélection')}
           </button>
           <div className="mx-3 my-1 h-px bg-divider" />
           {genres.map(genre => {

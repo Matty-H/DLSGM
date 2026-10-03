@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DPI_AWARE_CS, FOREGROUND_GUARD_CS, dirsCommand } from './auto-clicker';
 import type { GameMacro, MacroRecorderSettings, MacroRecorderStatus, MacroStep } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Enregistreur de macros (Windows), dans la lignée de l'auto-clicker :
@@ -462,7 +463,7 @@ export class MacroRecorder {
   }
 
   warmUp(): Promise<void> {
-    if (!this.status.available) return Promise.reject(new Error("L'enregistreur de macros n'est disponible que sous Windows."));
+    if (!this.status.available) return Promise.reject(new Error(tm("L'enregistreur de macros n'est disponible que sous Windows.")));
     if (this.ready) return this.ready;
     const scriptPath = path.join(this.options.scriptDir, 'macro-recorder.ps1');
     fs.writeFileSync(scriptPath, MACRO_WORKER_SCRIPT, 'utf8');
@@ -489,12 +490,12 @@ export class MacroRecorder {
       worker.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
       worker.on('error', error => {
         reject(error);
-        if (this.worker === worker) this.reset(`Enregistreur de macros indisponible : ${error.message}`);
+        if (this.worker === worker) this.reset(tm('Enregistreur de macros indisponible : {error}', { error: error.message }));
       });
       worker.on('exit', code => {
-        const message = stderr.trim() || `le worker s'est arrêté (code ${code})`;
+        const message = stderr.trim() || tm("le worker s'est arrêté (code {code})", { code: String(code) });
         reject(new Error(message));
-        if (this.worker === worker) this.reset(`Enregistreur de macros arrêté : ${message}`);
+        if (this.worker === worker) this.reset(tm('Enregistreur de macros arrêté : {error}', { error: message }));
       });
     });
     return this.ready;
@@ -511,7 +512,7 @@ export class MacroRecorder {
         this.update({ recording: true, error: null });
         break;
       case 'hookfailed':
-        this.update({ recording: false, error: "Windows a refusé l'enregistrement (hooks clavier / souris)." });
+        this.update({ recording: false, error: tm("Windows a refusé l'enregistrement (hooks clavier / souris).") });
         break;
       case 'ev': {
         const step = parts.slice(2, 7).map(Number) as MacroStep;
@@ -592,7 +593,7 @@ export class MacroRecorder {
       return Promise.resolve();
     }
     if (!macro || macro.steps.length === 0) {
-      this.update({ error: 'Aucune macro à rejouer pour ce jeu : enregistre-en une d’abord.' });
+      this.update({ error: tm('Aucune macro à rejouer pour ce jeu : enregistre-en une d’abord.') });
       return Promise.resolve();
     }
     const go = () => {

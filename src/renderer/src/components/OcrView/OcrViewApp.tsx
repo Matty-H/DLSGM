@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { OcrView } from '../../../../shared/ipc-types';
 import DictWords from './DictWords';
+import { t } from '../../lib/i18n.js';
 
 /**
  * Traduction à l'écran (route #ocr-view) : fenêtre transparente posée sur
@@ -22,15 +23,15 @@ export default function OcrViewApp() {
 
   const status =
     view.status === 'reading'
-      ? 'Lecture du texte…'
+      ? t('Lecture du texte…')
       : view.status === 'translating'
         ? view.engine === 'dictionary'
-          ? 'Recherche dans le dictionnaire…'
-          : 'Traduction…'
+          ? t('Recherche dans le dictionnaire…')
+          : t('Traduction…')
         : view.status === 'error'
           ? view.error
           : view.blocks.length === 0
-            ? 'Aucun texte reconnu (langue OCR installée ? texte assez grand ?)'
+            ? t('Aucun texte reconnu (langue OCR installée ? texte assez grand ?)')
             : null;
 
   return (
@@ -43,7 +44,7 @@ export default function OcrViewApp() {
               className="absolute rounded-sm bg-black/85 px-2 py-1 text-white shadow-lg"
               style={{ left: block.x - 4, top: block.y - 4, minWidth: block.width + 8, maxWidth: Math.max(block.width + 8, 420) }}
             >
-              <DictWords words={block.words} />
+              <DictWords words={block.words} frenchWanted={view.target !== 'en'} />
             </div>
           );
         }

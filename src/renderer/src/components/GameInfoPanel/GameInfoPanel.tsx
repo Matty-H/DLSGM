@@ -7,6 +7,8 @@ import { fetchGameMetadata, refetchGameMetadata, retryThroughVpn } from '../../l
 import type { GenreNames } from '../../lib/genreNames.js';
 import type { CreatorFilter } from '../../lib/filterManager.js';
 import type { GameCollection } from '../../lib/collections.js';
+import { t } from '../../lib/i18n.js';
+import { isAdultBlurred } from '../../lib/adultContent.js';
 
 export interface GameInfoPanelProps {
   gameId: string | null;
@@ -34,6 +36,10 @@ export interface GameInfoPanelProps {
   vpnAvailable: boolean;
   collections: GameCollection[];
   onCreateCollection: (name: string) => string | null;
+  /** Flou des images R18 (Paramètres › Affichage) et jeux déjà révélés dans la session. */
+  blurAdultContent: boolean;
+  revealedGames: Set<string>;
+  onReveal: (gameId: string) => void;
 }
 
 /**
@@ -66,7 +72,10 @@ export default function GameInfoPanel({
   allGenres,
   collections,
   onCreateCollection,
-  vpnAvailable
+  vpnAvailable,
+  blurAdultContent,
+  revealedGames,
+  onReveal
 }: GameInfoPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -88,7 +97,7 @@ export default function GameInfoPanel({
         className="btn absolute left-6 top-4 z-30 rounded-full bg-black/55 pl-2.5 backdrop-blur-md"
       >
         <ChevronLeft size={18} strokeWidth={2.5} />
-        Bibliothèque
+        {t('Bibliothèque')}
       </button>
 
       {showDetails ? (
@@ -111,12 +120,13 @@ export default function GameInfoPanel({
           genreNames={genreNames}
           collections={collections}
           onCreateCollection={onCreateCollection}
-
+          isBlurred={isAdultBlurred(gameData.age_category, blurAdultContent, revealedGames.has(gameId))}
+          onReveal={onReveal}
         />
       ) : (
         <div className="mx-auto max-w-[760px] px-8 pb-10 pt-20">
           {!gameData ? (
-            <p className="text-text-secondary">Informations non disponibles pour {gameId}.</p>
+            <p className="text-text-secondary">{t('Informations non disponibles pour {id}.', { id: gameId })}</p>
           ) : gameData.fetchFailed && !isEditing ? (
             <FetchFailedView
               gameId={gameId}

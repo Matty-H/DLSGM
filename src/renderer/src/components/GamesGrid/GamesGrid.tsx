@@ -1,4 +1,6 @@
 import GameCard from '../GameCard/GameCard';
+import { t } from '../../lib/i18n.js';
+import { isAdultBlurred } from '../../lib/adultContent.js';
 
 export interface GamesGridItem {
   id: string;
@@ -29,7 +31,7 @@ export default function GamesGrid({
   onFocusGame
 }: GamesGridProps) {
   if (games.length === 0) {
-    return <div className="py-16 text-center text-text-muted">Aucune œuvre ne correspond à ces filtres.</div>;
+    return <div className="py-16 text-center text-text-muted">{t('Aucune œuvre ne correspond à ces filtres.')}</div>;
   }
 
   return (
@@ -44,7 +46,7 @@ export default function GamesGrid({
           imageSrc={getWorkImageSrc(id)}
           isRunning={runningGames.has(id)}
           isFocused={focusedGameId === id}
-          isBlurred={data.age_category === 'R18' && blurAdultContent && !revealedGames.has(id)}
+          isBlurred={isAdultBlurred(data.age_category, blurAdultContent, revealedGames.has(id))}
           onOpenInfo={onOpenInfo}
           onReveal={onReveal}
           onFocusGame={onFocusGame}

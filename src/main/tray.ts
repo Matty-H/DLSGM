@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron';
 import zlib from 'zlib';
+import { tm } from './i18n';
 
 /**
  * Icône de la zone de notification (option `closeToTray`) : fermer la
@@ -75,15 +76,17 @@ export function setTrayEnabled(value: boolean, getWindow: () => BrowserWindow | 
     if (window && !window.isVisible()) window.show();
     return;
   }
-  if (tray) return;
-  tray = new Tray(nativeImage.createFromBuffer(drawIcon(32)));
-  tray.setToolTip('DLSGM');
+  if (!tray) {
+    tray = new Tray(nativeImage.createFromBuffer(drawIcon(32)));
+    tray.setToolTip('DLSGM');
+    tray.on('click', () => showWindow(getWindow));
+  }
+  // Reconstruit à chaque appel (enregistrement des paramètres) : suit la langue de l'interface.
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Ouvrir DLSGM', click: () => showWindow(getWindow) },
+    { label: tm('Ouvrir DLSGM'), click: () => showWindow(getWindow) },
     { type: 'separator' },
-    { label: 'Quitter', click: () => app.quit() }
+    { label: tm('Quitter'), click: () => app.quit() }
   ]));
-  tray.on('click', () => showWindow(getWindow));
 }
 
 /** À brancher sur l'événement `close` de la fenêtre : la cache au lieu de la fermer si l'option est active. */

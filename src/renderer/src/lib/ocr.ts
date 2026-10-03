@@ -1,24 +1,26 @@
+import { msg } from './i18n.js';
 /** Options de la traduction à l'écran (Paramètres › Outils en jeu). */
 
+// Libellés : clés de traduction, afficher avec tr().
 export const OCR_SOURCE_LANGUAGES = [
-  { value: 'ja', label: 'Japonais' },
-  { value: 'en-US', label: 'Anglais' },
-  { value: 'zh-Hans', label: 'Chinois simplifié' },
-  { value: 'zh-Hant', label: 'Chinois traditionnel' },
-  { value: 'ko', label: 'Coréen' }
+  { value: 'ja', label: msg('Japonais') },
+  { value: 'en-US', label: msg('Anglais') },
+  { value: 'zh-Hans', label: msg('Chinois simplifié') },
+  { value: 'zh-Hant', label: msg('Chinois traditionnel') },
+  { value: 'ko', label: msg('Coréen') }
 ];
 
 export const OCR_TARGET_LANGUAGES = [
-  { value: 'fr', label: 'Français' },
-  { value: 'en', label: 'Anglais' }
+  { value: 'fr', label: msg('Français') },
+  { value: 'en', label: msg('Anglais') }
 ];
 
 export const OCR_ENGINES = [
-  { value: 'dictionary', label: 'Dictionnaire (hors ligne)' },
-  { value: 'none', label: 'Aucune (texte lu)' },
-  { value: 'local', label: 'Serveur LLM local (avancé)' },
-  { value: 'deepl', label: 'DeepL (en ligne)' },
-  { value: 'google', label: 'Google (en ligne)' }
+  { value: 'dictionary', label: msg('Dictionnaire (hors ligne)') },
+  { value: 'none', label: msg('Aucune (texte lu)') },
+  { value: 'local', label: msg('Serveur LLM local (avancé)') },
+  { value: 'deepl', label: msg('DeepL (en ligne)') },
+  { value: 'google', label: msg('Google (en ligne)') }
 ];
 
 /**

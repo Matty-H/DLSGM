@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw, X } from 'lucide-react';
 import ImageManager, { type DraftImage } from '../ImageManager/ImageManager';
 import Select from '../Select/Select';
-import { categoryMap } from '../../lib/metadataManager.js';
+import { categoryLabel, categoryMap } from '../../lib/metadataManager.js';
 import { applyImageEdit, type ImageEditSource } from '../../lib/gameImages.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
+import { t } from '../../lib/i18n.js';
 
 /** Convertit une date ISO en format DDMMYYYY pour l'affichage dans le formulaire. */
 function isoToDDMMYYYY(isoString?: string): string {
@@ -141,7 +142,7 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
         });
         Object.assign(updatedData, imagesPatch);
       } catch (error) {
-        setSaveError(`Enregistrement des images impossible : ${(error as Error).message}`);
+        setSaveError(t('Enregistrement des images impossible : {error}', { error: (error as Error).message }));
         setIsSaving(false);
         return;
       }
@@ -154,10 +155,8 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
   const handleRefetch = async () => {
     if (isRefetching || isSaving) return;
     const confirmed = window.confirm(
-      'Récupérer à nouveau la fiche depuis DLsite ?\n\n' +
-        'Les informations et les images seront remplacées par celles de DLsite, y compris tes modifications ' +
-        'manuelles (celles de ce formulaire non enregistrées sont perdues). Ta note, tes tags, ton temps de jeu ' +
-        "et l'exécutable choisi sont conservés. Si DLsite ne répond pas, rien n'est modifié."
+      t('Récupérer à nouveau la fiche depuis DLsite ?') + '\n\n' +
+        t("Les informations et les images seront remplacées par celles de DLsite, y compris tes modifications manuelles (celles de ce formulaire non enregistrées sont perdues). Ta note, tes tags, ton temps de jeu et l'exécutable choisi sont conservés. Si DLsite ne répond pas, rien n'est modifié.")
     );
     if (!confirmed) return;
     setIsRefetching(true);
@@ -165,7 +164,7 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
     try {
       await onRefetch();
     } catch (error) {
-      setSaveError(`Récupération depuis DLsite impossible, fiche inchangée : ${ipcErrorMessage(error)}`);
+      setSaveError(t('Récupération depuis DLsite impossible, fiche inchangée : {error}', { error: ipcErrorMessage(error) }));
       setIsRefetching(false);
     }
   };
@@ -176,49 +175,49 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
   return (
     <div className="panel p-6">
       <div className="relative mb-5">
-        <button type="button" onClick={onCancel} aria-label="Annuler" className="btn btn-ghost btn-icon absolute right-0 top-0">
+        <button type="button" onClick={onCancel} aria-label={t('Annuler')} className="btn btn-ghost btn-icon absolute right-0 top-0">
           <X size={17} strokeWidth={2.25} />
         </button>
-        <div className="section-title">Modifier la fiche</div>
+        <div className="section-title">{t('Modifier la fiche')}</div>
         <h3 className="mt-1 pr-10 font-mono">{gameId}</h3>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2 flex flex-col gap-2">
-          <label className={labelClass}>Nom du jeu</label>
+          <label className={labelClass}>{t('Nom du jeu')}</label>
           <input value={name} onChange={e => setName(e.target.value)} className={inputClass} />
         </div>
         <div className="flex flex-col gap-2">
-          <label className={labelClass}>Cercle / Auteur</label>
+          <label className={labelClass}>{t('Cercle / Auteur')}</label>
           <input value={creator} onChange={e => setCreator(e.target.value)} className={inputClass} />
         </div>
         <div className="flex flex-col gap-2">
-          <label className={labelClass}>Date de sortie (DDMMYYYY)</label>
+          <label className={labelClass}>{t('Date de sortie (DDMMYYYY)')}</label>
           <input value={releaseDate} onChange={e => setReleaseDate(e.target.value)} className={inputClass} />
         </div>
         <div className="flex flex-col gap-2">
-          <label className={labelClass}>Catégorie</label>
+          <label className={labelClass}>{t('Catégorie')}</label>
           <Select
             value={category}
-            options={Object.entries(categoryMap).map(([code, catName]) => ({ value: code, label: catName as string }))}
+            options={Object.keys(categoryMap).map(code => ({ value: code, label: categoryLabel(code) }))}
             onChange={setCategory}
-            aria-label="Catégorie"
+            aria-label={t('Catégorie')}
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className={labelClass}>Scénariste</label>
+          <label className={labelClass}>{t('Scénariste')}</label>
           <input value={writer} onChange={e => setWriter(e.target.value)} className={inputClass} />
         </div>
         <div className="flex flex-col gap-2">
-          <label className={labelClass}>Scénario</label>
+          <label className={labelClass}>{t('Scénario')}</label>
           <input value={scenario} onChange={e => setScenario(e.target.value)} className={inputClass} />
         </div>
         <div className="flex flex-col gap-2">
-          <label className={labelClass}>Illustration</label>
+          <label className={labelClass}>{t('Illustration')}</label>
           <input value={illustration} onChange={e => setIllustration(e.target.value)} className={inputClass} />
         </div>
         <div ref={genresRef} className="col-span-2 flex flex-col gap-2">
-          <label className={labelClass}>Genres</label>
+          <label className={labelClass}>{t('Genres')}</label>
           {genres.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {genres.map((genre, index) => (
@@ -226,8 +225,8 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
                   key={genre}
                   type="button"
                   onClick={() => removeGenre(genre, index)}
-                  title="Retirer ce genre"
-                  aria-label={`Retirer le genre ${genre}`}
+                  title={t('Retirer ce genre')}
+                  aria-label={t('Retirer le genre {genre}', { genre })}
                   className="tag flex items-center gap-1.5"
                 >
                   {genre}
@@ -240,14 +239,14 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
             value=""
             options={genreOptions}
             onChange={genre => setGenres(prev => [...prev, genre])}
-            placeholder={genreOptions.length > 0 ? 'Ajouter un genre…' : 'Aucun autre genre dans la bibliothèque'}
-            aria-label="Ajouter un genre"
+            placeholder={genreOptions.length > 0 ? t('Ajouter un genre…') : t('Aucun autre genre dans la bibliothèque')}
+            aria-label={t('Ajouter un genre')}
             disabled={genreOptions.length === 0}
             searchable
           />
         </div>
         <div className="col-span-2 flex flex-col gap-2">
-          <label className={labelClass}>Résumé</label>
+          <label className={labelClass}>{t('Résumé')}</label>
           <textarea
             value={description}
             onChange={e => setDescription(e.target.value)}
@@ -255,7 +254,7 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
           />
         </div>
         <div className="col-span-2 flex flex-col gap-2">
-          <label className={labelClass}>Images</label>
+          <label className={labelClass}>{t('Images')}</label>
           <ImageManager
             cover={cover}
             samples={samples}
@@ -300,16 +299,16 @@ export default function ManualEditForm({ gameId, gameData, getWorkImageSrc, getS
             onClick={handleRefetch}
             disabled={isSaving || isRefetching}
             className="btn btn-ghost mr-auto"
-            title="Remplace les informations et les images par celles de DLsite"
+            title={t('Remplace les informations et les images par celles de DLsite')}
           >
             <RefreshCw size={15} strokeWidth={2.25} className={isRefetching ? 'animate-spin' : ''} />
-            {isRefetching ? 'Récupération…' : 'Récupérer depuis DLsite'}
+            {isRefetching ? t('Récupération…') : t('Récupérer depuis DLsite')}
           </button>
           <button type="button" onClick={handleSave} disabled={isSaving || isRefetching} className="btn btn-primary min-w-[140px]">
-            {isSaving ? 'Enregistrement…' : 'Enregistrer'}
+            {isSaving ? t('Enregistrement…') : t('Enregistrer')}
           </button>
           <button type="button" onClick={onCancel} className="btn">
-            Annuler
+            {t('Annuler')}
           </button>
         </div>
       </div>

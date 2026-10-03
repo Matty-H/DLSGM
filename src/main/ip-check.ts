@@ -1,5 +1,6 @@
 import os from 'os';
 import type { IpCheckResult, LanAddress } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Vérification des adresses IP (Paramètres › Réseau & VPN) :
@@ -28,10 +29,10 @@ export async function checkIp(fetchJson: (url: string, init: RequestInit) => Pro
   const lan = lanAddresses();
   try {
     const response = await fetchJson(WAN_URL, { signal: AbortSignal.timeout(WAN_TIMEOUT_MS), headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`ipinfo.io a répondu HTTP ${response.status}`);
+    if (!response.ok) throw new Error(tm('ipinfo.io a répondu HTTP {status}', { status: response.status }));
     const data = await response.json() as Record<string, unknown>;
     const text = (key: string) => (typeof data[key] === 'string' ? (data[key] as string) : null);
-    if (!text('ip')) throw new Error('Réponse sans adresse IP.');
+    if (!text('ip')) throw new Error(tm('Réponse sans adresse IP.'));
     return { lan, wan: { ip: text('ip')!, country: text('country'), region: text('region'), city: text('city'), org: text('org') } };
   } catch (error) {
     return { lan, wanError: (error as Error).message };

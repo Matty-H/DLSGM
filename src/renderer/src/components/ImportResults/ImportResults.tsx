@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CircleCheck, KeyRound, TriangleAlert, X } from 'lucide-react';
 import type { ArchiveImportResult } from '../../../../shared/ipc-types';
 import { releaseLabel } from '../../lib/releaseInfo.js';
+import { t } from '../../lib/i18n.js';
 
 export interface ImportResultsProps {
   results: ArchiveImportResult[];
@@ -31,18 +32,18 @@ function PasswordRetry({ retryId, onRetry, busy }: { retryId: string; onRetry: I
         type="text"
         value={password}
         onChange={e => setPassword(e.target.value)}
-        placeholder="Mot de passe de l'archive"
-        aria-label="Mot de passe de l'archive"
+        placeholder={t("Mot de passe de l'archive")}
+        aria-label={t("Mot de passe de l'archive")}
         autoComplete="off"
         spellCheck={false}
         className="input w-[220px] py-1 text-[12px]"
       />
       <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-text-secondary">
         <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
-        Mémoriser (essayé sur les prochains imports)
+        {t('Mémoriser (essayé sur les prochains imports)')}
       </label>
       <button type="submit" disabled={busy || !password} className="btn btn-primary py-1 text-[12px]">
-        {busy ? 'Extraction…' : 'Réessayer'}
+        {busy ? t('Extraction…') : t('Réessayer')}
       </button>
     </form>
   );
@@ -57,7 +58,7 @@ export default function ImportResults({ results, onDismiss, onOpenGame, onRetry,
           <li key={result.file} className="flex items-start gap-2">
             {result.gameId ? (
               <>
-                <CircleCheck size={16} strokeWidth={2.25} className="mt-px flex-shrink-0 text-play" aria-label="Importé" />
+                <CircleCheck size={16} strokeWidth={2.25} className="mt-px flex-shrink-0 text-play" aria-label={t('Importé')} />
                 <span className="min-w-0 truncate">
                   {result.file} →{' '}
                   <button type="button" onClick={() => onOpenGame(result.gameId!)} className="font-semibold text-accent hover:underline">
@@ -68,7 +69,7 @@ export default function ImportResults({ results, onDismiss, onOpenGame, onRetry,
               </>
             ) : (
               <>
-                <TriangleAlert size={16} strokeWidth={2.25} className="mt-px flex-shrink-0 text-danger" aria-label="Échec" />
+                <TriangleAlert size={16} strokeWidth={2.25} className="mt-px flex-shrink-0 text-danger" aria-label={t('Échec')} />
                 <div className="min-w-0">
                   <span className="font-semibold">{result.file}</span> : <span className="text-text-secondary">{result.error}</span>
                   {result.retryId && <PasswordRetry key={result.retryId} retryId={result.retryId} onRetry={onRetry} busy={busy} />}
@@ -78,7 +79,7 @@ export default function ImportResults({ results, onDismiss, onOpenGame, onRetry,
           </li>
         ))}
       </ul>
-      <button type="button" onClick={onDismiss} aria-label="Fermer le bilan d'import" className="btn btn-ghost btn-icon flex-shrink-0">
+      <button type="button" onClick={onDismiss} aria-label={t("Fermer le bilan d'import")} className="btn btn-ghost btn-icon flex-shrink-0">
         <X size={16} strokeWidth={2.25} />
       </button>
     </div>

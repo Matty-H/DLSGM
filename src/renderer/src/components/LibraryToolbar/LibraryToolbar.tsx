@@ -2,6 +2,7 @@ import { CircleCheck, EyeOff, Search, SlidersHorizontal, X } from 'lucide-react'
 import SortSelect from '../SortSelect/SortSelect';
 import Select from '../Select/Select';
 import { CREATOR_FIELD_LABELS, type CreatorFilter } from '../../lib/filterManager.js';
+import { t, tr } from '../../lib/i18n.js';
 
 export interface LibraryToolbarProps {
   searchTerm: string;
@@ -49,7 +50,7 @@ export default function LibraryToolbar({
   hideCompleted,
   onHideCompletedChange
 }: LibraryToolbarProps) {
-  const tabs = [{ code: 'all', name: 'Tout' }, ...categories];
+  const tabs = [{ code: 'all', name: t('Tout') }, ...categories];
 
   return (
     <div className="flex flex-shrink-0 flex-col gap-3 px-6 pb-3 pt-2">
@@ -72,7 +73,7 @@ export default function LibraryToolbar({
           <input
             data-search-input
             className="input pl-9 pr-8"
-            placeholder="Rechercher un titre, un cercle…"
+            placeholder={t('Rechercher un titre, un cercle…')}
             value={searchTerm}
             onChange={e => onSearchTermChange(e.target.value)}
           />
@@ -80,7 +81,7 @@ export default function LibraryToolbar({
             <button
               type="button"
               onClick={() => onSearchTermChange('')}
-              aria-label="Effacer la recherche"
+              aria-label={t('Effacer la recherche')}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text"
             >
               <X size={15} strokeWidth={2.25} />
@@ -92,7 +93,7 @@ export default function LibraryToolbar({
           value={collectionFilter}
           options={collectionOptions}
           onChange={onCollectionFilterChange}
-          aria-label="Collection"
+          aria-label={t('Collection')}
           className="w-[210px]"
         />
 
@@ -104,7 +105,7 @@ export default function LibraryToolbar({
           className={`btn ${showAdvancedFilters ? 'btn-primary' : ''}`}
         >
           <SlidersHorizontal size={15} strokeWidth={2.25} />
-          Filtres
+          {t('Filtres')}
         </button>
 
         {/* Bouton bascule, comme « Filtres » : actif = jeux finis masqués. */}
@@ -112,20 +113,20 @@ export default function LibraryToolbar({
           type="button"
           onClick={() => onHideCompletedChange(!hideCompleted)}
           aria-pressed={hideCompleted}
-          title={hideCompleted ? 'Les jeux finis sont masqués — cliquer pour les afficher' : 'Masquer les jeux marqués finis'}
+          title={hideCompleted ? t('Les jeux finis sont masqués — cliquer pour les afficher') : t('Masquer les jeux marqués finis')}
           className={`btn ${hideCompleted ? 'btn-primary' : ''}`}
         >
           {hideCompleted ? <EyeOff size={15} strokeWidth={2.25} /> : <CircleCheck size={15} strokeWidth={2.25} />}
-          {hideCompleted ? 'Finis masqués' : 'Masquer les finis'}
+          {hideCompleted ? t('Finis masqués') : t('Masquer les finis')}
         </button>
 
         {creatorFilter && (
           <span className="tag tag-accent pr-1.5 text-[13px]">
-            {CREATOR_FIELD_LABELS[creatorFilter.field]} : {creatorFilter.value}
+            {t('{field} : {value}', { field: tr(CREATOR_FIELD_LABELS[creatorFilter.field]), value: creatorFilter.value })}
             <button
               type="button"
               onClick={onClearCreatorFilter}
-              aria-label={`Retirer le filtre ${creatorFilter.value}`}
+              aria-label={t('Retirer le filtre {value}', { value: creatorFilter.value })}
               className="rounded-sm p-0.5 hover:bg-white/10"
             >
               <X size={12} strokeWidth={2.5} />
@@ -135,7 +136,7 @@ export default function LibraryToolbar({
 
         <span className="section-title ml-auto">
 
-          {resultCount} œuvre{resultCount > 1 ? 's' : ''}
+          {resultCount > 1 ? t('{n} œuvres', { n: resultCount }) : t('{n} œuvre', { n: resultCount })}
         </span>
       </div>
     </div>

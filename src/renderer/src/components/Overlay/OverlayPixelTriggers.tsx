@@ -14,6 +14,7 @@ import {
   type PixelTriggerSettings,
   type PixelTriggerStatus
 } from '../../lib/pixelTrigger.js';
+import { t } from '../../lib/i18n.js';
 
 export interface OverlayPixelTriggersProps {
   gameId: string;
@@ -103,13 +104,15 @@ export default function OverlayPixelTriggers({ gameId, triggers, status, setting
           <p className="m-0 text-[12px] leading-relaxed text-text-muted">
             {status.running
               ? status.paused
-                ? 'En pause (le jeu n’est pas au premier plan).'
-                : `En marche${rate ? ` — ${rate}` : ''}. Ferme l'overlay pour jouer.`
+                ? t('En pause (le jeu n’est pas au premier plan).')
+                : (rate ? t('En marche — {rate}.', { rate }) : t('En marche.')) + ' ' + t("Ferme l'overlay pour jouer.")
               : triggers.length === 0
-                ? `Ajoute une zone par piste, puis « Viser » : ${hideOverlayWhileAiming ? 'l’overlay s’efface 3 s, ' : 'tu as 3 s pour '}place${hideOverlayWhileAiming ? '' : 'r'} la souris sur la ligne de frappe de la piste.`
+                ? hideOverlayWhileAiming
+                  ? t('Ajoute une zone par piste, puis « Viser » : l’overlay s’efface 3 s, place la souris sur la ligne de frappe de la piste.')
+                  : t('Ajoute une zone par piste, puis « Viser » : tu as 3 s pour placer la souris sur la ligne de frappe de la piste.')
                 : armed
-                  ? `Prêt : ${settings.hotkey} démarre / arrête la surveillance (témoin en bas à gauche).`
-                  : 'Aucune zone active visée.'}
+                  ? t('Prêt : {hotkey} démarre / arrête la surveillance (témoin en bas à gauche).', { hotkey: settings.hotkey })
+                  : t('Aucune zone active visée.')}
           </p>
 
           {triggers.map(trigger => {
@@ -120,7 +123,7 @@ export default function OverlayPixelTriggers({ gameId, triggers, status, setting
                   <input
                     type="checkbox"
                     className="h-4 w-4 flex-shrink-0 accent-accent"
-                    aria-label="Zone active"
+                    aria-label={t('Zone active')}
                     checked={trigger.enabled}
                     onChange={e => update(trigger.id, { enabled: e.target.checked })}
                   />
@@ -128,13 +131,13 @@ export default function OverlayPixelTriggers({ gameId, triggers, status, setting
                     <span className="h-3.5 w-3.5 flex-shrink-0 rounded-sm border border-divider" style={{ background: trigger.color }} />
                   )}
                   <button type="button" onClick={() => setOpen(expanded ? null : trigger.id)} className="min-w-0 flex-1 text-left">
-                    <span className="block truncate font-semibold">{trigger.name || 'Zone'}</span>
+                    <span className="block truncate font-semibold">{trigger.name || t('Zone')}</span>
                     <span className="block truncate text-[11px] text-text-muted">{describeTrigger(trigger)}</span>
                   </button>
                   {status.running && <span className="tag tabular-nums">{status.hits[trigger.id] ?? 0}</span>}
                   <button type="button" onClick={() => aim(trigger, 'zone')} disabled={aiming} className="btn py-1 text-[12px]">
                     <Crosshair size={13} strokeWidth={2.25} />
-                    {aiming ? 'Vise…' : 'Viser'}
+                    {aiming ? t('Vise…') : t('Viser')}
                   </button>
                 </div>
 
@@ -143,37 +146,37 @@ export default function OverlayPixelTriggers({ gameId, triggers, status, setting
                     <div className="flex flex-wrap items-center gap-1.5">
                       <div className="seg">
                         <button type="button" aria-pressed={trigger.mode === 'motion'} onClick={() => update(trigger.id, { mode: 'motion' })} className="seg-opt">
-                          Ça bouge
+                          {t('Ça bouge')}
                         </button>
                         <button type="button" aria-pressed={trigger.mode === 'color'} onClick={() => update(trigger.id, { mode: 'color' })} className="seg-opt">
-                          Couleur
+                          {t('Couleur')}
                         </button>
                       </div>
                       <div className="seg">
                         <button type="button" aria-pressed={trigger.action === 'click'} onClick={() => update(trigger.id, { action: 'click' })} className="seg-opt">
-                          Clic
+                          {t('Clic')}
                         </button>
                         <button type="button" aria-pressed={trigger.action === 'key'} onClick={() => update(trigger.id, { action: 'key' })} className="seg-opt">
-                          Touche
+                          {t('Touche')}
                         </button>
                       </div>
                     </div>
                     {trigger.action === 'key' ? (
-                      <Select value={trigger.key} options={KEY_OPTIONS} onChange={key => update(trigger.id, { key })} aria-label="Touche" className="w-[140px]" />
+                      <Select value={trigger.key} options={KEY_OPTIONS} onChange={key => update(trigger.id, { key })} aria-label={t('Touche')} className="w-[140px]" />
                     ) : (
                       <div className="seg self-start">
                         <button type="button" aria-pressed={trigger.clickPoint === null} onClick={() => update(trigger.id, { clickPoint: null })} className="seg-opt">
-                          Centre de la zone
+                          {t('Centre de la zone')}
                         </button>
                         <button type="button" aria-pressed={trigger.clickPoint !== null} onClick={() => aim(trigger, 'point')} disabled={aiming} className="seg-opt">
                           <Crosshair size={13} strokeWidth={2.25} />
-                          {trigger.clickPoint ? `(${trigger.clickPoint.x}, ${trigger.clickPoint.y})` : 'Viser le point'}
+                          {trigger.clickPoint ? `(${trigger.clickPoint.x}, ${trigger.clickPoint.y})` : t('Viser le point')}
                         </button>
                       </div>
                     )}
                     {trigger.zone && (
                       <Stepper
-                        label="Taille"
+                        label={t('Taille')}
                         value={trigger.zone.width}
                         suffix=" px"
                         step={2}
@@ -182,18 +185,18 @@ export default function OverlayPixelTriggers({ gameId, triggers, status, setting
                         onChange={v => update(trigger.id, { zone: resizeZone(trigger.zone!, v, v) })}
                       />
                     )}
-                    <Stepper label={trigger.mode === 'color' ? 'Écart couleur' : 'Écart min.'} value={trigger.tolerance} step={5} min={0} max={255} onChange={v => update(trigger.id, { tolerance: v })} />
-                    <Stepper label="Part zone" value={trigger.minPercent} suffix=" %" step={5} min={1} max={100} onChange={v => update(trigger.id, { minPercent: v })} />
-                    <Stepper label="Délai" value={trigger.delayMs} suffix=" ms" step={5} min={0} max={2000} onChange={v => update(trigger.id, { delayMs: v })} />
-                    <Stepper label="Pause min." value={trigger.cooldownMs} suffix=" ms" step={10} min={10} max={5000} onChange={v => update(trigger.id, { cooldownMs: v })} />
+                    <Stepper label={trigger.mode === 'color' ? t('Écart couleur') : t('Écart min.')} value={trigger.tolerance} step={5} min={0} max={255} onChange={v => update(trigger.id, { tolerance: v })} />
+                    <Stepper label={t('Part zone')} value={trigger.minPercent} suffix=" %" step={5} min={1} max={100} onChange={v => update(trigger.id, { minPercent: v })} />
+                    <Stepper label={t('Délai')} value={trigger.delayMs} suffix=" ms" step={5} min={0} max={2000} onChange={v => update(trigger.id, { delayMs: v })} />
+                    <Stepper label={t('Pause min.')} value={trigger.cooldownMs} suffix=" ms" step={10} min={10} max={5000} onChange={v => update(trigger.id, { cooldownMs: v })} />
                     <div className="flex items-center justify-between">
                       <label className="flex cursor-pointer items-center gap-1.5 text-[12px]">
                         <input type="checkbox" className="h-4 w-4 accent-accent" checked={trigger.hold} onChange={e => update(trigger.id, { hold: e.target.checked })} />
-                        Maintenir (notes longues)
+                        {t('Maintenir (notes longues)')}
                       </label>
                       <button type="button" onClick={() => save(triggers.filter(t => t.id !== trigger.id))} className="btn btn-ghost py-1 text-[12px]">
                         <Trash2 size={13} strokeWidth={2.25} />
-                        Supprimer
+                        {t('Supprimer')}
                       </button>
                     </div>
                   </div>
@@ -205,7 +208,7 @@ export default function OverlayPixelTriggers({ gameId, triggers, status, setting
           {triggers.length < MAX_TRIGGERS && (
             <button type="button" onClick={add} className="btn self-start py-1 text-[12px]">
               <Plus size={13} strokeWidth={2.25} />
-              Ajouter une zone
+              {t('Ajouter une zone')}
             </button>
           )}
         </>

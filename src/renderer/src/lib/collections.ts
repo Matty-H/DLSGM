@@ -3,7 +3,8 @@ import type { GameCacheEntry } from './cacheManager.js';
 import { CREATOR_FIELD_LABELS, creatorValues, matchesCreator, type CreatorField } from './creators.js';
 import type { GameListItem } from './filterManager.js';
 import { IDENTITY_GENRE_NAMES, type GenreNames } from './genreNames.js';
-import { categoryMap } from './metadataManager.js';
+import { categoryLabel } from './metadataManager.js';
+import { msg, t, tr } from './i18n.js';
 
 /**
  * Collections de jeux : collections créées par l'utilisateur (liste ordonnée
@@ -16,10 +17,11 @@ export type { CollectionCondition, CollectionRuleField, CollectionRules, GameCol
 
 export type SmartCollectionId = 'to-finish' | 'unplayed' | 'completed';
 
+/** `label` : clé de traduction (tr). */
 export const SMART_COLLECTIONS: { id: SmartCollectionId; label: string }[] = [
-  { id: 'to-finish', label: 'À finir' },
-  { id: 'unplayed', label: 'Jamais lancés' },
-  { id: 'completed', label: 'Finis' }
+  { id: 'to-finish', label: msg('À finir') },
+  { id: 'unplayed', label: msg('Jamais lancés') },
+  { id: 'completed', label: msg('Finis') }
 ];
 
 /** Filtre de collection de la bibliothèque : 'all', 'smart:<id>' ou 'user:<id>'. */
@@ -48,12 +50,13 @@ export function gameCollectionIds(game: GameCacheEntry): string[] {
 
 // --- Règles (ajout automatique aux collections de l'utilisateur) -------------
 
+/** Clés de traduction : afficher avec tr(). */
 export const RULE_FIELD_LABELS: Record<CollectionRuleField, string> = {
-  genre: 'Tag DLsite',
-  customTag: 'Tag perso',
-  category: "Type d'œuvre",
-  completed: 'Fini',
-  playTime: 'Temps de jeu',
+  genre: msg('Tag DLsite'),
+  customTag: msg('Tag perso'),
+  category: msg("Type d'œuvre"),
+  completed: msg('Fini'),
+  playTime: msg('Temps de jeu'),
   ...CREATOR_FIELD_LABELS
 };
 
@@ -63,9 +66,9 @@ export const isValuelessField = (field: CollectionRuleField) => field === 'compl
 /** Seuil de temps de jeu (minutes) : « 45 min », « 2 h », « 1 h 30 ». */
 export function formatPlayTimeThreshold(minutes: number): string {
   const m = Math.max(0, Math.round(minutes));
-  if (m < 60) return `${m} min`;
+  if (m < 60) return t('{m} min', { m });
   const rest = m % 60;
-  return rest ? `${Math.floor(m / 60)} h ${String(rest).padStart(2, '0')}` : `${m / 60} h`;
+  return rest ? t('{h} h {m}', { h: Math.floor(m / 60), m: String(rest).padStart(2, '0') }) : t('{h} h', { h: m / 60 });
 }
 
 export const RULE_FIELDS = Object.keys(RULE_FIELD_LABELS) as CollectionRuleField[];
@@ -173,7 +176,7 @@ export function collectRuleValues(games: GameCacheEntry[], field: CollectionRule
         existing.count++;
         continue;
       }
-      const label = field === 'genre' ? genreNames.label(value) : field === 'category' ? categoryMap[value] || value : value;
+      const label = field === 'genre' ? genreNames.label(value) : field === 'category' ? categoryLabel(value) : value;
       options.set(key, { key, value, label, ...(makerId && { makerId }), count: 1 });
     }
   }
@@ -182,17 +185,18 @@ export function collectRuleValues(games: GameCacheEntry[], field: CollectionRule
 
 /** Libellé lisible d'une condition (« Cercle : 猫3 », « sans Auteur : X »). */
 export function describeCondition(condition: CollectionCondition, genreNames: GenreNames = IDENTITY_GENRE_NAMES): string {
-  if (condition.field === 'completed') return condition.negate ? 'Pas fini' : 'Fini';
+  if (condition.field === 'completed') return condition.negate ? t('Pas fini') : t('Fini');
   if (condition.field === 'playTime') {
-    return `Temps de jeu ${condition.negate ? '<' : '≥'} ${formatPlayTimeThreshold(Number(condition.value) || 0)}`;
+    return `${t('Temps de jeu')} ${condition.negate ? '<' : '≥'} ${formatPlayTimeThreshold(Number(condition.value) || 0)}`;
   }
   const value =
     condition.field === 'genre'
       ? genreNames.label(condition.value)
       : condition.field === 'category'
-        ? categoryMap[condition.value] || condition.value
+        ? categoryLabel(condition.value)
         : condition.value;
-  return `${condition.negate ? 'sans ' : ''}${RULE_FIELD_LABELS[condition.field]} : ${value}`;
+  const field = tr(RULE_FIELD_LABELS[condition.field]);
+  return condition.negate ? t('sans {field} : {value}', { field, value }) : t('{field} : {value}', { field, value });
 }
 
 /** Collection avec ses nouvelles règles, groupes vides retirés (sans `rules` s'il n'en reste aucune). */
@@ -211,8 +215,8 @@ export function normalizeCollectionFilter(filter: string, collections: GameColle
 
 export function collectionFilterOptions(collections: GameCollection[]): { value: string; label: string }[] {
   return [
-    { value: ALL_COLLECTIONS, label: 'Toutes les collections' },
-    ...SMART_COLLECTIONS.map(c => ({ value: smartFilter(c.id), label: c.label })),
+    { value: ALL_COLLECTIONS, label: t('Toutes les collections') },
+    ...SMART_COLLECTIONS.map(c => ({ value: smartFilter(c.id), label: tr(c.label) })),
     ...collections.map(c => ({ value: userFilter(c.id), label: c.name }))
   ];
 }
@@ -269,17 +273,18 @@ export function toggleGameCollection(game: GameCacheEntry, id: string): string[]
 
 // --- Étagères de l'accueil --------------------------------------------------
 
-/** Étagères automatiques de l'accueil, dans leur ordre, avec leur taille de jaquettes par défaut. */
+/** Étagères automatiques de l'accueil, dans leur ordre, avec leur taille de jaquettes par défaut (`label` : clé, tr()). */
 export const AUTO_SHELVES: { key: string; label: string; size: ShelfSize }[] = [
-  { key: 'recent', label: 'Récemment joués', size: 'large' },
-  { key: 'to-finish', label: 'À finir', size: 'medium' },
-  { key: 'added', label: 'Ajoutés récemment', size: 'medium' },
-  { key: 'unplayed', label: 'Jamais lancés', size: 'small' }
+  { key: 'recent', label: msg('Récemment joués'), size: 'large' },
+  { key: 'to-finish', label: msg('À finir'), size: 'medium' },
+  { key: 'added', label: msg('Ajoutés récemment'), size: 'medium' },
+  { key: 'unplayed', label: msg('Jamais lancés'), size: 'small' }
 ];
 
 export const DEFAULT_USER_SHELF_SIZE: ShelfSize = 'medium';
 
-export const SHELF_SIZE_LABELS: Record<ShelfSize, string> = { small: 'Petites', medium: 'Moyennes', large: 'Grandes' };
+/** Clés de traduction : afficher avec tr(). */
+export const SHELF_SIZE_LABELS: Record<ShelfSize, string> = { small: msg('Petites'), medium: msg('Moyennes'), large: msg('Grandes') };
 
 export const userShelfKey = (collectionId: string) => `user:${collectionId}`;
 
@@ -354,13 +359,13 @@ export function buildShelves(games: GameListItem[], collections: GameCollection[
   };
 
   const automatic = [
-    shelf('recent', 'Récemment joués', games.filter(g => g.data.lastPlayed), byDateDesc('lastPlayed'), { sort: 'last_played' }),
-    shelf('to-finish', 'À finir', games.filter(g => matchesSmartCollection(g.data, 'to-finish')), byDateDesc('lastPlayed'), {
+    shelf('recent', t('Récemment joués'), games.filter(g => g.data.lastPlayed), byDateDesc('lastPlayed'), { sort: 'last_played' }),
+    shelf('to-finish', t('À finir'), games.filter(g => matchesSmartCollection(g.data, 'to-finish')), byDateDesc('lastPlayed'), {
       collectionFilter: smartFilter('to-finish'),
       sort: 'last_played'
     }),
-    shelf('added', 'Ajoutés récemment', games, byDateDesc('addedDate'), { sort: 'last_added' }),
-    shelf('unplayed', 'Jamais lancés', games.filter(g => matchesSmartCollection(g.data, 'unplayed')), byDateDesc('addedDate'), {
+    shelf('added', t('Ajoutés récemment'), games, byDateDesc('addedDate'), { sort: 'last_added' }),
+    shelf('unplayed', t('Jamais lancés'), games.filter(g => matchesSmartCollection(g.data, 'unplayed')), byDateDesc('addedDate'), {
       collectionFilter: smartFilter('unplayed'),
       sort: 'last_added'
     })

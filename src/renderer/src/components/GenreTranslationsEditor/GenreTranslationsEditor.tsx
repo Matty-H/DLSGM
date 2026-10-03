@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { RotateCcw, Search } from 'lucide-react';
 import { isJapaneseText, type GenreTranslations } from '../../lib/genreNames.js';
+import { t } from '../../lib/i18n.js';
 
 export interface GenreTranslationsEditorProps {
   translations: GenreTranslations;
@@ -55,25 +56,23 @@ export default function GenreTranslationsEditor({ translations, libraryGenres, o
 
   return (
     <div className="py-4">
-      <div className="text-[15px] font-semibold">Traduction des tags</div>
+      <div className="text-[15px] font-semibold">{t('Traduction des tags')}</div>
       <p className="mb-4 mt-1 text-[13px] leading-relaxed text-text-muted">
-        Les fiches sont récupérées en japonais, la langue de référence de DLsite ; chaque tag y est identifié par son nom
-        japonais. L'anglais n'est qu'une traduction d'affichage (Bibliothèque › Langue des tags), apprise de DLsite à
-        chaque récupération. Corrige une traduction ici : elle devient manuelle et DLsite ne la remplace plus.
+        {t("Les fiches sont récupérées en japonais, la langue de référence de DLsite ; chaque tag y est identifié par son nom japonais. L'anglais n'est qu'une traduction d'affichage (Bibliothèque › Langue des tags), apprise de DLsite à chaque récupération. Corrige une traduction ici : elle devient manuelle et DLsite ne la remplace plus.")}
       </p>
 
       <div className="mb-3 flex items-center gap-3">
         <div className="relative flex-1">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input className="input pl-9" placeholder="Filtrer (japonais ou anglais)" value={filter} onChange={e => setFilter(e.target.value)} />
+          <input className="input pl-9" placeholder={t('Filtrer (japonais ou anglais)')} value={filter} onChange={e => setFilter(e.target.value)} />
         </div>
         <label className="flex cursor-pointer items-center gap-2 text-[13px] text-text-secondary">
           <input type="checkbox" className="toggle" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
-          Tout le dictionnaire
+          {t('Tout le dictionnaire')}
         </label>
       </div>
 
-      {rows.length === 0 && <p className="text-[13px] text-text-muted">Aucun tag japonais dans la bibliothèque pour l'instant.</p>}
+      {rows.length === 0 && <p className="text-[13px] text-text-muted">{t("Aucun tag japonais dans la bibliothèque pour l'instant.")}</p>}
 
       <div className="flex flex-col">
         {rows.map(japanese => {
@@ -88,9 +87,9 @@ export default function GenreTranslationsEditor({ translations, libraryGenres, o
                 key={`${japanese}:${translation?.en ?? ''}`}
                 className={`input py-1.5 text-[13px] ${translation?.manual ? 'border-accent' : ''}`}
                 defaultValue={translation?.en ?? ''}
-                placeholder="Pas encore de traduction"
-                aria-label={`Traduction anglaise de ${japanese}`}
-                title={translation?.manual ? 'Traduction manuelle' : translation ? 'Traduction DLsite' : undefined}
+                placeholder={t('Pas encore de traduction')}
+                aria-label={t('Traduction anglaise de {tag}', { tag: japanese })}
+                title={translation?.manual ? t('Traduction manuelle') : translation ? t('Traduction DLsite') : undefined}
                 onBlur={e => commit(japanese, e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
               />
@@ -99,8 +98,8 @@ export default function GenreTranslationsEditor({ translations, libraryGenres, o
                   type="button"
                   onClick={() => onSetTranslation(japanese, null)}
                   className="btn btn-ghost btn-icon"
-                  title="Revenir à la traduction de DLsite"
-                  aria-label={`Revenir à la traduction de DLsite pour ${japanese}`}
+                  title={t('Revenir à la traduction de DLsite')}
+                  aria-label={t('Revenir à la traduction de DLsite pour {tag}', { tag: japanese })}
                 >
                   <RotateCcw size={15} strokeWidth={2.25} />
                 </button>
@@ -114,9 +113,7 @@ export default function GenreTranslationsEditor({ translations, libraryGenres, o
 
       {orphanEnglish.length > 0 && (
         <p className="mt-4 text-[13px] leading-relaxed text-text-muted">
-          {orphanEnglish.length} tag{orphanEnglish.length > 1 ? 's' : ''} anglais sans équivalent japonais connu (fiches
-          récupérées autrefois en anglais) : {orphanEnglish.slice(0, 12).join(', ')}
-          {orphanEnglish.length > 12 ? '…' : ''}. « Mettre à jour toutes les fiches » (Stockage) les repasse en japonais.
+          {t('{n} tag(s) anglais sans équivalent japonais connu (fiches récupérées autrefois en anglais) : {tags}. « Mettre à jour toutes les fiches » (Stockage) les repasse en japonais.', { n: orphanEnglish.length, tags: orphanEnglish.slice(0, 12).join(', ') + (orphanEnglish.length > 12 ? '…' : '') })}
         </p>
       )}
       {error && <p className="mt-2 text-[13px] text-danger">{error}</p>}

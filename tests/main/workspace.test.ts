@@ -13,12 +13,30 @@ beforeEach(() => {
 afterEach(() => removeTempDir(root));
 
 describe('workspaceRoot', () => {
-  it('utilise le dossier des paramètres, sinon Documents/DLSGM/Travaux', () => {
+  it('utilise le dossier des paramètres, sinon Documents/DLSGM/Work', () => {
     const docs = path.join(root, 'Documents');
-    expect(workspaceRoot('', docs)).toBe(path.join(docs, 'DLSGM', 'Travaux'));
+    expect(workspaceRoot('', docs)).toBe(path.join(docs, 'DLSGM', 'Work'));
     expect(workspaceRoot(root, docs)).toBe(root);
     // Un chemin relatif ne doit pas dépendre du dossier courant de l'app.
     expect(workspaceRoot('relatif', docs)).toBe(defaultWorkspaceRoot(docs));
+  });
+});
+
+describe('defaultWorkspaceRoot', () => {
+  it("renomme l'ancien dossier Travaux en Work, contenu compris", () => {
+    const docs = path.join(root, 'Documents');
+    writeTree(path.join(docs, 'DLSGM', 'Travaux'), { 'RJ01000001/notes.md': 'abc' });
+    expect(defaultWorkspaceRoot(docs)).toBe(path.join(docs, 'DLSGM', 'Work'));
+    expect(fs.readFileSync(path.join(docs, 'DLSGM', 'Work', 'RJ01000001', 'notes.md'), 'utf8')).toBe('abc');
+    expect(fs.existsSync(path.join(docs, 'DLSGM', 'Travaux'))).toBe(false);
+  });
+
+  it('garde Work et ne touche pas à Travaux quand les deux existent', () => {
+    const docs = path.join(root, 'Documents');
+    writeTree(path.join(docs, 'DLSGM', 'Travaux'), { 'old.md': 'old' });
+    writeTree(path.join(docs, 'DLSGM', 'Work'), { 'new.md': 'new' });
+    expect(defaultWorkspaceRoot(docs)).toBe(path.join(docs, 'DLSGM', 'Work'));
+    expect(fs.readFileSync(path.join(docs, 'DLSGM', 'Travaux', 'old.md'), 'utf8')).toBe('old');
   });
 });
 

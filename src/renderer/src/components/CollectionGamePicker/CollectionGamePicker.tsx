@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom';
 import { Check, Search, Sparkles, X } from 'lucide-react';
 import type { GameListItem } from '../../lib/filterManager.js';
+import { t } from '../../lib/i18n.js';
 
 export interface CollectionGamePickerProps {
   collectionName: string;
@@ -64,7 +65,7 @@ export default function CollectionGamePicker({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Jeux de la collection ${collectionName}`}
+        aria-label={t('Jeux de la collection {name}', { name: collectionName })}
         data-nav-scope
         data-nav-popup
         onKeyDown={onKeyDown}
@@ -73,8 +74,8 @@ export default function CollectionGamePicker({
       >
         <div className="mb-3 flex items-center gap-3">
           <h2 className="m-0 flex-1 truncate text-[18px] font-bold">{collectionName}</h2>
-          <span className="section-title">{selectedIds.size + ruleIds.size} jeux</span>
-          <button type="button" onClick={onClose} aria-label="Fermer" className="btn btn-ghost btn-icon">
+          <span className="section-title">{t('{n} jeux', { n: selectedIds.size + ruleIds.size })}</span>
+          <button type="button" onClick={onClose} aria-label={t('Fermer')} className="btn btn-ghost btn-icon">
             <X size={17} strokeWidth={2.5} />
           </button>
         </div>
@@ -87,8 +88,8 @@ export default function CollectionGamePicker({
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Titre, cercle ou ID…"
-              aria-label="Chercher un jeu"
+              placeholder={t('Titre, cercle ou ID…')}
+              aria-label={t('Chercher un jeu')}
               className="input w-full pl-9"
             />
           </div>
@@ -98,7 +99,7 @@ export default function CollectionGamePicker({
             onClick={() => setOnlySelected(v => !v)}
             className={`tag ${onlySelected ? 'tag-accent' : ''}`}
           >
-            Dans la collection
+            {t('Dans la collection')}
           </button>
         </div>
 
@@ -113,7 +114,7 @@ export default function CollectionGamePicker({
                   role="checkbox"
                   aria-checked={checked}
                   disabled={byRules}
-                  title={byRules ? 'Ajouté par les règles de la collection' : undefined}
+                  title={byRules ? t('Ajouté par les règles de la collection') : undefined}
                   onClick={() => onToggle(id)}
                   className="flex w-full items-center gap-3 rounded-sm px-2 py-1.5 text-left hover:bg-white/10 focus-visible:bg-focus focus-visible:text-on-focus disabled:opacity-70"
                 >
@@ -141,7 +142,7 @@ export default function CollectionGamePicker({
               </li>
             );
           })}
-          {visible.length === 0 && <li className="px-2 py-4 text-[13px] text-text-muted">Aucun jeu ne correspond.</li>}
+          {visible.length === 0 && <li className="px-2 py-4 text-[13px] text-text-muted">{t('Aucun jeu ne correspond.')}</li>}
         </ul>
       </div>
     </div>,

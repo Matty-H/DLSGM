@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DPI_AWARE_CS, FOREGROUND_GUARD_CS, dirsCommand } from './auto-clicker';
 import type { ClickerButton, PixelTarget, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Détecteur de rythme (Windows), pour les jeux de rythme façon Guitar Hero :
@@ -516,7 +517,7 @@ export class PixelTriggerDetector {
 
   /** Lance le worker (compilation C# : une à deux secondes la première fois). */
   warmUp(): Promise<void> {
-    if (!this.status.available) return Promise.reject(new Error("Le détecteur de rythme n'est disponible que sous Windows."));
+    if (!this.status.available) return Promise.reject(new Error(tm("Le détecteur de rythme n'est disponible que sous Windows.")));
     if (this.ready) return this.ready;
     const scriptPath = path.join(this.options.scriptDir, 'pixel-trigger.ps1');
     fs.writeFileSync(scriptPath, TRIGGER_WORKER_SCRIPT, 'utf8');
@@ -553,12 +554,12 @@ export class PixelTriggerDetector {
       worker.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
       worker.on('error', error => {
         reject(error);
-        if (this.worker === worker) this.reset(`Démarrage du détecteur impossible : ${error.message}`);
+        if (this.worker === worker) this.reset(tm('Démarrage du détecteur impossible : {error}', { error: error.message }));
       });
       worker.on('exit', code => {
-        const message = stderr.trim() || `le worker s'est arrêté (code ${code})`;
+        const message = stderr.trim() || tm("le worker s'est arrêté (code {code})", { code: String(code) });
         reject(new Error(message));
-        if (this.worker === worker) this.reset(`Détecteur arrêté : ${message}`);
+        if (this.worker === worker) this.reset(tm('Détecteur arrêté : {error}', { error: message }));
       });
     });
     return this.ready;
@@ -601,7 +602,7 @@ export class PixelTriggerDetector {
    */
   start(triggers: PixelTrigger[]): Promise<void> {
     const usable = activeTriggers(triggers);
-    if (usable.length === 0) return Promise.reject(new Error('Aucune zone active pour ce jeu (page du jeu › Détecteur de rythme).'));
+    if (usable.length === 0) return Promise.reject(new Error(tm("Aucune zone active pour ce jeu (à régler dans l'overlay Maj+Tab).")));
     if (this.isReady) {
       this.sendStart(usable);
       return Promise.resolve();
@@ -652,7 +653,7 @@ export class PixelTriggerDetector {
       this.pendingSamples.set(id, resolve);
       this.worker?.stdin.write(`sample ${id} ${Math.round(physical.x)} ${Math.round(physical.y)}\n`);
     });
-    if (!color) throw new Error('Lecture de la couleur impossible.');
+    if (!color) throw new Error(tm('Lecture de la couleur impossible.'));
     return color;
   }
 

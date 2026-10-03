@@ -13,6 +13,7 @@ import {
 } from '../../lib/collections.js';
 import type { GameCacheEntry } from '../../lib/cacheManager.js';
 import type { GenreNames } from '../../lib/genreNames.js';
+import { t, tr } from '../../lib/i18n.js';
 
 export interface CollectionRulesEditorProps {
   rules: CollectionRules;
@@ -22,13 +23,13 @@ export interface CollectionRulesEditorProps {
   genreNames: GenreNames;
 }
 
-const FIELD_OPTIONS = RULE_FIELDS.map(field => ({ value: field, label: RULE_FIELD_LABELS[field] }));
+const fieldOptions = () => RULE_FIELDS.map(field => ({ value: field, label: tr(RULE_FIELD_LABELS[field]) }));
 
 /** Libellés du choix avec / sans selon le critère. */
 function negateLabels(field: CollectionRuleField): [string, string] {
-  if (field === 'completed') return ['fini', 'pas fini'];
-  if (field === 'playTime') return ['au moins', 'moins de'];
-  return ['avec', 'sans'];
+  if (field === 'completed') return [t('fini'), t('pas fini')];
+  if (field === 'playTime') return [t('au moins'), t('moins de')];
+  return [t('avec'), t('sans')];
 }
 
 /**
@@ -69,29 +70,29 @@ function ConditionAdder({
           </button>
         </div>
       )}
-      <Select value={field} options={FIELD_OPTIONS} onChange={setField} aria-label="Critère" className="w-[160px]" />
+      <Select value={field} options={fieldOptions()} onChange={setField} aria-label={t('Critère')} className="w-[160px]" />
 
       {field === 'completed' && (
         <button type="button" onClick={() => onAdd({ field, value: 'true', ...negateFlag })} className="btn">
           <Plus size={15} strokeWidth={2.5} />
-          Ajouter
+          {t('Ajouter')}
         </button>
       )}
 
       {field === 'playTime' && (
         <>
-          {!allowNegate && <span className="text-[13px] text-text-secondary">au moins</span>}
+          {!allowNegate && <span className="text-[13px] text-text-secondary">{t('au moins')}</span>}
           <input
             className="input w-[80px] tabular-nums"
             inputMode="decimal"
-            aria-label="Seuil de temps de jeu, en heures"
+            aria-label={t('Seuil de temps de jeu, en heures')}
             value={hours}
             onChange={e => setHours(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))}
           />
-          <span className="text-[13px] text-text-secondary">h</span>
+          <span className="text-[13px] text-text-secondary">{t('h')}</span>
           <button type="button" onClick={() => onAdd({ field, value: String(thresholdMinutes), ...negateFlag })} className="btn">
             <Plus size={15} strokeWidth={2.5} />
-            Ajouter
+            {t('Ajouter')}
           </button>
         </>
       )}
@@ -101,7 +102,7 @@ function ConditionAdder({
           key={field}
           value=""
           options={options}
-          placeholder={options.length ? 'Choisir une valeur…' : 'Aucune valeur dans la bibliothèque'}
+          placeholder={options.length ? t('Choisir une valeur…') : t('Aucune valeur dans la bibliothèque')}
           disabled={options.length === 0}
           searchable
           onChange={key => {
@@ -109,7 +110,7 @@ function ConditionAdder({
             if (!picked) return;
             onAdd({ field, value: picked.value, ...(picked.makerId && { makerId: picked.makerId }), ...negateFlag });
           }}
-          aria-label="Valeur"
+          aria-label={t('Valeur')}
           className="min-w-[200px] flex-1"
         />
       )}
@@ -135,7 +136,7 @@ function ConditionPill({
     <span className={`tag ${negative ? '' : 'tag-accent'}`}>
       {negative && <Ban size={12} strokeWidth={2.5} />}
       {label}
-      <button type="button" onClick={onRemove} aria-label={`Retirer ${label}`} className="-mr-1 ml-0.5 opacity-70 hover:opacity-100">
+      <button type="button" onClick={onRemove} aria-label={t('Retirer {label}', { label })} className="-mr-1 ml-0.5 opacity-70 hover:opacity-100">
         <X size={12} strokeWidth={3} />
       </button>
     </span>
@@ -164,17 +165,17 @@ export default function CollectionRulesEditor({ rules, onChange, games, genreNam
     <div className="flex flex-col gap-3">
       {groups.map((group, index) => (
         <div key={index}>
-          {index > 0 && <div className="section-title mb-2 text-center">— ou —</div>}
+          {index > 0 && <div className="section-title mb-2 text-center">{t('— ou —')}</div>}
           <div className="rounded-md bg-bg-deep p-3">
             <div className="mb-2 flex items-center gap-2">
-              <span className="section-title flex-1">{groups.length > 1 ? `Groupe ${index + 1} : ` : ''}tous ces critères</span>
+              <span className="section-title flex-1">{groups.length > 1 ? t('Groupe {n} : tous ces critères', { n: index + 1 }) : t('Tous ces critères')}</span>
               {groups.length > 1 && (
                 <button
                   type="button"
                   onClick={() => onChange({ ...rules, groups: groups.filter((_, i) => i !== index) })}
                   className="btn btn-ghost py-0.5 text-[12px]"
                 >
-                  Supprimer le groupe
+                  {t('Supprimer le groupe')}
                 </button>
               )}
             </div>
@@ -197,11 +198,11 @@ export default function CollectionRulesEditor({ rules, onChange, games, genreNam
         className="btn btn-ghost self-start text-[13px]"
       >
         <Plus size={15} strokeWidth={2.5} />
-        Ajouter un groupe (OU)
+        {t('Ajouter un groupe (OU)')}
       </button>
 
       <div className="rounded-md bg-bg-deep p-3">
-        <div className="section-title mb-2">Toujours exclure</div>
+        <div className="section-title mb-2">{t('Toujours exclure')}</div>
         {rules.exclude.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {rules.exclude.map((condition, i) => (

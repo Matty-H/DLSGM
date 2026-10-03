@@ -258,6 +258,7 @@ const electronAPI: ElectronAPI = {
     };
   },
   getAppUpdateInfo: () => ipcRenderer.invoke('get-app-update-info'),
+  getSystemLanguages: () => ipcRenderer.invoke('get-system-languages'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
 
   onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', () => callback()),

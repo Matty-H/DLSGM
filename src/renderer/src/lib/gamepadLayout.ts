@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 /**
  * Famille de manette et libellés de ses boutons, pour afficher les bons
  * symboles dans l'interface (barre d'aide du bas).
@@ -44,7 +46,10 @@ export const PAD_LABELS: Record<PadType, Record<PadButton, string>> = {
     rb: 'R1',
     lt: 'L2',
     rt: 'R2',
-    view: 'Créer',
+    // Libellé lu à l'affichage : la table est créée avant que la langue soit connue.
+    get view() {
+      return t('Créer');
+    },
     menu: 'Options'
   },
   nintendo: { south: 'B', east: 'A', west: 'Y', north: 'X', lb: 'L', rb: 'R', lt: 'ZL', rt: 'ZR', view: '−', menu: '+' }

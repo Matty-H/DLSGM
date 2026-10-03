@@ -1,19 +1,20 @@
 import type { GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus } from '../../../shared/ipc-types';
+import { t, uiLocale } from './i18n.js';
 
 export type { GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus };
 
 /** Durée en secondes, une décimale sous la minute (« 4,2 s », « 1 min 05 s »). */
 export function formatMacroDuration(ms: number): string {
   const seconds = Math.max(0, ms) / 1000;
-  if (seconds < 60) return `${seconds.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s`;
+  if (seconds < 60) return `${seconds.toLocaleString(uiLocale(), { maximumFractionDigits: 1 })} s`;
   const minutes = Math.floor(seconds / 60);
-  return `${minutes} min ${String(Math.round(seconds % 60)).padStart(2, '0')} s`;
+  return t('{m} min {s} s', { m: minutes, s: String(Math.round(seconds % 60)).padStart(2, '0') });
 }
 
 /** Résumé d'une macro : actions (appuis de touche ou de bouton) et durée d'un tour. */
 export function macroSummary(macro: GameMacro): string {
   const actions = macro.steps.filter(([, kind]) => kind === 0 || kind === 2).length;
-  return `${actions} action${actions > 1 ? 's' : ''} · ${formatMacroDuration(macro.durationMs)}`;
+  return `${actions > 1 ? t('{n} actions', { n: actions }) : t('{n} action', { n: actions })} · ${formatMacroDuration(macro.durationMs)}`;
 }
 
 /** Macro jouée par le raccourci : la macro active, sinon la plus récente. */

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import type { DictionaryStatus, DictToken } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Installation et utilisation du dictionnaire hors ligne (voir
@@ -28,7 +29,7 @@ export const sha256 = (buffer: Buffer) => crypto.createHash('sha256').update(buf
 /** Télécharge un fichier en suivant la progression, et vérifie son SHA-256. */
 export async function downloadVerified(fetch: DictFetch, url: string, expected: string, onBytes: (n: number) => void): Promise<Buffer> {
   const response = await fetch(url);
-  if (!response.ok || !response.body) throw new Error(`Téléchargement impossible (HTTP ${response.status}).`);
+  if (!response.ok || !response.body) throw new Error(tm('Téléchargement impossible (HTTP {status}).', { status: response.status }));
   const chunks: Buffer[] = [];
   const reader = response.body.getReader();
   for (;;) {
@@ -39,7 +40,7 @@ export async function downloadVerified(fetch: DictFetch, url: string, expected: 
   }
   const buffer = Buffer.concat(chunks);
   const actual = sha256(buffer);
-  if (actual !== expected) throw new Error(`Somme de contrôle invalide (attendu ${expected}, obtenu ${actual}).`);
+  if (actual !== expected) throw new Error(tm('Somme de contrôle invalide (attendu {expected}, obtenu {actual}).', { expected, actual }));
   return buffer;
 }
 
@@ -93,7 +94,7 @@ export class DictionaryStore {
         else job.resolve(result);
       });
       worker.on('exit', code => {
-        for (const job of this.pending.values()) job.reject(new Error(`Le dictionnaire s'est arrêté (code ${code}).`));
+        for (const job of this.pending.values()) job.reject(new Error(tm("Le dictionnaire s'est arrêté (code {code}).", { code: String(code) })));
         this.pending.clear();
         if (this.worker === worker) this.worker = null;
       });
@@ -162,7 +163,7 @@ export class DictionaryStore {
 
   /** Mots et sens de chaque texte (un tableau de mots par texte). */
   lookup(texts: string[], lang: 'fr' | 'en'): Promise<DictToken[][]> {
-    if (!this.installedVersion()) return Promise.reject(new Error('Dictionnaire non installé (Paramètres › Outils en jeu › Traduction à l’écran).'));
+    if (!this.installedVersion()) return Promise.reject(new Error(tm('Dictionnaire non installé (Paramètres › Outils en jeu › Traduction à l’écran).')));
     return this.call<DictToken[][]>({ type: 'lookup', index: this.indexPath, texts, lang });
   }
 

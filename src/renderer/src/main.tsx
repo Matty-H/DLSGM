@@ -7,6 +7,7 @@ import TriggerHudApp from './components/ClickerHud/TriggerHudApp';
 import TriggerZonesApp from './components/ClickerHud/TriggerZonesApp';
 import MacroHudApp from './components/ClickerHud/MacroHudApp';
 import OcrViewApp from './components/OcrView/OcrViewApp';
+import { resolveUiLanguage, setUiLanguage, uiLocale } from './lib/i18n.js';
 import './index.css';
 
 const container = document.getElementById('root');
@@ -20,8 +21,24 @@ if (!container) {
 const route = window.location.hash;
 const Root = route === '#overlay' ? OverlayApp : route === '#clicker-hud' ? ClickerHudApp : route === '#trigger-hud' ? TriggerHudApp : route === '#trigger-zones' ? TriggerZonesApp : route === '#macro-hud' ? MacroHudApp : route === '#ocr-view' ? OcrViewApp : App;
 
-createRoot(container).render(
-  <StrictMode>
-    <Root />
-  </StrictMode>
-);
+// Langue de l'interface fixée avant le premier rendu, dans chaque fenêtre.
+async function initLanguage(): Promise<void> {
+  try {
+    const [settings, systemLanguages] = await Promise.all([
+      window.electronAPI.getSettings(),
+      window.electronAPI.getSystemLanguages()
+    ]);
+    setUiLanguage(resolveUiLanguage(settings?.uiLanguage, systemLanguages));
+  } catch {
+    setUiLanguage(resolveUiLanguage(undefined, navigator.languages));
+  }
+  document.documentElement.lang = uiLocale().slice(0, 2);
+}
+
+initLanguage().finally(() => {
+  createRoot(container).render(
+    <StrictMode>
+      <Root />
+    </StrictMode>
+  );
+});

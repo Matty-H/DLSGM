@@ -23,6 +23,7 @@ import {
 } from '../../lib/collections.js';
 import type { GameListItem } from '../../lib/filterManager.js';
 import type { GenreNames } from '../../lib/genreNames.js';
+import { t, tr } from '../../lib/i18n.js';
 
 export interface CollectionsSettingsProps {
   collections: GameCollection[];
@@ -39,7 +40,7 @@ export interface CollectionsSettingsProps {
   initialExpandedId?: string | null;
 }
 
-const SIZE_OPTIONS = (Object.keys(SHELF_SIZE_LABELS) as ShelfSize[]).map(size => ({ value: size, label: SHELF_SIZE_LABELS[size] }));
+const sizeOptions = () => (Object.keys(SHELF_SIZE_LABELS) as ShelfSize[]).map(size => ({ value: size, label: tr(SHELF_SIZE_LABELS[size]) }));
 
 /** Afficher / taille d'une étagère de l'accueil. */
 function ShelfDisplay({
@@ -58,15 +59,15 @@ function ShelfDisplay({
       <input
         type="checkbox"
         className="toggle"
-        aria-label={`Afficher ${label} sur l'accueil`}
+        aria-label={t("Afficher {label} sur l'accueil", { label })}
         checked={!prefs[shelfKey]?.hidden}
         onChange={e => onChange({ hidden: !e.target.checked })}
       />
       <Select
         value={shelfSize(shelfKey, prefs)}
-        options={SIZE_OPTIONS}
+        options={sizeOptions()}
         onChange={size => onChange({ size })}
-        aria-label={`Taille des jaquettes de ${label}`}
+        aria-label={t('Taille des jaquettes de {label}', { label })}
         className="w-[130px]"
       />
     </div>
@@ -128,23 +129,20 @@ export default function CollectionsSettings({
 
   return (
     <div className="py-4">
-      <div className="text-[15px] font-semibold">Étagères automatiques</div>
+      <div className="text-[15px] font-semibold">{t('Étagères automatiques')}</div>
       <p className="mb-2 mt-1 text-[13px] leading-relaxed text-text-muted">
-        Affichées sur l'accueil, avec la taille de leurs jaquettes (des tailles différentes rythment la page).
+        {t("Affichées sur l'accueil, avec la taille de leurs jaquettes (des tailles différentes rythment la page).")}
       </p>
       {AUTO_SHELVES.map(shelf => (
         <div key={shelf.key} className="flex items-center justify-between gap-4 border-b border-divider py-2 last:border-0">
-          <span className="text-[14px] font-semibold">{shelf.label}</span>
-          <ShelfDisplay shelfKey={shelf.key} label={shelf.label} prefs={homeShelves} onChange={patch => setShelf(shelf.key, patch)} />
+          <span className="text-[14px] font-semibold">{tr(shelf.label)}</span>
+          <ShelfDisplay shelfKey={shelf.key} label={tr(shelf.label)} prefs={homeShelves} onChange={patch => setShelf(shelf.key, patch)} />
         </div>
       ))}
 
-      <div className="mt-6 text-[15px] font-semibold">Mes collections</div>
+      <div className="mt-6 text-[15px] font-semibold">{t('Mes collections')}</div>
       <p className="mb-4 mt-1 text-[13px] leading-relaxed text-text-muted">
-        Chaque collection a son étagère sur l'accueil, dans cet ordre, et sert de filtre dans la bibliothèque. Un jeu y
-        entre si tu l'ajoutes (ici ou depuis sa page) ou s'il correspond à ses règles : tags, cercle, auteur… avec des
-        groupes « ou » et des exclusions. Les jeux choisis sont enregistrés tout de suite ; nom, règles et affichage avec
-        « Enregistrer ».
+        {t("Chaque collection a son étagère sur l'accueil, dans cet ordre, et sert de filtre dans la bibliothèque. Un jeu y entre si tu l'ajoutes (ici ou depuis sa page) ou s'il correspond à ses règles : tags, cercle, auteur… avec des groupes « ou » et des exclusions. Les jeux choisis sont enregistrés tout de suite ; nom, règles et affichage avec « Enregistrer ».")}
       </p>
 
       {collections.map((collection, index) => {
@@ -157,14 +155,14 @@ export default function CollectionsSettings({
                 type="button"
                 onClick={() => setExpandedId(expanded ? null : collection.id)}
                 aria-expanded={expanded}
-                aria-label={`${expanded ? 'Replier' : 'Régler'} ${collection.name}`}
+                aria-label={expanded ? t('Replier {name}', { name: collection.name }) : t('Régler {name}', { name: collection.name })}
                 className="btn btn-ghost btn-icon"
               >
                 {expanded ? <ChevronDown size={16} strokeWidth={2.25} /> : <ChevronRight size={16} strokeWidth={2.25} />}
               </button>
               <input
                 className="input flex-1"
-                aria-label={`Nom de la collection ${collection.name}`}
+                aria-label={t('Nom de la collection {name}', { name: collection.name })}
                 value={collection.name}
                 onChange={e => onCollectionsChange(prev => prev.map(c => (c.id === collection.id ? { ...c, name: e.target.value } : c)))}
               />
@@ -172,7 +170,7 @@ export default function CollectionsSettings({
                 type="button"
                 disabled={index === 0}
                 onClick={() => onCollectionsChange(prev => moveCollection(prev, collection.id, -1))}
-                aria-label={`Monter ${collection.name}`}
+                aria-label={t('Monter {name}', { name: collection.name })}
                 className="btn btn-ghost btn-icon"
               >
                 <ArrowUp size={16} strokeWidth={2.25} />
@@ -181,7 +179,7 @@ export default function CollectionsSettings({
                 type="button"
                 disabled={index === collections.length - 1}
                 onClick={() => onCollectionsChange(prev => moveCollection(prev, collection.id, 1))}
-                aria-label={`Descendre ${collection.name}`}
+                aria-label={t('Descendre {name}', { name: collection.name })}
                 className="btn btn-ghost btn-icon"
               >
                 <ArrowDown size={16} strokeWidth={2.25} />
@@ -189,8 +187,8 @@ export default function CollectionsSettings({
               <button
                 type="button"
                 onClick={() => onCollectionsChange(prev => removeCollection(prev, collection.id))}
-                aria-label={`Supprimer ${collection.name}`}
-                title="Supprimer la collection (les jeux ne sont pas touchés)"
+                aria-label={t('Supprimer {name}', { name: collection.name })}
+                title={t('Supprimer la collection (les jeux ne sont pas touchés)')}
                 className="btn btn-ghost btn-icon"
               >
                 <Trash2 size={16} strokeWidth={2.25} />
@@ -201,17 +199,16 @@ export default function CollectionsSettings({
               <div className="mb-3 ml-11 mt-3 flex flex-col gap-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-[13px] text-text-secondary">
-                    {members.manual.size + members.byRules.size} jeu{members.manual.size + members.byRules.size > 1 ? 'x' : ''} :{' '}
-                    {members.manual.size} ajouté{members.manual.size > 1 ? 's' : ''} à la main, {members.byRules.size} par les règles
+                    {t('{total} jeu(x) : {manual} ajouté(s) à la main, {rules} par les règles', { total: members.manual.size + members.byRules.size, manual: members.manual.size, rules: members.byRules.size })}
                   </div>
                   <button type="button" onClick={() => setPickerId(collection.id)} className="btn">
                     <ListChecks size={16} strokeWidth={2.25} />
-                    Choisir les jeux
+                    {t('Choisir les jeux')}
                   </button>
                 </div>
 
                 <div>
-                  <div className="section-title mb-2">Accueil</div>
+                  <div className="section-title mb-2">{t('Accueil')}</div>
                   <ShelfDisplay
                     shelfKey={userShelfKey(collection.id)}
                     label={collection.name}
@@ -221,7 +218,7 @@ export default function CollectionsSettings({
                 </div>
 
                 <div>
-                  <div className="section-title mb-2">Règles (ajout automatique)</div>
+                  <div className="section-title mb-2">{t('Règles (ajout automatique)')}</div>
                   <CollectionRulesEditor
                     rules={collection.rules ?? emptyRules()}
                     onChange={rules => onCollectionsChange(prev => prev.map(c => (c.id === collection.id ? withRules(c, rules) : c)))}
@@ -235,19 +232,19 @@ export default function CollectionsSettings({
         );
       })}
 
-      {!valid && <p className="mt-2 text-[13px] text-danger">Chaque collection doit avoir un nom, différent des autres.</p>}
+      {!valid && <p className="mt-2 text-[13px] text-danger">{t('Chaque collection doit avoir un nom, différent des autres.')}</p>}
       <div className="mt-4 flex gap-2">
         <input
           className="input flex-1"
-          placeholder="Nouvelle collection…"
-          aria-label="Nom de la nouvelle collection"
+          placeholder={t('Nouvelle collection…')}
+          aria-label={t('Nom de la nouvelle collection')}
           value={newName}
           onChange={e => setNewName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
         />
         <button type="button" onClick={handleAdd} className="btn">
           <Plus size={16} strokeWidth={2.25} />
-          Créer
+          {t('Créer')}
         </button>
       </div>
 

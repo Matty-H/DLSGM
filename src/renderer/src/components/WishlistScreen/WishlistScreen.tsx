@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, EyeOff, Plus, RotateCw, Trash2, TriangleAlert } from 'lucide-react';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
-import { categoryMap } from '../../lib/metadataManager.js';
+import { categoryLabel } from '../../lib/metadataManager.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import {
   addToWishlist,
@@ -12,6 +12,8 @@ import {
   wishlistCoverSrc,
   type WishlistItem
 } from '../../lib/wishlist.js';
+import { t, uiLocale } from '../../lib/i18n.js';
+import { isAdultBlurred } from '../../lib/adultContent.js';
 
 export interface WishlistScreenProps {
   /** Dossiers de jeux présents : quand ils changent, la liste est relue (jeux arrivés retirés). */
@@ -20,7 +22,7 @@ export interface WishlistScreenProps {
 }
 
 const formatDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+  iso ? new Date(iso).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : null;
 
 /**
  * Liste de souhaits : IDs DLsite (ou liens) saisis à la main, affichés avec
@@ -77,16 +79,16 @@ export default function WishlistScreen({ gameFolders, blurAdultContent }: Wishli
 
   return (
     <div data-scroll-root className="animate-steam-in min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-4">
-      <h1 className="mb-1">Liste de souhaits</h1>
+      <h1 className="mb-1">{t('Liste de souhaits')}</h1>
       <p className="mb-4 mt-0 text-[13px] text-text-muted">
-        Les jeux sortent de la liste tout seuls dès qu'ils arrivent dans la bibliothèque.
+        {t("Les jeux sortent de la liste tout seuls dès qu'ils arrivent dans la bibliothèque.")}
       </p>
 
       <div className="mb-2 flex max-w-[760px] gap-2">
         <input
           className="input flex-1"
-          placeholder="ID ou lien DLsite (plusieurs possibles : RJ01234567, RJ01234568…)"
-          aria-label="IDs ou liens DLsite à ajouter"
+          placeholder={t('ID ou lien DLsite (plusieurs possibles : RJ01234567, RJ01234568…)')}
+          aria-label={t('IDs ou liens DLsite à ajouter')}
           spellCheck={false}
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -94,16 +96,16 @@ export default function WishlistScreen({ gameFolders, blurAdultContent }: Wishli
         />
         <button type="button" onClick={handleAdd} disabled={adding || !input.trim()} className="btn btn-primary">
           <Plus size={16} strokeWidth={2.5} />
-          {adding ? 'Ajout…' : 'Ajouter'}
+          {adding ? t('Ajout…') : t('Ajouter')}
         </button>
       </div>
       {message && <p className={`mb-4 mt-0 text-[13px] ${message.isError ? 'text-danger' : 'text-text-secondary'}`}>{message.text}</p>}
 
-      {items && items.length === 0 && <p className="mt-8 text-text-muted">La liste est vide.</p>}
+      {items && items.length === 0 && <p className="mt-8 text-text-muted">{t('La liste est vide.')}</p>}
 
       <div className="mt-4 grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
         {items?.map(item => {
-          const blurred = item.age_category === 'R18' && blurAdultContent && !revealed.has(item.id);
+          const blurred = isAdultBlurred(item.age_category, blurAdultContent, revealed.has(item.id));
           const release = formatDate(item.release_date);
           const upcoming = item.release_date !== null && new Date(item.release_date) > new Date();
           return (
@@ -127,7 +129,7 @@ export default function WishlistScreen({ gameFolders, blurAdultContent }: Wishli
                   >
                     <EyeOff size={20} strokeWidth={2} className="text-text-secondary" />
                     <span className="text-xs font-bold">R18</span>
-                    <span className="text-[11px] text-text-secondary">Cliquer pour révéler</span>
+                    <span className="text-[11px] text-text-secondary">{t('Cliquer pour révéler')}</span>
                   </button>
                 )}
               </div>
@@ -137,17 +139,17 @@ export default function WishlistScreen({ gameFolders, blurAdultContent }: Wishli
                   {item.work_name ?? item.id}
                 </div>
                 <div className="truncate text-[12px] text-text-secondary">
-                  {[item.circle, item.category ? categoryMap[item.category] ?? item.category : null].filter(Boolean).join(' · ') || item.id}
+                  {[item.circle, item.category ? categoryLabel(item.category) : null].filter(Boolean).join(' · ') || item.id}
                 </div>
                 {release && (
                   <div className={`text-[12px] ${upcoming ? 'font-semibold text-accent' : 'text-text-muted'}`}>
-                    {upcoming ? `Sortie le ${release}` : `Sorti le ${release}`}
+                    {upcoming ? t('Sortie le {date}', { date: release }) : t('Sorti le {date}', { date: release })}
                   </div>
                 )}
                 {item.error && (
                   <div className="flex items-start gap-1 text-[12px] text-danger" title={item.error}>
                     <TriangleAlert size={13} strokeWidth={2.25} className="mt-px flex-shrink-0" />
-                    <span className="line-clamp-2">Fiche introuvable (restriction régionale ?) : {item.error}</span>
+                    <span className="line-clamp-2">{t('Fiche introuvable (restriction régionale ?) : {error}', { error: item.error })}</span>
                   </div>
                 )}
                 <div className="mt-auto flex items-center gap-1 pt-2">
@@ -156,8 +158,8 @@ export default function WishlistScreen({ gameFolders, blurAdultContent }: Wishli
                     type="button"
                     onClick={() => window.electronAPI.openExternal(`https://www.dlsite.com/maniax/work/=/product_id/${item.id}.html`)}
                     className="btn btn-ghost btn-icon"
-                    title="Voir sur DLsite"
-                    aria-label={`Voir ${item.id} sur DLsite`}
+                    title={t('Voir sur DLsite')}
+                    aria-label={t('Voir {id} sur DLsite', { id: item.id })}
                   >
                     <ExternalLink size={16} strokeWidth={2.25} />
                   </button>
@@ -167,8 +169,8 @@ export default function WishlistScreen({ gameFolders, blurAdultContent }: Wishli
                       disabled={busyId !== null}
                       onClick={() => runOnItem(item.id, () => refreshWishlistItem(item.id))}
                       className="btn btn-ghost btn-icon"
-                      title="Réessayer"
-                      aria-label={`Réessayer ${item.id}`}
+                      title={t('Réessayer')}
+                      aria-label={t('Réessayer {id}', { id: item.id })}
                     >
                       <RotateCw size={16} strokeWidth={2.25} className={busyId === item.id ? 'animate-spin' : ''} />
                     </button>
@@ -178,8 +180,8 @@ export default function WishlistScreen({ gameFolders, blurAdultContent }: Wishli
                     disabled={busyId !== null}
                     onClick={() => runOnItem(item.id, () => removeFromWishlist(item.id))}
                     className="btn btn-ghost btn-icon"
-                    title="Retirer de la liste"
-                    aria-label={`Retirer ${item.id} de la liste`}
+                    title={t('Retirer de la liste')}
+                    aria-label={t('Retirer {id} de la liste', { id: item.id })}
                   >
                     <Trash2 size={16} strokeWidth={2.25} />
                   </button>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FolderRenameResult, MisnamedFolder } from '../../../shared/ipc-types';
 import { ipcErrorMessage } from '../lib/gameTools.js';
+import { t } from '../lib/i18n.js';
 
 /**
  * Assistant de renommage : dossiers du dossier de jeux qui contiennent un ID
@@ -28,7 +29,7 @@ export function useFolderRename(scanKey: string, onRenamed: () => void) {
       setResults(outcome);
       if (outcome.some(r => r.gameId)) onRenamed();
     } catch (error) {
-      setResults([{ folder: 'Renommage', error: ipcErrorMessage(error) }]);
+      setResults([{ folder: t('Renommage'), error: ipcErrorMessage(error) }]);
     } finally {
       setBusy(false);
       refresh();

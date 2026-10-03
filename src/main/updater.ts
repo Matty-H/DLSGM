@@ -2,6 +2,7 @@ import { app, dialog, net, shell, type BrowserWindow, type MessageBoxOptions } f
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import type { AppUpdateInfo, UpdateCheckResult } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Mises à jour via GitHub Releases (config `publish` d'electron-builder).
@@ -76,9 +77,9 @@ async function showBox(getWindow: () => BrowserWindow | null, options: MessageBo
 /** Dernière version publiée, lue sur l'API GitHub (portable, dev). */
 async function latestReleaseVersion(): Promise<string> {
   const response = await net.fetch(LATEST_RELEASE_API, { headers: { Accept: 'application/vnd.github+json' } });
-  if (!response.ok) throw new Error(`GitHub a répondu ${response.status}.`);
+  if (!response.ok) throw new Error(tm('GitHub a répondu {status}.', { status: response.status }));
   const release = await response.json() as { tag_name?: unknown };
-  if (typeof release.tag_name !== 'string') throw new Error('Réponse de GitHub inattendue.');
+  if (typeof release.tag_name !== 'string') throw new Error(tm('Réponse de GitHub inattendue.'));
   return release.tag_name.replace(/^v/i, '');
 }
 
@@ -93,10 +94,10 @@ async function downloadAndOfferRestart(getWindow: () => BrowserWindow | null, ve
   }
   const restart = await showBox(getWindow, {
     type: 'info',
-    title: 'Mise à jour prête',
-    message: `La version ${version} est téléchargée.`,
-    detail: 'Elle sera installée au redémarrage de DLSGM.',
-    buttons: ['Redémarrer maintenant', 'Au prochain lancement'],
+    title: tm('Mise à jour prête'),
+    message: tm('La version {version} est téléchargée.', { version }),
+    detail: tm('Elle sera installée au redémarrage de DLSGM.'),
+    buttons: [tm('Redémarrer maintenant'), tm('Au prochain lancement')],
     defaultId: 0,
     cancelId: 1,
     noLink: true
@@ -131,9 +132,9 @@ export async function checkForUpdates({ manual, getWindow, disableStartupCheck }
       if (manual) {
         await showBox(getWindow, {
           type: 'info',
-          title: 'Mises à jour',
-          message: 'DLSGM est à jour.',
-          detail: `Version installée : ${current}.`,
+          title: tm('Mises à jour'),
+          message: tm('DLSGM est à jour.'),
+          detail: tm('Version installée : {version}.', { version: current }),
           buttons: ['OK'],
           noLink: true
         });
@@ -144,10 +145,10 @@ export async function checkForUpdates({ manual, getWindow, disableStartupCheck }
     if (!selfUpdate) {
       const open = await showBox(getWindow, {
         type: 'info',
-        title: 'Mise à jour disponible',
-        message: `La version ${latest} de DLSGM est disponible.`,
-        detail: `Version utilisée : ${current}. La version portable ne se met pas à jour seule : téléchargez la nouvelle version sur GitHub.`,
-        buttons: ['Ouvrir la page de téléchargement', 'Fermer'],
+        title: tm('Mise à jour disponible'),
+        message: tm('La version {version} de DLSGM est disponible.', { version: latest }),
+        detail: tm('Version utilisée : {version}. La version portable ne se met pas à jour seule : téléchargez la nouvelle version sur GitHub.', { version: current }),
+        buttons: [tm('Ouvrir la page de téléchargement'), tm('Fermer')],
         defaultId: 0,
         cancelId: 1,
         noLink: true
@@ -156,14 +157,14 @@ export async function checkForUpdates({ manual, getWindow, disableStartupCheck }
       return { status: 'available', version: latest };
     }
 
-    const buttons = ['Mettre à jour', 'Plus tard'];
-    if (!manual && disableStartupCheck) buttons.push('Ne plus vérifier au démarrage');
+    const buttons = [tm('Mettre à jour'), tm('Plus tard')];
+    if (!manual && disableStartupCheck) buttons.push(tm('Ne plus vérifier au démarrage'));
     const choice = await showBox(getWindow, {
       type: 'question',
-      title: 'Mise à jour disponible',
-      message: `La version ${latest} de DLSGM est disponible.`,
-      detail: `Version installée : ${current}. Voulez-vous la télécharger et l'installer ?`
-        + (buttons.length > 2 ? '\n\nLa vérification au démarrage peut être réactivée dans Paramètres › Mises à jour.' : ''),
+      title: tm('Mise à jour disponible'),
+      message: tm('La version {version} de DLSGM est disponible.', { version: latest }),
+      detail: tm("Version installée : {version}. Voulez-vous la télécharger et l'installer ?", { version: current })
+        + (buttons.length > 2 ? '\n\n' + tm('La vérification au démarrage peut être réactivée dans Paramètres › Mises à jour.') : ''),
       buttons,
       defaultId: 0,
       cancelId: 1,
@@ -176,8 +177,8 @@ export async function checkForUpdates({ manual, getWindow, disableStartupCheck }
         log.error('Téléchargement de la mise à jour impossible :', message);
         await showBox(getWindow, {
           type: 'error',
-          title: 'Mises à jour',
-          message: 'Le téléchargement de la mise à jour a échoué.',
+          title: tm('Mises à jour'),
+          message: tm('Le téléchargement de la mise à jour a échoué.'),
           detail: message,
           buttons: ['OK'],
           noLink: true
@@ -191,8 +192,8 @@ export async function checkForUpdates({ manual, getWindow, disableStartupCheck }
     if (manual) {
       await showBox(getWindow, {
         type: 'error',
-        title: 'Mises à jour',
-        message: 'Impossible de vérifier les mises à jour.',
+        title: tm('Mises à jour'),
+        message: tm('Impossible de vérifier les mises à jour.'),
         detail: message,
         buttons: ['OK'],
         noLink: true

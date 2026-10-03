@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { readPeArch } from './game-tools';
 import type { TextractorThread, TextractorView } from '../shared/ipc-types';
+import { tm } from './i18n';
 
 /**
  * Lancement avec Textractor (Windows) : extraction du texte des visual
@@ -210,7 +211,7 @@ export class TextractorSession {
           if (!this.attached.has(pid)) this.attach(pid, image);
         }
       } catch (error) {
-        this.fail(`Processus du jeu introuvables : ${error instanceof Error ? error.message : String(error)}`);
+        this.fail(tm('Processus du jeu introuvables : {error}', { error: error instanceof Error ? error.message : String(error) }));
       }
       if (!this.stopped && Date.now() - startedAt < durationMs) this.pollTimer = setTimeout(poll, intervalMs);
     };
@@ -240,10 +241,10 @@ export class TextractorSession {
       if (idle) clearTimeout(idle);
       idle = setTimeout(() => reader.flush(), 120);
     });
-    cli.on('error', error => this.fail(`TextractorCLI n'a pas pu démarrer : ${error.message}`));
+    cli.on('error', error => this.fail(tm("TextractorCLI n'a pas pu démarrer : {error}", { error: error.message })));
     cli.on('exit', code => {
       this.clis.delete(arch);
-      if (!this.stopped) this.fail(`TextractorCLI (${arch}) s'est arrêté (code ${code}).`);
+      if (!this.stopped) this.fail(tm("TextractorCLI ({arch}) s'est arrêté (code {code}).", { arch, code: String(code) }));
     });
     this.clis.set(arch, cli);
     return cli;

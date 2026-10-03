@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 /**
  * Utilitaires pour formater les durées et les dates.
  */
@@ -14,11 +16,11 @@ export function formatPlayTime(totalPlayTimeSeconds: number): string {
   const totalPlayTimeHours = Math.floor(totalPlayTimeMinutes / 60);
 
   if (totalPlayTimeSeconds < 60) {
-    return `${totalPlayTimeSeconds} sec`;
+    return t('{n} sec', { n: totalPlayTimeSeconds });
   } else if (totalPlayTimeMinutes < 60) {
-    return `${totalPlayTimeMinutes} min`;
+    return t('{m} min', { m: totalPlayTimeMinutes });
   } else {
-    return `${totalPlayTimeHours} h`;
+    return t('{h} h', { h: totalPlayTimeHours });
   }
 }
 
@@ -38,13 +40,13 @@ export function formatLastPlayed(lastPlayedDate: string | Date | null | undefine
   const diffMinutes = Math.floor(diffTime / (1000 * 60));
 
   if (diffDays > 0) {
-    return `Il y a ${diffDays} jour${diffDays > 1 ? 's' : ''}`;
+    return diffDays > 1 ? t('Il y a {n} jours', { n: diffDays }) : t('Il y a {n} jour', { n: diffDays });
   } else if (diffHours > 0) {
-    return `Il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
+    return diffHours > 1 ? t('Il y a {n} heures', { n: diffHours }) : t('Il y a {n} heure', { n: diffHours });
   } else if (diffMinutes > 0) {
-    return `Il y a ${diffMinutes} minute${diffMinutes > 1 ? 's' : ''}`;
+    return diffMinutes > 1 ? t('Il y a {n} minutes', { n: diffMinutes }) : t('Il y a {n} minute', { n: diffMinutes });
   } else {
-    return 'À l\'instant';
+    return t("À l'instant");
   }
 }
 
@@ -54,7 +56,7 @@ export function formatLastPlayed(lastPlayedDate: string | Date | null | undefine
  */
 export function formatSessionDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 1) return '< 1 min';
-  if (minutes < 60) return `${minutes} min`;
-  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+  if (minutes < 1) return t('< 1 min');
+  if (minutes < 60) return t('{m} min', { m: minutes });
+  return t('{h} h {m}', { h: Math.floor(minutes / 60), m: String(minutes % 60).padStart(2, '0') });
 }

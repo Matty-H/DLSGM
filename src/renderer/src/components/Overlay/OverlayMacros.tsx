@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Circle, Play, Repeat, Square, Trash2 } from 'lucide-react';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import { activeMacroOf, macroSummary, type GameMacros, type MacroRecorderSettings, type MacroRecorderStatus } from '../../lib/macros.js';
+import { t } from '../../lib/i18n.js';
+import Trans from '../Trans/Trans';
 
 export interface OverlayMacrosProps {
   gameId: string;
@@ -38,25 +40,25 @@ export default function OverlayMacros({ gameId, data, status, settings, onChange
           onClick={() => run(() => window.electronAPI.toggleMacroRecording())}
           disabled={status.playing}
           className={`btn py-1 text-[12px] ${status.recording ? 'btn-primary' : ''}`}
-          title={`Raccourci : ${settings.recordHotkey}`}
+          title={t('Raccourci : {hotkey}', { hotkey: settings.recordHotkey })}
         >
           {status.recording ? <Square size={13} strokeWidth={2.5} /> : <Circle size={13} strokeWidth={2.5} className="text-danger" />}
-          {status.recording ? `Arrêter (${status.stepCount} étapes)` : 'Enregistrer'}
+          {status.recording ? t('Arrêter ({n} étapes)', { n: status.stepCount }) : t('Enregistrer')}
         </button>
         <button
           type="button"
           onClick={() => run(() => window.electronAPI.toggleMacroPlayback())}
           disabled={status.recording || (!status.playing && !active)}
           className={`btn py-1 text-[12px] ${status.playing ? 'btn-primary' : ''}`}
-          title={`Raccourci : ${settings.playHotkey}`}
+          title={t('Raccourci : {hotkey}', { hotkey: settings.playHotkey })}
         >
           {status.playing ? <Square size={13} strokeWidth={2.5} /> : <Play size={13} strokeWidth={2.5} />}
-          {status.playing ? (status.paused ? 'En pause — arrêter' : 'Arrêter la lecture') : 'Lire'}
+          {status.playing ? (status.paused ? t('En pause — arrêter') : t('Arrêter la lecture')) : t('Lire')}
         </button>
       </div>
       {status.recording && (
         <p className="m-0 text-[12px] text-text-muted">
-          Ferme l'overlay et joue : clics et touches faits dans le jeu sont enregistrés. <span className="kbd">{settings.recordHotkey}</span> pour finir.
+          <Trans text={t("Ferme l'overlay et joue : clics et touches faits dans le jeu sont enregistrés. {hotkey} pour finir.")} values={{ hotkey: <span className="kbd">{settings.recordHotkey}</span> }} />
         </p>
       )}
 
@@ -80,14 +82,14 @@ export default function OverlayMacros({ gameId, data, status, settings, onChange
                 aria-pressed={macro.loop}
                 onClick={() => run(() => window.electronAPI.updateMacro(gameId, macro.id, { loop: !macro.loop }))}
                 className={`tag px-1.5 py-0.5 text-[11px] ${macro.loop ? 'tag-accent' : ''}`}
-                title={macro.loop ? 'Rejouée en boucle jusqu’à l’arrêt' : 'Rejouée une fois'}
+                title={macro.loop ? t('Rejouée en boucle jusqu’à l’arrêt') : t('Rejouée une fois')}
               >
-                <Repeat size={11} strokeWidth={2.5} /> Boucle
+                <Repeat size={11} strokeWidth={2.5} /> {t('Boucle')}
               </button>
               <button
                 type="button"
                 onClick={() => run(() => window.electronAPI.deleteMacro(gameId, macro.id))}
-                aria-label={`Supprimer ${macro.name}`}
+                aria-label={t('Supprimer {name}', { name: macro.name })}
                 className="btn btn-ghost btn-icon h-6 w-6 p-0"
               >
                 <Trash2 size={13} strokeWidth={2.25} />
@@ -97,7 +99,7 @@ export default function OverlayMacros({ gameId, data, status, settings, onChange
         </ul>
       ) : (
         <p className="m-0 text-[12px] text-text-muted">
-          Aucune macro pour ce jeu. <span className="kbd">{settings.recordHotkey}</span> (ou « Enregistrer ») en commence une.
+          <Trans text={t('Aucune macro pour ce jeu. {hotkey} (ou « Enregistrer ») en commence une.')} values={{ hotkey: <span className="kbd">{settings.recordHotkey}</span> }} />
         </p>
       )}
       {(error || status.error) && <p className="m-0 text-[12px] text-danger">{error ?? status.error}</p>}

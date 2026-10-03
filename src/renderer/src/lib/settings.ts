@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   autoBackupSaves: true,
   closeToTray: false,
   checkUpdatesOnStartup: true,
+  uiLanguage: 'system',
   workspaceFolder: '',
   piaRetry: false,
   piaRegion: 'jp-tokyo',

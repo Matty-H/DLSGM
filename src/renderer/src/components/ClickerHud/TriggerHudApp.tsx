@@ -5,6 +5,7 @@ import { HOTKEY_OPTIONS } from '../../lib/autoClicker.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import { formatCaptureRate } from '../../lib/pixelTrigger.js';
 import type { OverlayState, PixelTriggerStatus } from '../../../../shared/ipc-types';
+import { t } from '../../lib/i18n.js';
 
 /**
  * Témoin du détecteur de rythme (route #trigger-hud, même fenêtre que celui
@@ -78,7 +79,7 @@ export default function TriggerHudApp() {
       className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${
         paused ? 'bg-amber-400' : running ? 'bg-play shadow-[0_0_8px_var(--color-play)]' : noZone ? 'bg-text-muted' : 'bg-danger'
       }`}
-      aria-label={paused ? 'En pause' : running ? 'En marche' : 'À l’arrêt'}
+      aria-label={paused ? t('En pause') : running ? t('En marche') : t('À l’arrêt')}
     />
   );
 
@@ -90,8 +91,8 @@ export default function TriggerHudApp() {
           <div className="flex items-center gap-2 text-[13px] font-bold">
             {dot}
             <ScanEye size={15} strokeWidth={2.25} />
-            <span className="flex-1">Détecteur de rythme</span>
-            <button type="button" onClick={close} aria-label="Replier" className="btn btn-ghost btn-icon h-7 w-7 p-0">
+            <span className="flex-1">{t('Détecteur de rythme')}</span>
+            <button type="button" onClick={close} aria-label={t('Replier')} className="btn btn-ghost btn-icon h-7 w-7 p-0">
               <X size={15} strokeWidth={2.5} />
             </button>
           </div>
@@ -112,7 +113,7 @@ export default function TriggerHudApp() {
           ))}
 
           <div>
-            <div className="section-title mb-1 text-[10px]">Raccourci marche / arrêt</div>
+            <div className="section-title mb-1 text-[10px]">{t('Raccourci marche / arrêt')}</div>
             <div className="flex flex-wrap gap-1">
               {hotkeyOptions.map(option => (
                 <button
@@ -128,24 +129,24 @@ export default function TriggerHudApp() {
             </div>
           </div>
           {error && <div className="text-[11px] text-danger">{error}</div>}
-          <div className="text-[11px] text-text-muted">Les changements sont enregistrés tout de suite.</div>
+          <div className="text-[11px] text-text-muted">{t('Les changements sont enregistrés tout de suite.')}</div>
         </div>
       </div>
     );
   }
 
   const label = paused
-    ? 'En pause'
+    ? t('En pause')
     : running
-      ? `${hits} note${hits > 1 ? 's' : ''}${rate ? ` · ${rate}` : ''}`
+      ? `${hits > 1 ? t('{n} notes', { n: hits }) : t('{n} note', { n: hits })}${rate ? ` · ${rate}` : ''}`
       : noZone
-        ? 'Aucune zone — clic pour régler'
-        : `${status.zoneCount} zone${status.zoneCount > 1 ? 's' : ''}`;
+        ? t('Aucune zone — clic pour régler')
+        : status.zoneCount > 1 ? t('{n} zones', { n: status.zoneCount }) : t('{n} zone', { n: status.zoneCount });
   const title = paused
-    ? 'En pause : le jeu n’est pas au premier plan'
+    ? t('En pause : le jeu n’est pas au premier plan')
     : running
-      ? `Détecteur de rythme en marche — ${settings.hotkey} pour arrêter`
-      : `Détecteur de rythme à l'arrêt — ${settings.hotkey} pour démarrer, clic pour régler les zones`;
+      ? t('Détecteur de rythme en marche — {hotkey} pour arrêter', { hotkey: settings.hotkey })
+      : t("Détecteur de rythme à l'arrêt — {hotkey} pour démarrer, clic pour régler les zones", { hotkey: settings.hotkey });
 
   return (
     <div className="flex h-screen w-screen items-end font-body text-text">

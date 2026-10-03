@@ -1,6 +1,7 @@
 import { net, safeStorage, session } from 'electron';
 import { PASSWORD_MASK, maskProxyUrl, parseProxyUrl, resolveUpstream } from './proxy-config';
 import { startProxyRelay, type ProxyRelay } from './proxy-relay';
+import { tm } from './i18n';
 
 /**
  * Accès réseau vers DLsite (fiches et images), par la pile réseau de
@@ -22,7 +23,7 @@ let relay: ProxyRelay | null = null;
 /** Chiffre un mot de passe de proxy pour les paramètres (DPAPI sous Windows). */
 export function encryptSecret(plain: string): string {
   if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error("Chiffrement indisponible sur ce système : impossible d'enregistrer le mot de passe du proxy.");
+    throw new Error(tm("Chiffrement indisponible sur ce système : impossible d'enregistrer le mot de passe du proxy."));
   }
   return safeStorage.encryptString(plain).toString('base64');
 }
@@ -88,13 +89,12 @@ export async function dlsiteFetch(url: string, init?: RequestInit): Promise<Resp
     if ((error as Error).name === 'AbortError') throw error;
     if (message.includes('ERR_NETWORK_ACCESS_DENIED')) {
       throw new Error(
-        `Accès réseau refusé à DLSGM par Windows (${message}) : pare-feu, ou VPN qui bloque l'application ` +
-        '(ex: split tunneling de PIA en « Only VPN » avec le VPN déconnecté — désactive le split tunneling).'
+        tm("Accès réseau refusé à DLSGM par Windows ({error}) : pare-feu, ou VPN qui bloque l'application (ex: split tunneling de PIA en « Only VPN » avec le VPN déconnecté — désactive le split tunneling).", { error: message })
       );
     }
     if (/ERR_(SOCKS|PROXY|TUNNEL)/.test(message)) {
-      throw new Error(`Le proxy DLsite refuse la connexion (${message}) : vérifie son adresse et ses identifiants dans Paramètres › Réseau & VPN.`);
+      throw new Error(tm('Le proxy DLsite refuse la connexion ({error}) : vérifie son adresse et ses identifiants dans Paramètres › Réseau & VPN.', { error: message }));
     }
-    throw new Error(`Connexion à DLsite impossible (${message}) — ${new URL(url).host}. Si DLsite n'est accessible que via un proxy, renseigne-le dans Paramètres › Réseau & VPN.`);
+    throw new Error(tm("Connexion à DLsite impossible ({error}) — {host}. Si DLsite n'est accessible que via un proxy, renseigne-le dans Paramètres › Réseau & VPN.", { error: message, host: new URL(url).host }));
   }
 }

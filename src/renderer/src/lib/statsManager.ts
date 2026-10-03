@@ -1,6 +1,7 @@
 import type { GameCache, GameCacheEntry } from './cacheManager.js';
-import { categoryMap } from './metadataManager.js';
+import { categoryLabel } from './metadataManager.js';
 import { IDENTITY_GENRE_NAMES, type GenreNames } from './genreNames.js';
+import { t } from './i18n.js';
 
 export interface BreakdownRow {
   label: string;
@@ -18,7 +19,7 @@ export interface LibraryStats {
   categoryBreakdown: BreakdownRow[];
 }
 
-const AGE_LABELS: Record<string, string> = { ALL_AGES: 'Tout public', R15: 'R15', R18: 'R18' };
+const ageLabel = (key: string) => (key === 'ALL_AGES' ? t('Tout public') : key);
 
 function widthPercent(count: number, max: number): string {
   return `${max > 0 ? Math.round((count / max) * 100) : 0}%`;
@@ -75,8 +76,8 @@ export function computeLibraryStats(cache: GameCache, genreNames: GenreNames = I
     lastAdded,
     genreBreakdown: countToBreakdown(genreCounts, genreNames.label, true),
 
-    ageBreakdown: countToBreakdown(ageCounts, key => AGE_LABELS[key] || key, false),
-    categoryBreakdown: countToBreakdown(categoryCounts, key => categoryMap[key] || key, true)
+    ageBreakdown: countToBreakdown(ageCounts, ageLabel, false),
+    categoryBreakdown: countToBreakdown(categoryCounts, categoryLabel, true)
   };
 }
 
