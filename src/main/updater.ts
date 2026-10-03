@@ -1,7 +1,7 @@
 import { app, dialog, net, shell, type BrowserWindow, type MessageBoxOptions } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import type { AppUpdateInfo, UpdateCheckResult } from '../shared/ipc-types';
+import type { AppUpdateInfo, UpdateCheckResult, UpdateDownloadProgress } from '../shared/ipc-types';
 import { tm } from './i18n';
 
 /**
@@ -83,14 +83,23 @@ async function latestReleaseVersion(): Promise<string> {
   return release.tag_name.replace(/^v/i, '');
 }
 
+/** Avancement envoyé à la fenêtre principale (barre de l'interface) et à la barre des tâches. */
+function reportProgress(getWindow: () => BrowserWindow | null, progress: UpdateDownloadProgress | null): void {
+  const window = getWindow();
+  if (!window || window.isDestroyed()) return;
+  window.setProgressBar(progress ? progress.percent / 100 : -1);
+  window.webContents.send('update-download-progress', progress);
+}
+
 async function downloadAndOfferRestart(getWindow: () => BrowserWindow | null, version: string): Promise<void> {
-  const onProgress = (progress: { percent: number }) => getWindow()?.setProgressBar(progress.percent / 100);
+  const onProgress = (progress: { percent: number }) => reportProgress(getWindow, { version, percent: progress.percent });
   autoUpdater.on('download-progress', onProgress);
+  reportProgress(getWindow, { version, percent: 0 });
   try {
     await autoUpdater.downloadUpdate();
   } finally {
     autoUpdater.removeListener('download-progress', onProgress);
-    getWindow()?.setProgressBar(-1);
+    reportProgress(getWindow, null);
   }
   const restart = await showBox(getWindow, {
     type: 'info',
@@ -102,7 +111,11 @@ async function downloadAndOfferRestart(getWindow: () => BrowserWindow | null, ve
     cancelId: 1,
     noLink: true
   });
-  if (restart === 0) autoUpdater.quitAndInstall();
+  // Installation silencieuse (/S) puis relance : sans ces arguments,
+  // electron-updater ouvre l'assistant de l'installeur NSIS, comme une
+  // première installation. « Au prochain lancement » installe aussi en
+  // silence, à la fermeture (autoInstallOnAppQuit).
+  if (restart === 0) autoUpdater.quitAndInstall(true, true);
 }
 
 export interface CheckOptions {

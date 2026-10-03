@@ -108,7 +108,26 @@ describe('checkForUpdates — version installée', () => {
     answer(0, 0);
     await checkForUpdates({ manual: true, getWindow });
     expect(au.downloadUpdate).toHaveBeenCalledOnce();
-    expect(au.quitAndInstall).toHaveBeenCalledOnce();
+    // En silence, puis relance : sinon l'assistant de l'installeur s'ouvre.
+    expect(au.quitAndInstall).toHaveBeenCalledWith(true, true);
+  });
+
+  it("envoie l'avancement du téléchargement à la fenêtre, puis null à la fin", async () => {
+    const send = vi.fn();
+    const window = { isDestroyed: () => false, setProgressBar: vi.fn(), webContents: { send } };
+    au.downloadUpdate.mockImplementation(async () => {
+      const onProgress = (updater.autoUpdater.on as ReturnType<typeof vi.fn>).mock.calls.find(([event]) => event === 'download-progress')?.[1];
+      onProgress?.({ percent: 42 });
+      return [];
+    });
+    answer(0, 1);
+    await checkForUpdates({ manual: true, getWindow: () => window as never });
+    expect(send.mock.calls.map(([, progress]) => progress)).toEqual([
+      { version: '1.2.0', percent: 0 },
+      { version: '1.2.0', percent: 42 },
+      null
+    ]);
+    expect(au.quitAndInstall).not.toHaveBeenCalled();
   });
 
   it('dit « à jour » seulement en vérification manuelle', async () => {

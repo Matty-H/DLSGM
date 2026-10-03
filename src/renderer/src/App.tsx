@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import TopNav, { TABS, type AppTab } from './components/TopNav/TopNav';
+import UpdateProgressBar from './components/UpdateProgressBar/UpdateProgressBar';
+import { useUpdateDownloadProgress } from './hooks/useUpdateDownloadProgress';
 import LibraryToolbar from './components/LibraryToolbar/LibraryToolbar';
 import AdvancedFilterPanel from './components/AdvancedFilterPanel/AdvancedFilterPanel';
 import GamesGrid from './components/GamesGrid/GamesGrid';
@@ -76,6 +78,7 @@ export default function App() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [revealedGames, setRevealedGames] = useState<Set<string>>(new Set());
+  const updateProgress = useUpdateDownloadProgress();
 
   const sortSyncedRef = useRef(false);
 
@@ -566,6 +569,7 @@ export default function App() {
 
       )}
 
+      <UpdateProgressBar progress={updateProgress} />
       <FooterHints
         hints={footerHints}
         actions={

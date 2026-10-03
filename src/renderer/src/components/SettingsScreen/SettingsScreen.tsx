@@ -270,6 +270,11 @@ export default function SettingsScreen({
   const [sandboxieStatus, setSandboxieStatus] = useState<SandboxieStatus | null>(null);
   const [isResettingImages, setIsResettingImages] = useState(false);
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  // Version affichée sous « Enregistrer ».
+  const [appInfo, setAppInfo] = useState<AppUpdateInfo | null>(null);
+  useEffect(() => {
+    window.electronAPI.getAppUpdateInfo().then(setAppInfo).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     setSection(initialSection);
@@ -466,6 +471,12 @@ export default function SettingsScreen({
           <button type="button" onClick={handleSave} disabled={!isDirty || !proxyValid || !collectionsValid} className="btn btn-primary btn-block py-3">
             {t('Enregistrer')}
           </button>
+          {appInfo && (
+            <span className="text-center text-[11px] tabular-nums text-text-muted">
+              DLSGM {appInfo.version}
+              {appInfo.portable ? ` · ${t('portable')}` : ''}
+            </span>
+          )}
         </div>
       </nav>
 

@@ -95,6 +95,13 @@ export interface AppUpdateInfo {
   selfUpdate: boolean;
 }
 
+/** Avancement du téléchargement d'une mise à jour (barre au-dessus de la barre des touches). */
+export interface UpdateDownloadProgress {
+  version: string;
+  /** 0 à 100. */
+  percent: number;
+}
+
 export type UpdateCheckResult =
   | { status: 'up-to-date' | 'available'; version: string }
   | { status: 'error'; message: string }
@@ -1154,6 +1161,8 @@ export interface ElectronAPI {
   // Mises à jour (src/main/updater.ts) : les pop-ups sont affichés par main.
   getAppUpdateInfo(): Promise<AppUpdateInfo>;
   checkForUpdates(): Promise<UpdateCheckResult>;
+  /** Téléchargement d'une mise à jour en cours (null : terminé ou abandonné). */
+  onUpdateDownloadProgress(callback: (progress: UpdateDownloadProgress | null) => void): () => void;
 
   // Événements (du Main vers le Renderer)
   onPanicTriggered(callback: () => void): void;

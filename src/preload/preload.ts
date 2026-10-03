@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ArchiveImportProgress, AutoClickerStatus, DictionaryStatus, ElectronAPI, GameDiskUsage, MacroRecorderStatus, OcrView, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress } from '../shared/ipc-types';
+import type { ArchiveImportProgress, AutoClickerStatus, DictionaryStatus, ElectronAPI, GameDiskUsage, MacroRecorderStatus, OcrView, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress, UpdateDownloadProgress } from '../shared/ipc-types';
 
 /**
  * Expose les API sécurisées au processus de rendu. Typé contre `ElectronAPI`
@@ -260,6 +260,13 @@ const electronAPI: ElectronAPI = {
   getAppUpdateInfo: () => ipcRenderer.invoke('get-app-update-info'),
   getSystemLanguages: () => ipcRenderer.invoke('get-system-languages'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  onUpdateDownloadProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: UpdateDownloadProgress | null) => callback(progress);
+    ipcRenderer.on('update-download-progress', listener);
+    return () => {
+      ipcRenderer.removeListener('update-download-progress', listener);
+    };
+  },
 
   onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', () => callback()),
   onLanTransferProgress: (callback) => {
