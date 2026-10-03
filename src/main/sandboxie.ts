@@ -169,8 +169,8 @@ export function sandboxedPathFor(fileRoot: string, homeDir: string, realPath: st
 }
 
 /** Commande et arguments pour lancer `executablePath` dans la sandbox du jeu, en attendant sa fin. */
-export function sandboxedCommand(sandboxieDir: string, box: string, executablePath: string): { command: string; args: string[] } {
-  return { command: path.join(sandboxieDir, 'Start.exe'), args: [`/box:${box}`, '/wait', executablePath] };
+export function sandboxedCommand(sandboxieDir: string, box: string, executablePath: string, gameArgs: string[] = []): { command: string; args: string[] } {
+  return { command: path.join(sandboxieDir, 'Start.exe'), args: [`/box:${box}`, '/wait', executablePath, ...gameArgs] };
 }
 
 /**

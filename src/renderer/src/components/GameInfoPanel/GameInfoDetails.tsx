@@ -7,6 +7,7 @@ import CollectionsEditor from '../CollectionsEditor/CollectionsEditor';
 import GameToolsSection from '../GameToolsSection/GameToolsSection';
 import WorkspaceSection from '../WorkspaceSection/WorkspaceSection';
 import CaptureGallery from '../CaptureGallery/CaptureGallery';
+import LaunchArgumentsInput from '../LaunchArgumentsInput/LaunchArgumentsInput';
 import { useDiskUsage } from '../../hooks/useDiskUsage';
 import { formatBytes } from '../../lib/diskUsage.js';
 import { categoryLabel, workLanguageLabel } from '../../lib/metadataManager.js';
@@ -344,6 +345,13 @@ export default function GameInfoDetails({
                 {t('Choisir…')}
               </button>
             </div>
+            <label className="mt-3 block">
+              <span className="mb-1 block text-[12px] text-text-secondary">{t('Arguments de lancement')}</span>
+              <LaunchArgumentsInput
+                value={gameData.launchArguments ?? ''}
+                onSave={launchArguments => onUpdateGame(gameId, { launchArguments })}
+              />
+            </label>
           </Section>
 
           <Section title={t('Captures')}>

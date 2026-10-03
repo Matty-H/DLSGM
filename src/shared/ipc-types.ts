@@ -820,6 +820,8 @@ export interface GameMetadata {
    * détection automatique au lancement.
    */
   executablePath?: string;
+  /** Arguments passés à l'exécutable au lancement (`-dx11`...), saisis sur la page du jeu. Jamais partagés en LAN. */
+  launchArguments?: string;
   /** Jeu exclu de la sandbox (lancé normalement même si `sandboxLaunch` est actif). */
   sandboxDisabled?: boolean;
   /** Marqué comme fini par l'utilisateur (macaron sur la jaquette). Donnée personnelle, jamais partagée en LAN. */
