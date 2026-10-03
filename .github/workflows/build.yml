@@ -116,7 +116,7 @@ jobs:
           changes=$(git log "${previous:+$previous..}$GITHUB_REF_NAME" --no-merges --format='- %s' | grep -vE '^- Release [0-9]' || true)
           {
             if [ -n "$changes" ]; then
-              echo "## Changements${previous:+ depuis $previous}"
+              echo "## Changes${previous:+ since $previous}"
               echo
               echo "$changes"
               echo
