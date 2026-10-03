@@ -456,6 +456,34 @@ export async function applyUserPatch(gameDir: string, installRoot: string, sourc
 
 // --- BepInEx + XUnity.AutoTranslator -------------------------------------
 
+// Attentes avant chaque nouvel essai : GitHub et son CDN de releases
+// renvoient parfois un 503 passager.
+const DOWNLOAD_RETRY_DELAYS_MS = [2000, 5000];
+
+/** Erreur serveur passagère (5xx, 429) : vaut un nouvel essai. */
+const isTransientStatus = (status: number) => status >= 500 || status === 429;
+
+/**
+ * `fetch` avec nouveaux essais sur erreur serveur passagère ou coupure réseau
+ * (pas sur un délai dépassé : chaque essai a déjà eu tout son temps). Rend la
+ * dernière réponse, même en erreur.
+ */
+export async function fetchWithRetry(
+  url: string,
+  { fetchFn = fetch, delaysMs = DOWNLOAD_RETRY_DELAYS_MS, timeoutMs = 120000 }: { fetchFn?: typeof fetch; delaysMs?: number[]; timeoutMs?: number } = {}
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const last = attempt >= delaysMs.length;
+    try {
+      const response = await fetchFn(url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (response.ok || last || !isTransientStatus(response.status)) return response;
+    } catch (error) {
+      if (last || (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError'))) throw error;
+    }
+    await new Promise(resolve => setTimeout(resolve, delaysMs[attempt]));
+  }
+}
+
 /**
  * Télécharge (une fois, mis en cache dans userData/downloads) et vérifie le
  * SHA-256 d'une archive épinglée.
@@ -468,8 +496,14 @@ async function getVerifiedDownload(key: keyof typeof DOWNLOADS): Promise<string>
 
   if (exists(target) && hashOf(fs.readFileSync(target)) === sha256) return target;
 
-  const response = await fetch(url, { signal: AbortSignal.timeout(120000) });
-  if (!response.ok) throw new Error(tm('Téléchargement impossible ({status}) : {url}', { status: response.status, url }));
+  const response = await fetchWithRetry(url);
+  if (!response.ok) {
+    throw new Error(
+      isTransientStatus(response.status)
+        ? tm('Serveur de téléchargement indisponible ({status}), réessaie dans quelques minutes : {url}', { status: response.status, url })
+        : tm('Téléchargement impossible ({status}) : {url}', { status: response.status, url })
+    );
+  }
   const buffer = Buffer.from(await response.arrayBuffer());
   const actual = hashOf(buffer);
   if (actual !== sha256) {

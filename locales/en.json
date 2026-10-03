@@ -1092,6 +1092,7 @@
     "Sandboxie-Plus est introuvable.": "Sandboxie-Plus was not found.",
     "Sandboxie-Plus est introuvable. Installe-le, désactive le lancement en sandbox dans les paramètres, ou exclus ce jeu de la sandbox.": "Sandboxie-Plus was not found. Install it, turn off sandboxed launching in the settings, or exclude this game from the sandbox.",
     "Sauvegardes trop volumineuses pour être copiées ({mb} Mo, max {max} Mo) : l'emplacement détecté contient sans doute autre chose que des sauvegardes.": "Saves too large to be copied ({mb} MB, max {max} MB): the detected location probably contains more than saves.",
+    "Serveur de téléchargement indisponible ({status}), réessaie dans quelques minutes : {url}": "Download server unavailable ({status}), try again in a few minutes: {url}",
     "Service inconnu.": "Unknown service.",
     "Seuls les patchs .zip ou les dossiers sont pris en charge.": "Only .zip patches or folders are supported.",
     "Somme de contrôle différente pour {path}.": "Checksum mismatch for {path}.",

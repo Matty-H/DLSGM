@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   app: { getPath: (name: string) => path.join(electron.root, 'system', name) }
 }));
 
-import { applyUserPatch, detectEngine, findSaveLocations, readPatches, uninstallLastPatch } from '../../src/main/game-tools';
+import { applyUserPatch, detectEngine, fetchWithRetry, findSaveLocations, readPatches, uninstallLastPatch } from '../../src/main/game-tools';
 
 let game: string;
 
@@ -86,5 +86,41 @@ describe('patchs réversibles', () => {
     await applyUserPatch(game, game, patch);
     expect(fs.readFileSync(path.join(game, 'data', 'a.txt'), 'utf8')).toBe('patché');
     expect(fs.existsSync(path.join(game, 'MonPatch'))).toBe(false);
+  });
+});
+
+describe('fetchWithRetry', () => {
+  const responder = (...steps: (number | Error)[]) => {
+    const calls: string[] = [];
+    const fetchFn = (async (url: string) => {
+      calls.push(url);
+      const step = steps.shift()!;
+      if (step instanceof Error) throw step;
+      return new Response('x', { status: step });
+    }) as unknown as typeof fetch;
+    return { calls, fetchFn };
+  };
+
+  it('réessaie un 503 passager de GitHub puis rend la réponse réussie', async () => {
+    const { calls, fetchFn } = responder(503, new TypeError('fetch failed'), 200);
+    const response = await fetchWithRetry('https://example.com/a.zip', { fetchFn, delaysMs: [0, 0] });
+    expect(response.status).toBe(200);
+    expect(calls).toHaveLength(3);
+  });
+
+  it('rend la dernière erreur serveur une fois les essais épuisés', async () => {
+    const { calls, fetchFn } = responder(503, 503, 503);
+    expect((await fetchWithRetry('https://example.com/a.zip', { fetchFn, delaysMs: [0, 0] })).status).toBe(503);
+    expect(calls).toHaveLength(3);
+  });
+
+  it("ne réessaie ni un 404 ni un délai dépassé", async () => {
+    const notFound = responder(404, 200);
+    expect((await fetchWithRetry('https://example.com/a.zip', { fetchFn: notFound.fetchFn, delaysMs: [0, 0] })).status).toBe(404);
+    expect(notFound.calls).toHaveLength(1);
+    const timeout = Object.assign(new Error('timeout'), { name: 'TimeoutError' });
+    const slow = responder(timeout, 200);
+    await expect(fetchWithRetry('https://example.com/a.zip', { fetchFn: slow.fetchFn, delaysMs: [0, 0] })).rejects.toBe(timeout);
+    expect(slow.calls).toHaveLength(1);
   });
 });
