@@ -15,6 +15,7 @@ import WishlistScreen from './components/WishlistScreen/WishlistScreen';
 import ImportResults from './components/ImportResults/ImportResults';
 import ArchiveCleanupToast from './components/ArchiveCleanupToast/ArchiveCleanupToast';
 import { useArchiveImport } from './hooks/useArchiveImport';
+import ArchivePasswordDialog from './components/ArchivePasswordDialog/ArchivePasswordDialog';
 import { useDiskUsage } from './hooks/useDiskUsage';
 import FolderRenameAssistant from './components/FolderRenameAssistant/FolderRenameAssistant';
 import { useFolderRename } from './hooks/useFolderRename';
@@ -423,8 +424,16 @@ export default function App() {
               results={archiveImport.results}
               onDismiss={archiveImport.dismiss}
               onOpenGame={handleOpenGame}
-              onRetry={archiveImport.retry}
+              onAskPassword={archiveImport.askPassword}
+            />
+          )}
+          {archiveImport.passwordPrompt?.retryId && !panicActive && (
+            <ArchivePasswordDialog
+              file={archiveImport.passwordPrompt.file}
+              wrongPassword={archiveImport.passwordPrompt.wrongPassword === true}
               busy={archiveImport.running}
+              onSubmit={(password, remember) => archiveImport.retry(archiveImport.passwordPrompt!.retryId!, password, remember)}
+              onSkip={() => archiveImport.skipPassword(archiveImport.passwordPrompt!.retryId!)}
             />
           )}
 

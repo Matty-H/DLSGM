@@ -58,6 +58,7 @@ const electronAPI: ElectronAPI = {
   trashImportedArchives: (importIds) => ipcRenderer.invoke('trash-imported-archives', importIds),
   retryArchiveImport: (retryId, password, remember) => ipcRenderer.invoke('retry-archive-import', retryId, password, remember),
   listArchivePasswords: () => ipcRenderer.invoke('list-archive-passwords'),
+  addArchivePassword: password => ipcRenderer.invoke('add-archive-password', password),
   removeArchivePassword: password => ipcRenderer.invoke('remove-archive-password', password),
   findMisnamedFolders: () => ipcRenderer.invoke('find-misnamed-folders'),
   renameMisnamedFolders: folders => ipcRenderer.invoke('rename-misnamed-folders', folders),

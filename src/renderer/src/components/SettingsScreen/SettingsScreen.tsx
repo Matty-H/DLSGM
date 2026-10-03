@@ -536,7 +536,7 @@ export default function SettingsScreen({
 
             <SettingRow
               label={t("Mots de passe d'archives")}
-              description={t("Essayés automatiquement à chaque import (en plus de ceux trouvés dans les fichiers texte de l'archive et du nom du site en tête de son nom). Ajoutés depuis le bilan d'un import ; supprimés ici immédiatement.")}
+              description={t("Gestionnaire de mots de passe : quand une archive est protégée, DLSGM essaie d'abord ceux devinés d'après son nom (site de diffusion) et ses fichiers texte, puis ceux-ci, avant de te demander le mot de passe.")}
             >
               <ArchivePasswords />
             </SettingRow>
