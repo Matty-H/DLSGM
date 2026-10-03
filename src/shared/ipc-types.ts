@@ -82,8 +82,11 @@ export interface AppSettings {
   screenshot: ScreenshotSettings;
   /** Chercher une nouvelle version au démarrage (Paramètres › Mises à jour). */
   checkUpdatesOnStartup: boolean;
-  /** Langue de l'interface ; `system` = celle du système si fr/en/ja, sinon anglais. */
-  uiLanguage: 'system' | 'fr' | 'en' | 'ja';
+  /**
+   * Langue de l'interface : `system` (celle du système si l'interface y est
+   * traduite, sinon anglais) ou le code d'un fichier de `locales/` (`fr`, `en`, `ja`…).
+   */
+  uiLanguage: string;
 }
 
 /** Version de l'application et mode d'installation (src/main/updater.ts). */

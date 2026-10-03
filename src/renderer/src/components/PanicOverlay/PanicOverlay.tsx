@@ -6,14 +6,12 @@ export interface PanicOverlayProps {
 }
 
 const ORIGINAL_TITLE = document.title;
-/** Page aléatoire de Wikipédia dans la langue de l'interface. */
+/** Nom local de la page aléatoire ; `Special:Random` marche sur tous les Wikipédia. */
+const RANDOM_PAGE: Record<string, string> = { fr: 'Spécial:Aléatoire', ja: '特別:おまかせ表示' };
+/** Page aléatoire de Wikipédia dans la langue de l'interface (`pt-BR` → pt.wikipedia.org). */
 const panicPage = () => {
-  const language = getUiLanguage();
-  return language === 'fr'
-    ? { url: 'https://fr.wikipedia.org/wiki/Spécial:Aléatoire', title: "Wikipédia, l'encyclopédie libre" }
-    : language === 'ja'
-      ? { url: 'https://ja.wikipedia.org/wiki/特別:おまかせ表示', title: 'ウィキペディア' }
-      : { url: 'https://en.wikipedia.org/wiki/Special:Random', title: 'Wikipedia, the free encyclopedia' };
+  const wiki = getUiLanguage().split('-')[0];
+  return { url: `https://${wiki}.wikipedia.org/wiki/${RANDOM_PAGE[wiki] ?? 'Special:Random'}`, title: t("Wikipédia, l'encyclopédie libre") };
 };
 const TRANSITION_DELAY_MS = 500;
 
