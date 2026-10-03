@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   checkUpdatesOnStartup: true,
   uiLanguage: 'system',
   theme: 'neon',
+  customThemes: [],
   workspaceFolder: '',
   piaRetry: false,
   piaRegion: 'jp-tokyo',

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DEFAULT_THEME, resolveTheme, type ActiveTheme } from '../../../shared/themes';
+import { DEFAULT_THEME, ICON_CORNER_RADIUS, resolveTheme, type ActiveTheme } from '../../../shared/themes';
 import { LOGO_SQUARE } from '../../../shared/logo';
 
 /**
@@ -33,7 +33,14 @@ export function drawThemeIcon(theme: ActiveTheme, size = 256): string {
   const [, , width] = LOGO_SQUARE.viewBox;
   context.scale(size / width, size / width);
   context.fillStyle = theme.icon.bg;
-  context.fillRect(0, 0, width, width);
+  if (theme.icon.rounded) {
+    // Coins transparents : l'icône garde ses coins arrondis dans la barre des tâches.
+    context.beginPath();
+    context.roundRect(0, 0, width, width, width * ICON_CORNER_RADIUS);
+    context.fill();
+  } else {
+    context.fillRect(0, 0, width, width);
+  }
   context.fillStyle = theme.icon.gm;
   for (const d of LOGO_SQUARE.gm) context.fill(new Path2D(d));
   context.fillStyle = theme.icon.dls;

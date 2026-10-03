@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadSettings, saveSettings as persistSettings } from '../lib/settings.js';
+import type { CustomTheme } from '../../../shared/themes';
 import type { AutoClickerSettings, GameCollection, HomeShelfPrefs, MacroRecorderSettings, OcrTranslateSettings, PixelTriggerSettings, ScreenshotSettings } from '../../../shared/ipc-types';
 
 export interface AppSettings {
@@ -34,6 +35,8 @@ export interface AppSettings {
   uiLanguage: string;
   /** Thème de couleur (src/shared/themes.ts) : id d'une palette, `random` ou `turbo`. */
   theme?: string;
+  /** Palettes perso : lues et enregistrées par le sélecteur de thème (`save-custom-themes`). */
+  customThemes?: CustomTheme[];
   selectedSort: string;
 
 

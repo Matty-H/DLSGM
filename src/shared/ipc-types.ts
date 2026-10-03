@@ -1,4 +1,4 @@
-import type { ActiveTheme } from './themes';
+import type { ActiveTheme, CustomTheme } from './themes';
 
 /**
  * Contrat de types partagé pour la surface IPC entre main (ipc-handlers.ts),
@@ -93,6 +93,8 @@ export interface AppSettings {
    * chaque démarrage). Absent dans les réglages d'avant les thèmes : `neon`, le thème par défaut.
    */
   theme?: string;
+  /** Palettes créées par l'utilisateur (src/shared/themes.ts), enregistrées par `save-custom-themes`. Absent avant les palettes perso : aucune. */
+  customThemes?: CustomTheme[];
 }
 
 /** Version de l'application et mode d'installation (src/main/updater.ts). */
@@ -941,6 +943,8 @@ export interface ElectronAPI {
   quitApp(): void;
   /** Thème résolu par main (le même pour toutes les fenêtres). */
   getActiveTheme(): Promise<ActiveTheme>;
+  /** Enregistre la liste des palettes perso (vérifiée par main), renvoie la liste retenue. */
+  saveCustomThemes(list: CustomTheme[]): Promise<CustomTheme[]>;
   /** Nouveau tirage du thème (modes aléatoire et turbo). */
   rerollTheme(): Promise<ActiveTheme>;
   /** Icône aux couleurs du thème (PNG en data URL) pour la fenêtre et la zone de notification. */

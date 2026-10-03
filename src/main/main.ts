@@ -155,7 +155,7 @@ app.whenReady().then(async () => {
   await getSettings()
     .then(async settings => {
       setMainLanguage(settings.uiLanguage);
-      initTheme(settings.theme);
+      initTheme(settings.theme, settings.customThemes);
       setTrayEnabled(Boolean(settings.closeToTray), getWindow);
       await applyDlsiteProxy(settings.dlsiteProxy, settings.dlsiteProxySecret);
     })

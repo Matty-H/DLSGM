@@ -1,5 +1,5 @@
 import { BrowserWindow, nativeImage, type NativeImage } from 'electron';
-import { resolveTheme, normalizeThemeSetting, type ActiveTheme } from '../shared/themes';
+import { resolveTheme, normalizeThemeSetting, sanitizeCustomThemes, type ActiveTheme, type CustomTheme } from '../shared/themes';
 
 /**
  * Thème de couleur actif (réglage `theme`, src/shared/themes.ts). Résolu ici
@@ -9,6 +9,7 @@ import { resolveTheme, normalizeThemeSetting, type ActiveTheme } from '../shared
  */
 
 let setting = normalizeThemeSetting(undefined);
+let customs: CustomTheme[] = [];
 let active: ActiveTheme = resolveTheme(setting);
 let iconListener: ((image: NativeImage) => void) | null = null;
 
@@ -23,23 +24,33 @@ function broadcast(): void {
 }
 
 /** Au démarrage : tire le thème (aléatoire et turbo changent à chaque lancement). */
-export function initTheme(value: unknown): void {
-  setting = normalizeThemeSetting(value);
-  active = resolveTheme(setting);
+export function initTheme(value: unknown, customThemes?: unknown): void {
+  customs = sanitizeCustomThemes(customThemes);
+  setting = normalizeThemeSetting(value, customs);
+  active = resolveTheme(setting, Math.random, undefined, customs);
 }
 
-/** Réglage enregistré : ne retire le thème que s'il a changé. */
-export function applyThemeSetting(value: unknown): void {
-  const next = normalizeThemeSetting(value);
-  if (next === setting) return;
+/**
+ * Réglages enregistrés : ne retire le thème que s'il a changé, ou si la
+ * palette perso affichée a été modifiée ou supprimée (retour au défaut).
+ */
+export function applyThemeSetting(value: unknown, customThemes?: unknown): void {
+  const previousCustom = JSON.stringify(customs.find(theme => theme.id === active.id) ?? null);
+  customs = sanitizeCustomThemes(customThemes);
+  const next = normalizeThemeSetting(value, customs);
+  const customChanged = previousCustom !== JSON.stringify(customs.find(theme => theme.id === active.id) ?? null);
+  if (next === setting && !customChanged) return;
+  // Palette perso modifiée sans changer de réglage (même en mode aléatoire) :
+  // on garde cette palette, à ses nouvelles couleurs ; supprimée : nouveau tirage.
+  const edited = next === setting && customs.some(theme => theme.id === active.id);
   setting = next;
-  active = resolveTheme(setting, Math.random, active.id);
+  active = edited ? resolveTheme(active.id, Math.random, undefined, customs) : resolveTheme(setting, Math.random, active.id, customs);
   broadcast();
 }
 
 /** « Relancer » (modes aléatoire et turbo) : nouveau tirage sans redémarrer. */
 export function rerollTheme(): ActiveTheme {
-  active = resolveTheme(setting, Math.random, active.id);
+  active = resolveTheme(setting, Math.random, active.id, customs);
   broadcast();
   return active;
 }
