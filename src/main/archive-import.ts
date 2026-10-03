@@ -4,7 +4,7 @@ import fs from 'fs';
 import { pipeline } from 'stream/promises';
 import yauzl from 'yauzl';
 import { isPasswordFailure, type SevenZipRequest, type SevenZipResult } from './archive-7z';
-import { gameIdFromName, gameIdsIn, mergeReleaseNames, passwordsFromArchiveName, passwordsFromFolder, writeInstallInfo } from './release-names';
+import { gameIdFromName, gameIdsIn, isAddressOnlyText, isSiteFileName, mergeReleaseNames, passwordsFromArchiveName, passwordsFromFolder, readText, siteNames, writeInstallInfo } from './release-names';
 import { tm } from './i18n';
 
 export { gameIdFromName } from './release-names';
@@ -25,9 +25,12 @@ export { gameIdFromName } from './release-names';
  *   (archive-7z-worker.ts).
  *
  * Archive dans l'archive (le jeu en `.rar` chiffré, avec un `password.txt`
- * à côté) : l'archive interne est extraite à son tour. Mots de passe essayés :
- * celui saisi, ceux mémorisés, ceux annoncés dans les fichiers texte voisins
- * et le nom du site en tête du nom de l'archive. ID, version et DLC sont
+ * à côté) : l'archive interne est extraite à son tour. Mots de passe essayés,
+ * dans l'ordre : celui saisi, ceux annoncés dans les fichiers texte voisins,
+ * ceux devinés d'après les noms (site de diffusion), puis ceux du
+ * gestionnaire. Les publicités des sites de diffusion (raccourcis `.url`,
+ * `ryuugames.txt`, texte qui n'est qu'une adresse) sont retirées autour du
+ * jeu (`removeJunk`). ID, version et DLC sont
  * cherchés dans tous les noms rencontrés (archives, dossiers enveloppes),
  * puis, pour l'ID, dans toute l'arborescence extraite.
  *
@@ -230,21 +233,57 @@ async function assertRegularTree(dir: string): Promise<void> {
   }
 }
 
+// Raccourcis Internet : jamais utiles au jeu.
+const SHORTCUT = /\.(url|webloc|website)$/i;
+// Fichiers qu'un site de diffusion glisse à côté du jeu (texte, page, bannière).
+const PROMO_FILE = /\.(txt|nfo|html?|jpe?g|png|gif|webp|bmp)$/i;
+const PROMO_TEXT = /\.(txt|nfo)$/i;
+const MAX_PROMO_TEXT_BYTES = 8 * 1024;
+
+/**
+ * Fichier publicitaire d'un site de diffusion : raccourci Internet, fichier
+ * au nom du site (`ryuugames.txt`, `OTOMI-GAMES.COM.url`), ou petit texte
+ * qui ne contient que des adresses. Un texte avec autre chose (notice,
+ * indices de l'auteur) est gardé.
+ */
+export function isJunkFile(file: string, sites: string[]): boolean {
+  const name = path.basename(file);
+  if (SHORTCUT.test(name)) return true;
+  if (PROMO_FILE.test(name) && isSiteFileName(name, sites)) return true;
+  if (!PROMO_TEXT.test(name) || fs.statSync(file).size > MAX_PROMO_TEXT_BYTES) return false;
+  return isAddressOnlyText(readText(file));
+}
+
+/** Retire les fichiers publicitaires à la racine de `dir` (pas en profondeur : ce serait le jeu). */
+function removeJunk(dir: string, sites: string[]): void {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, entry.name);
+    if (entry.isFile() && isJunkFile(file, sites)) fs.rmSync(file);
+  }
+}
+
 /**
  * Descend dans les dossiers enveloppes (un unique dossier, sans rien
- * d'autre) : `RJ01234567/`, ou le titre du jeu, contenant le vrai contenu.
- * Renvoie aussi leurs noms (indices d'ID et de version).
+ * d'autre que des publicités, retirées au passage) : `RJ01234567/`, ou le
+ * titre du jeu, contenant le vrai contenu. Renvoie aussi leurs noms
+ * (indices d'ID et de version) et les mots de passe annoncés dans leurs
+ * fichiers texte, lus avant le nettoyage (un `pass.txt` qui ne contient que
+ * `site.com` est à la fois une publicité et le mot de passe).
  */
-async function unwrap(dir: string): Promise<{ root: string; wrappers: string[] }> {
+async function unwrap(dir: string, names: string[]): Promise<{ root: string; wrappers: string[]; passwords: string[] }> {
   let root = dir;
   const wrappers: string[] = [];
-  for (let depth = 0; depth < MAX_UNWRAP_DEPTH; depth++) {
+  const passwords: string[] = [];
+  for (let depth = 0; ; depth++) {
+    passwords.unshift(...passwordsFromFolder(root));
+    removeJunk(root, siteNames([...names, ...wrappers]));
+    if (depth >= MAX_UNWRAP_DEPTH) break;
     const entries = await fs.promises.readdir(root, { withFileTypes: true });
     if (entries.length !== 1 || !entries[0].isDirectory()) break;
     wrappers.push(entries[0].name);
     root = path.join(root, entries[0].name);
   }
-  return { root, wrappers };
+  return { root, wrappers, passwords };
 }
 
 // Archives dans l'archive extraites au plus (zip → rar → ...).
@@ -290,7 +329,9 @@ export interface ImportedGame {
 }
 
 export interface ImportOptions {
-  /** Mots de passe essayés en premier (saisi, puis mémorisés). */
+  /** Mot de passe saisi : essayé en premier. */
+  password?: string;
+  /** Mots de passe du gestionnaire : essayés après ceux devinés d'après les noms et les fichiers texte. */
   passwords?: string[];
   /** Extraction 7-Zip (par défaut dans un processus utilitaire ; directe en test). */
   extract7z?: Extract7z;
@@ -316,24 +357,26 @@ export async function importArchive(archivePath: string, destinationFolder: stri
   try {
     // Noms rencontrés, du plus extérieur au plus intérieur : ID, version, DLC.
     const names = [path.basename(archive)];
-    const passwords = [...(options.passwords ?? []), ...passwordsFromArchiveName(path.basename(archive))];
+    // Devinés (fichiers texte, noms), les plus proches de l'archive en cours d'abord.
+    let guesses = passwordsFromArchiveName(path.basename(archive));
+    const candidates = () => [...(options.password ? [options.password] : []), ...guesses, ...(options.passwords ?? [])];
     let current = path.join(staging, '0');
     await fs.promises.mkdir(current);
-    await extractArchive(archive, current, passwords, extract7z);
+    await extractArchive(archive, current, candidates(), extract7z);
 
     let root: string;
     for (let level = 1; ; level++) {
       await assertRegularTree(current);
-      const unwrapped = await unwrap(current);
+      const unwrapped = await unwrap(current, names);
       root = unwrapped.root;
       names.push(...unwrapped.wrappers);
       const inner = level <= MAX_NESTING ? nestedArchive(root) : null;
       if (!inner) break;
       names.push(path.basename(inner));
-      passwords.push(...passwordsFromFolder(root), ...passwordsFromArchiveName(path.basename(inner)));
+      guesses = [...unwrapped.passwords, ...passwordsFromArchiveName(path.basename(inner)), ...guesses];
       const next = path.join(staging, String(level));
       await fs.promises.mkdir(next);
-      await extractArchive(inner, next, passwords, extract7z, true);
+      await extractArchive(inner, next, candidates(), extract7z, true);
       await fs.promises.rm(current, { recursive: true, force: true });
       current = next;
     }

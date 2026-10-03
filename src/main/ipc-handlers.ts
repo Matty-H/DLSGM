@@ -127,6 +127,19 @@ async function archivePasswords(): Promise<string[]> {
   return Array.isArray(list) ? list.filter((p): p is string => typeof p === 'string') : [];
 }
 
+function validArchivePassword(password: unknown): password is string {
+  return typeof password === 'string' && password.length > 0 && password.length <= 256;
+}
+
+/** Ajoute au gestionnaire (sans doublon) ; rend la liste à jour. */
+async function addArchivePassword(password: string): Promise<string[]> {
+  const known = await archivePasswords();
+  if (known.includes(password)) return known;
+  const next = [...known, password];
+  await archivePasswordStore.set('passwords', next);
+  return next;
+}
+
 // Dictionnaire des tags JP → EN.
 const genreTranslations = new GenreTranslations(new Store('translations.db', {}));
 
@@ -1824,9 +1837,10 @@ export function setupIpcHandlers(
   const importedArchives = new Map<string, string[]>();
   // Imports en échec faute de mot de passe, par retryId (même principe : pas de chemin venant du renderer).
   const passwordRetries = new Map<string, string>();
-  const importOne = async (file: string, destinationFolder: string, passwords: string[]): Promise<ArchiveImportResult> => {
+  const importOne = async (file: string, destinationFolder: string, password?: string): Promise<ArchiveImportResult> => {
     try {
-      const { gameId, version, dlc } = await importArchive(file, destinationFolder, { passwords });
+      // Saisi, puis devinés d'après les noms et les fichiers texte, puis ceux du gestionnaire.
+      const { gameId, version, dlc } = await importArchive(file, destinationFolder, { password, passwords: await archivePasswords() });
       const importId = crypto.randomUUID();
       importedArchives.set(importId, archiveVolumes(file));
       return { file: path.basename(file), gameId, importId, version, dlc };
@@ -1853,11 +1867,10 @@ export function setupIpcHandlers(
       if (result.canceled) return [];
       await removeStaleImports(destinationFolder);
 
-      const passwords = await archivePasswords();
       const results: ArchiveImportResult[] = [];
       for (const [i, file] of result.filePaths.entries()) {
         getWindow()?.webContents.send('archive-import-progress', { file: path.basename(file), index: i + 1, total: result.filePaths.length });
-        results.push(await importOne(file, destinationFolder, passwords));
+        results.push(await importOne(file, destinationFolder));
       }
       return results;
     } finally {
@@ -1868,7 +1881,7 @@ export function setupIpcHandlers(
   ipcMain.handle('retry-archive-import', async (event: IpcMainInvokeEvent, retryId: string, password: string, remember: boolean): Promise<ArchiveImportResult> => {
     const file = typeof retryId === 'string' ? passwordRetries.get(retryId) : undefined;
     if (!file) throw new Error(tm('Import introuvable : relance-le depuis « Importer ».'));
-    if (typeof password !== 'string' || !password || password.length > 256) throw new Error(tm('Mot de passe invalide.'));
+    if (!validArchivePassword(password)) throw new Error(tm('Mot de passe invalide.'));
     if (importing) throw new Error(tm('Un import est déjà en cours.'));
     importing = true;
     try {
@@ -1876,12 +1889,9 @@ export function setupIpcHandlers(
       if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
       await removeStaleImports(destinationFolder);
       getWindow()?.webContents.send('archive-import-progress', { file: path.basename(file), index: 1, total: 1 });
-      const result = await importOne(file, destinationFolder, [password, ...await archivePasswords()]);
+      const result = await importOne(file, destinationFolder, password);
       passwordRetries.delete(retryId);
-      if (result.gameId && remember) {
-        const known = await archivePasswords();
-        if (!known.includes(password)) await archivePasswordStore.set('passwords', [...known, password]);
-      }
+      if (result.gameId && remember) await addArchivePassword(password);
       return result;
     } finally {
       importing = false;
@@ -1889,6 +1899,10 @@ export function setupIpcHandlers(
   });
 
   ipcMain.handle('list-archive-passwords', () => archivePasswords());
+  ipcMain.handle('add-archive-password', async (event: IpcMainInvokeEvent, password: string) => {
+    if (!validArchivePassword(password)) throw new Error(tm('Mot de passe invalide.'));
+    return addArchivePassword(password);
+  });
   ipcMain.handle('remove-archive-password', async (event: IpcMainInvokeEvent, password: string) => {
     const next = (await archivePasswords()).filter(p => p !== password);
     await archivePasswordStore.set('passwords', next);

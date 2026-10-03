@@ -3,7 +3,7 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { listTree, makeTempDir, removeTempDir } from '../helpers';
 import { findMisnamedFolders, renameMisnamedFolders } from '../../src/main/folder-rename';
-import { mergeReleaseNames, parseReleaseName, passwordsFromArchiveName, passwordsFromFolder, passwordsFromText, readInstallInfo, writeInstallInfo } from '../../src/main/release-names';
+import { isAddressOnlyText, isSiteFileName, mergeReleaseNames, parseReleaseName, passwordsFromArchiveName, siteNames, passwordsFromFolder, passwordsFromText, readInstallInfo, writeInstallInfo } from '../../src/main/release-names';
 
 let library: string;
 
@@ -44,6 +44,32 @@ describe('mots de passe probables', () => {
     expect(passwordsFromArchiveName('[www.example.com]_RJ01234567_v1.rar')).toEqual(['www.example.com', 'example.com']);
     expect(passwordsFromArchiveName('example.net_RJ01234567.7z')).toEqual(['example.net']);
     expect(passwordsFromArchiveName('RJ01234567.rar')).toEqual([]);
+  });
+
+  it("le site sans ID dans le nom, ou en étiquette entre crochets (minuscules, .com)", () => {
+    expect(passwordsFromArchiveName('otomi-games.com_VNZYK7UFN.rar')).toEqual(['otomi-games.com']);
+    expect(passwordsFromArchiveName('OTOMI-GAMES.COM_VNZYK7UFN.rar')).toEqual(['OTOMI-GAMES.COM', 'otomi-games.com']);
+    expect(passwordsFromArchiveName('[RYuugames] RY-RJ01646610.rar')).toEqual(['RYuugames', 'ryuugames', 'ryuugames.com']);
+    expect(passwordsFromArchiveName('【site.net】RJ01234567.7z')).toEqual(['site.net']);
+    // ID, version, DLC ou titre entre crochets : pas des sites.
+    expect(passwordsFromArchiveName('[RJ01234567] Titre [v1.2] [DLC] [Mon titre].rar')).toEqual([]);
+  });
+});
+
+describe('publicités des sites de diffusion', () => {
+  it('noms des sites tirés des noms rencontrés', () => {
+    expect(siteNames(['[RYuugames] RY-RJ01646610.rar', 'otomi-games.com_VNZYK7UFN', 'www.Example.org_RJ01234567.zip', 'RJ01234567 v1.2'])).toEqual(['ryuugames', 'otomi-games', 'example']);
+    expect(isSiteFileName('OTOMI-GAMES.COM.url', ['otomi-games'])).toBe(true);
+    expect(isSiteFileName('ryuugames.txt', ['ryuugames'])).toBe(true);
+    expect(isSiteFileName('ryuugames_save.txt', ['ryuugames'])).toBe(false);
+  });
+
+  it("un texte qui n'est que des adresses", () => {
+    expect(isAddressOnlyText('ryuugames.com\r\n\r\ndiscord.gg/eroge\r\n')).toBe(true);
+    expect(isAddressOnlyText('https://example.com/page?x=1')).toBe(true);
+    expect(isAddressOnlyText('Merci !\nhttps://ci-en.dlsite.com/creator/1')).toBe(false);
+    expect(isAddressOnlyText('Ver.1.02')).toBe(false);
+    expect(isAddressOnlyText('')).toBe(false);
   });
 
   it('dans un texte (anglais, japonais, chinois)', () => {

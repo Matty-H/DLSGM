@@ -11,6 +11,9 @@ export interface ArchiveCleanup {
   busy: boolean;
 }
 
+/** Résultat affiché : `wrongPassword` si le mot de passe saisi n'a pas ouvert l'archive. */
+export type ImportResultView = ArchiveImportResult & { wrongPassword?: boolean };
+
 /**
  * Import de jeux depuis leurs archives (sélecteur côté main, extraction dans
  * le dossier de jeux). `onImported` est appelé si au moins un jeu a été
@@ -19,7 +22,9 @@ export interface ArchiveCleanup {
 export function useArchiveImport(onImported: () => void) {
   const [progress, setProgress] = useState<ArchiveImportProgress | null>(null);
   const [running, setRunning] = useState(false);
-  const [results, setResults] = useState<ArchiveImportResult[] | null>(null);
+  const [results, setResults] = useState<ImportResultView[] | null>(null);
+  // Archives à mot de passe que l'utilisateur a laissées de côté (retryId) : plus de fenêtre pour elles.
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
   const [cleanup, setCleanup] = useState<ArchiveCleanup | null>(null);
 
   useEffect(() => window.electronAPI.onArchiveImportProgress(setProgress), []);
@@ -27,6 +32,7 @@ export function useArchiveImport(onImported: () => void) {
   const start = useCallback(async () => {
     setRunning(true);
     setResults(null);
+    setSkipped(new Set());
     setCleanup(null);
     try {
       const outcome = await window.electronAPI.importGameArchives();
@@ -46,12 +52,14 @@ export function useArchiveImport(onImported: () => void) {
   const retry = useCallback(async (retryId: string, password: string, remember: boolean) => {
     setRunning(true);
     try {
-      let result: ArchiveImportResult;
+      let result: ImportResultView;
       try {
         result = await window.electronAPI.retryArchiveImport(retryId, password, remember);
       } catch (error) {
         result = { file: t('Import'), error: ipcErrorMessage(error) };
       }
+      // Encore refusée : la fenêtre revient pour cette archive (nouveau retryId), avec l'erreur.
+      if (result.retryId) result = { ...result, wrongPassword: true };
       setResults(prev => (prev ?? []).map(r => (r.retryId === retryId ? { ...result, file: r.file } : r)));
       if (result.importId) {
         const importId = result.importId;
@@ -75,6 +83,9 @@ export function useArchiveImport(onImported: () => void) {
     }
   }, [cleanup]);
 
+  // Fenêtre de mot de passe : la première archive refusée, hors import en cours et archives laissées de côté.
+  const passwordPrompt = running ? null : results?.find(r => r.retryId && !skipped.has(r.retryId)) ?? null;
+
   return {
     start,
     running,
@@ -82,6 +93,13 @@ export function useArchiveImport(onImported: () => void) {
     results,
     dismiss: () => setResults(null),
     retry,
+    passwordPrompt,
+    skipPassword: (retryId: string) => setSkipped(prev => new Set(prev).add(retryId)),
+    askPassword: (retryId: string) => setSkipped(prev => {
+      const next = new Set(prev);
+      next.delete(retryId);
+      return next;
+    }),
     cleanup,
     trashArchives,
     dismissCleanup: () => setCleanup(null)

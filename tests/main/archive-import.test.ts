@@ -138,6 +138,40 @@ describe('importArchive (.zip)', () => {
     expect((await importArchive(zip, library)).gameId).toBe('RJ01212121');
   });
 
+  it('retire les publicités du site de diffusion et le dossier enveloppe qu’elles accompagnaient', async () => {
+    const archive = writeZip('[RYuugames] RY-RJ01646610.zip', [
+      { name: 'ryuugames.txt', data: 'ryuugames.com\r\n\r\ndiscord.gg/eroge\r\n' },
+      { name: 'Visit us.url', data: '[InternetShortcut]\r\nURL=https://example.com/\r\n' },
+      { name: 'game1.0/Game.exe', data: 'x' },
+      { name: 'game1.0/＜ヒント＞エンド分岐条件.txt', data: 'エンド分岐のヒント' },
+      { name: 'game1.0/readme.txt', data: '作者より\r\nhttps://ci-en.dlsite.com/creator/1\r\n' },
+      { name: 'game1.0/www/data/links.txt', data: 'https://example.com' }
+    ]);
+    expect((await importArchive(archive, library)).gameId).toBe('RJ01646610');
+    expect(listTree(path.join(library, 'RJ01646610'))).toEqual([
+      '.dlsgm/install.json',
+      'Game.exe',
+      'readme.txt',
+      'www/data/links.txt',
+      '＜ヒント＞エンド分岐条件.txt'
+    ]);
+  });
+
+  it("archive dans l'archive : publicités au nom du site retirées à chaque niveau", async () => {
+    const inner = makeZip([
+      { name: 'Game.exe', data: 'x' },
+      { name: 'read me.txt', data: 'Thank you for playing!' },
+      { name: 'otomi-games.com.png', data: 'banner' }
+    ]);
+    const archive = writeZip('otomi-games.com_VNZYK7UFN.zip', [
+      { name: 'otomi-games.com_VNZYK7UFN/', data: '' },
+      { name: 'otomi-games.com_VNZYK7UFN/OTOMI-GAMES.COM.url', data: '[InternetShortcut]' },
+      { name: 'otomi-games.com_VNZYK7UFN/RJ01705944.zip', data: inner }
+    ]);
+    expect((await importArchive(archive, library)).gameId).toBe('RJ01705944');
+    expect(listTree(path.join(library, 'RJ01705944'))).toEqual(['.dlsgm/install.json', 'Game.exe', 'read me.txt']);
+  });
+
   it("refuse de deviner quand l'arborescence contient plusieurs IDs", async () => {
     const zip = writeZip('download.zip', [
       { name: 'Game/Game.exe', data: 'x' },
@@ -191,6 +225,27 @@ describe('importArchive (7-Zip, mots de passe, archives imbriquées)', () => {
   it("essaie le nom du site en tête du nom de l'archive", async () => {
     const archive = await make7z(root, '[example.com]_RJ06666666_v2.7z', { 'Game.exe': 'x' }, ['-pexample.com', '-mhe=on']);
     expect(await importArchive(archive, library, { extract7z })).toMatchObject({ gameId: 'RJ06666666', version: '2' });
+  });
+
+  it('ordre des essais : saisi, devinés d’après le nom, puis le gestionnaire', async () => {
+    const archive = await make7z(root, '[Abc] RJ01010101.7z', { 'Game.exe': 'x' }, ['-pSECRET', '-mhe=on']);
+    expect((await importArchive(archive, library, { extract7z, password: 'saisi', passwords: ['SECRET', 'jamais'] })).gameId).toBe('RJ01010101');
+    expect(tried).toEqual([undefined, 'saisi', 'Abc', 'abc', 'abc.com', 'SECRET']);
+  });
+
+  it("devine le site d'une archive sans ID dans son nom", async () => {
+    const archive = await make7z(root, 'otomi-games.com_VNZYK7UFN.7z', { 'RJ02020202/Game.exe': 'x' }, ['-potomi-games.com', '-mhe=on']);
+    expect((await importArchive(archive, library, { extract7z })).gameId).toBe('RJ02020202');
+  });
+
+  it("lit le mot de passe d'un pass.txt avant de le retirer comme publicité", async () => {
+    const inner = await make7z(root, 'RJ03030303.7z', { 'Game.exe': 'x' }, ['-pinner-site.com', '-mhe=on']);
+    const outer = writeZip('download.zip', [
+      { name: 'RJ03030303.7z', data: fs.readFileSync(inner) },
+      { name: 'pass.txt', data: 'inner-site.com' }
+    ]);
+    expect((await importArchive(outer, library, { extract7z })).gameId).toBe('RJ03030303');
+    expect(tried).toContain('inner-site.com');
   });
 
   it('zip chiffré : passe par 7-Zip avec le mot de passe', async () => {

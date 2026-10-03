@@ -1017,8 +1017,10 @@ export interface ElectronAPI {
   trashImportedArchives(importIds: string[]): Promise<TrashArchivesResult>;
   /** Réessaie un import en échec faute de mot de passe ; `remember` l'ajoute aux mots de passe essayés d'office. */
   retryArchiveImport(retryId: string, password: string, remember: boolean): Promise<ArchiveImportResult>;
-  /** Mots de passe d'archives mémorisés (essayés automatiquement à chaque import). */
+  /** Gestionnaire de mots de passe d'archives (essayés automatiquement à chaque import). */
   listArchivePasswords(): Promise<string[]>;
+  /** Ajoute un mot de passe au gestionnaire (sans doublon) ; rend la liste à jour. */
+  addArchivePassword(password: string): Promise<string[]>;
   removeArchivePassword(password: string): Promise<string[]>;
 
   /** Dossiers qui contiennent un ID DLsite sans être nommés exactement d'après lui. */
