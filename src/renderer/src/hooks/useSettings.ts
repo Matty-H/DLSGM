@@ -31,7 +31,8 @@ export interface AppSettings {
   localeEmulatorPath: string;
   screenshot: ScreenshotSettings;
   checkUpdatesOnStartup: boolean;
-  uiLanguage: 'system' | 'fr' | 'en' | 'ja';
+  /** `system` ou le code d'une langue (lib/i18n.ts). */
+  uiLanguage: string;
   selectedSort: string;
 
 

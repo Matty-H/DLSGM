@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": [".", "../src/renderer/src/electron-api.d.ts"]
+  "include": [".", "../src/renderer/src/electron-api.d.ts", "../src/renderer/src/vite-env.d.ts"]
 }

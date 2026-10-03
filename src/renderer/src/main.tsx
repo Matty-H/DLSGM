@@ -7,7 +7,7 @@ import TriggerHudApp from './components/ClickerHud/TriggerHudApp';
 import TriggerZonesApp from './components/ClickerHud/TriggerZonesApp';
 import MacroHudApp from './components/ClickerHud/MacroHudApp';
 import OcrViewApp from './components/OcrView/OcrViewApp';
-import { resolveUiLanguage, setUiLanguage, uiLocale } from './lib/i18n.js';
+import { getUiLanguage, resolveUiLanguage, setUiLanguage } from './lib/i18n.js';
 import './index.css';
 
 const container = document.getElementById('root');
@@ -32,7 +32,7 @@ async function initLanguage(): Promise<void> {
   } catch {
     setUiLanguage(resolveUiLanguage(undefined, navigator.languages));
   }
-  document.documentElement.lang = uiLocale().slice(0, 2);
+  document.documentElement.lang = getUiLanguage();
 }
 
 initLanguage().finally(() => {

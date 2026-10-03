@@ -72,7 +72,7 @@ Drop a downloaded archive (`.zip`, `.rar`, `.7z`): DLSGM extracts it to the righ
 **Alt+Space** hides DLSGM instantly. Adult covers can be blurred in the library.
 
 ### In your language
-The interface is available in English, French and Japanese, and follows your system language by default.
+The interface is available in English, French and Japanese, and follows your system language by default. Want DLSGM in your language? [Translating it](TRANSLATING.md) only takes one file, no programming needed.
 
 ---
 
@@ -138,6 +138,6 @@ DLSGM is free, under the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/
 
 DLSGM is not affiliated with or endorsed by DLsite.
 
-Are you a developer? See the [contributing guide](CONTRIBUTING.md).
+Want to translate DLSGM? See [TRANSLATING.md](TRANSLATING.md). Are you a developer? See the [contributing guide](CONTRIBUTING.md).
 
 </div>

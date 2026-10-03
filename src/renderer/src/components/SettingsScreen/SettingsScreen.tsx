@@ -26,7 +26,7 @@ import type { MacroRecorderSettings } from '../../lib/macros.js';
 import type { PixelTriggerSettings as TriggerSettings } from '../../lib/pixelTrigger.js';
 import type { AutoClickerSettings as ClickerSettings } from '../../lib/autoClicker.js';
 import Select from '../Select/Select';
-import { msg, t, tr } from '../../lib/i18n.js';
+import { msg, t, tr, uiLanguages } from '../../lib/i18n.js';
 
 
 export interface SettingsScreenProps {
@@ -631,15 +631,13 @@ export default function SettingsScreen({
           <>
             <SettingRow
               label={t("Langue de l'interface")}
-              description={t('Par défaut, celle du système (français, anglais ou japonais ; anglais pour toute autre langue). Changer de langue recharge la fenêtre.')}
+              description={t("Par défaut, celle du système si l'interface y est traduite, sinon l'anglais. Changer de langue recharge la fenêtre.")}
             >
               <Select
                 value={uiLanguage}
                 options={[
-                  { value: 'system' as const, label: t('Langue du système') },
-                  { value: 'fr' as const, label: 'Français' },
-                  { value: 'en' as const, label: 'English' },
-                  { value: 'ja' as const, label: '日本語' }
+                  { value: 'system', label: t('Langue du système') },
+                  ...uiLanguages().map(language => ({ value: language.code, label: language.name }))
                 ]}
                 onChange={setUiLanguageSetting}
                 aria-label={t("Langue de l'interface")}
