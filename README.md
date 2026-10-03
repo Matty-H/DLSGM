@@ -1,164 +1,143 @@
-# DLSGM — DLsite Game (& Stuff) Manager
+<div align="center">
 
-Application de bureau (Electron) pour organiser une bibliothèque locale d'œuvres DLsite. DLSGM détecte les jeux à partir de leur identifiant DLsite (`RJ123456`, `VJ01234567`…), récupère leurs métadonnées et images, les conserve en cache local et permet de parcourir, filtrer et lancer la bibliothèque depuis une interface unique, utilisable à la souris, au clavier ou à la manette.
+# DLSGM
 
-[Télécharger la dernière version](https://github.com/Matty-H/DLSGM/releases/latest)
+**Your DLsite library, finally organized.**
+
+All your DLsite games in one place, with their covers, details and play time.
+Launch them in one click, with a mouse, a keyboard or a controller.
+
+[![Download](https://img.shields.io/github/v/release/Matty-H/DLSGM?label=Download&style=for-the-badge&color=1a9fff)](https://github.com/Matty-H/DLSGM/releases/latest)
+
+![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=flat-square)
+![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-555555?style=flat-square)
+![Languages](https://img.shields.io/badge/English%20%C2%B7%20Fran%C3%A7ais%20%C2%B7%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555555?style=flat-square)
+![Free](https://img.shields.io/badge/Free-no%20ads-2ea44f?style=flat-square)
+
+<br>
+
+<img src="docs/screenshots/home.png" alt="DLSGM home screen: “Recently played”, “To finish” and “Recently added” shelves" width="900">
+
+</div>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/library.png" alt="Library with search, filters and sorting"></td>
+    <td width="50%"><img src="docs/screenshots/game-page.png" alt="Game page: play time, release date, size, tags and collections"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>The library, with R18 content blurred</sub></td>
+    <td align="center"><sub>Every game gets its own page: play time, tags, rating and collections</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/settings.png" alt="In-game tools settings"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><sub>In-game tools, set up in a few clicks</sub></td>
+  </tr>
+</table>
 
 ---
 
-## Sommaire
+## Why DLSGM?
 
-- [Fonctionnalités](#fonctionnalités)
-- [Installation](#installation)
-- [Organisation de la bibliothèque](#organisation-de-la-bibliothèque)
-- [Données et confidentialité](#données-et-confidentialité)
-- [Développement](#développement)
-- [Publication d'une version](#publication-dune-version)
-- [Architecture](#architecture)
-- [Licence](#licence)
+Are your DLsite games piling up in folders with cryptic names like `RJ01234567`, with no picture or description? DLSGM recognizes them automatically, fetches their details from DLsite and shows them in a clean library inspired by game consoles.
+
+Everything stays on your computer: no account, no cloud.
 
 ---
 
-## Fonctionnalités
+## What DLSGM does for you
 
-### Bibliothèque
+### A library that fills itself
+Point DLSGM to the folder where your games are: it finds each title, its circle, tags, release date, cover and screenshots. Even if a work disappears from DLsite one day, its page stays with you.
 
-- Détection automatique des jeux dans le dossier de destination ; assistant de renommage pour les dossiers mal nommés (`[RJ01234567] Titre v1.2`).
-- Récupération des métadonnées depuis DLsite : titre, cercle, auteurs, genres, type d'œuvre, date de sortie, description, couverture et images d'exemple. Le japonais fait foi ; l'anglais est récupéré pour l'affichage et la recherche.
-- Cache local persistant : une fiche récupérée n'est jamais écrasée par un échec ultérieur, ni supprimée si le jeu disparaît (utile pour les œuvres retirées de DLsite).
-- Recherche, filtres avancés (genres, type, cercle, auteur, série), tri (dont par taille sur disque).
-- Collections manuelles ou à règles, étagères sur l'écran d'accueil, collections automatiques (« À finir », « Jamais lancés », « Finis »).
-- Notes, tags personnels, édition manuelle des fiches, liste de souhaits.
-- Statistiques : temps de jeu par semaine, taille de la collection, espace disque par lecteur.
+### Find the right game in seconds
+Search, filter by tag, circle or type, sort by date, play time or size on disk. Sort your games into collections, or let DLSGM fill them based on your own rules. The home screen shows what you haven't finished yet.
 
-### Lancement et suivi
+### Just play
+One click to launch. DLSGM tracks your play time, backs up your saves every time you close a game, and lets you go back to an earlier save if something goes wrong.
 
-- Lancement en un clic, choix de l'exécutable, suivi du temps de jeu et des sessions.
-- Sauvegardes : copie automatique des emplacements de sauvegarde détectés à la fermeture du jeu, restauration réversible.
-- Options par jeu (Windows) : lancement en environnement isolé via Sandboxie-Plus, en locale japonaise via Locale Emulator, avec extraction de texte via Textractor.
-- Installation et désinstallation de correctifs (BepInEx + XUnity.AutoTranslator pour les jeux Unity Mono, archives de patch personnelles) avec restauration exacte des fichiers remplacés.
+### Hassle-free installs
+Drop a downloaded archive (`.zip`, `.rar`, `.7z`): DLSGM extracts it to the right place, handles Japanese file names and tries the usual passwords. You can also send a game to another PC at home.
 
-### Import et partage
+### Tools while you play *(Windows)*
+- **Overlay** on top of the game (Shift+Tab): play time, screenshots and tools, without leaving the game.
+- **Screenshots** of the game window only (Ctrl+F8), sorted by game.
+- **Japanese reading help** (F10): the meaning of each word and kanji shown on screen, with furigana readings, offline.
+- **Launch in Japanese locale** and **sandboxed launch**, for the games that need them.
+- **Auto-clicker** and **macro recorder**, enabled only for the games you choose.
 
-- Import d'archives `.zip`, `.rar` (y compris multi-volumes et SFX) et `.7z`, avec gestion des noms Shift-JIS, des archives imbriquées et des mots de passe usuels.
-- Partage de jeux en réseau local entre deux instances de DLSGM, protégé par un code à usage unique et vérifié par SHA-256.
+### Discreet when needed
+**Alt+Space** hides DLSGM instantly. Adult covers can be blurred in the library.
 
-### Outils en jeu (Windows)
-
-- Overlay superposé au jeu (Maj+Tab) sans lui retirer le focus.
-- Captures d'écran de la fenêtre du jeu (Ctrl+F8) avec galerie.
-- Traduction à l'écran : OCR Windows puis dictionnaire hors ligne (sens de chaque mot et kanji, avec furigana), modèle local compatible OpenAI, DeepL ou Google.
-- Auto-clicker, détecteur de rythme (déclenchement sur changement de pixels) et enregistreur de macros, activés jeu par jeu et limités à la fenêtre du jeu.
-- Extraction des ressources chiffrées des jeux RPG Maker MV/MZ.
-- Dossier de travail par jeu, hors du dossier du jeu, pour les notes et extractions.
-
-### Divers
-
-- Bouton panique (Alt+Espace) qui masque immédiatement l'application.
-- Réduction dans la zone de notification.
-- Proxy DLsite (HTTP/SOCKS5, avec authentification) pour les œuvres restreintes par région.
-- Recherche de mise à jour au démarrage ou à la demande, installation sur accord.
+### In your language
+The interface is available in English, French and Japanese, and follows your system language by default.
 
 ---
 
 ## Installation
 
-Les versions compilées sont publiées sur la page [Releases](https://github.com/Matty-H/DLSGM/releases).
+1. Open the [download page](https://github.com/Matty-H/DLSGM/releases/latest).
+2. Pick your file:
 
-| Plateforme | Fichier | Mises à jour |
-|---|---|---|
-| Windows | `DLSGM-<version>-Windows-Installeur.exe` | Proposées puis installées depuis DLSGM |
-| Windows | `DLSGM-<version>-Windows-Portable.exe` (sans installation) | Signalées par un pop-up, à retélécharger |
-| macOS | `DLSGM-<version>-macOS-arm64.dmg` | Proposées puis installées depuis DLSGM, une fois l'application placée dans `/Applications` |
+   | You are on… | Download | |
+   |---|---|---|
+   | Windows | `DLSGM-…-Windows-Installeur.exe` | Recommended: DLSGM will offer you its new versions |
+   | Windows, without installing | `DLSGM-…-Windows-Portable.exe` | Runs directly, update it yourself |
+   | Mac (Apple Silicon) | `DLSGM-…-macOS-arm64.dmg` | Drag DLSGM into Applications |
 
-Les fichiers `.blockmap`, `latest*.yml` et `-maj-auto.zip` d'une release servent aux mises à jour automatiques et n'ont pas à être téléchargés.
-
-La recherche de mise à jour au démarrage se désactive dans Paramètres › Mises à jour, où une vérification manuelle est aussi possible. Rien n'est téléchargé sans accord.
-
-La plupart des outils en jeu (overlay, OCR, auto-clicker, Sandboxie, Locale Emulator, Textractor) ne sont disponibles que sous Windows. La traduction OCR du japonais nécessite le module OCR japonais de Windows (`Language.OCR~~~ja-JP`).
+   The other files on the page are used for updates: no need to download them.
+3. Launch DLSGM and choose the folder that contains your games in the Settings.
 
 ---
 
-## Organisation de la bibliothèque
+## Organizing your games
 
-Chaque jeu doit se trouver dans un dossier nommé exactement d'après son identifiant DLsite, directement sous le dossier de destination choisi dans les paramètres :
+DLSGM recognizes a game by its DLsite number. Each game needs its own folder, named exactly after that number, inside your games folder:
 
 ```
-Jeux/
+My games/
 ├── RJ01234567/
-│   └── Game.exe
 ├── RJ123456/
-│   └── ...
 └── VJ01000000/
 ```
 
-Un identifiant valide correspond à deux lettres majuscules suivies de 6 à 9 chiffres. Les dossiers qui contiennent un identifiant sans être nommés exactement ainsi sont proposés au renommage.
+The number is in the address of the game's DLsite page. If your folders have names like `[RJ01234567] Title v1.2`, DLSGM offers to rename them for you.
 
 ---
 
-## Données et confidentialité
+## FAQ
 
-- Toutes les données (cache, images, paramètres, sauvegardes) restent sur la machine, dans le dossier de données utilisateur d'Electron.
-- Les seules requêtes réseau automatiques visent DLsite (métadonnées et images) et le serveur de mises à jour GitHub.
-- La traduction via DeepL ou Google envoie le texte reconnu (jamais l'image) au service choisi ; le dictionnaire hors ligne et le modèle local ne transmettent rien.
-- Les mots de passe de proxy et les clés d'API sont chiffrés avec `safeStorage` (DPAPI sous Windows).
-- Le partage en réseau local transite en HTTP non chiffré : à réserver à un réseau de confiance.
+**Windows shows “Windows protected your PC”.**
+DLSGM is not signed with a paid certificate, which triggers this warning. Click “More info”, then “Run anyway”.
 
----
+**My Mac refuses to open the app.**
+Right-click DLSGM in Applications, choose “Open”, then confirm. On recent macOS versions, go to System Settings › Privacy & Security and click “Open Anyway”.
 
-## Développement
+**A game has no details.**
+Some works are only visible on DLsite from Japan. Try again with a VPN set to Japan: the page will be filled in on the next scan.
 
-### Prérequis
+**How do I update DLSGM?**
+With the installer, DLSGM tells you when a new version is out and installs it if you agree. The check can be turned off or run by hand in Settings › Updates. The portable version tells you too, but you download the new version yourself.
 
-- Node.js 20 ou supérieur
-- npm
+**How do I change the language?**
+Settings › Display › Interface language. Tags can be shown in English or in the original Japanese (Settings › Library › Tag language).
 
-### Commandes
+**Is my data sent anywhere?**
+No. Your library, ratings and play time stay on your computer. DLSGM only contacts DLsite (for game details and pictures) and GitHub (for updates). If you choose an online translation service, only the text to translate is sent to it.
 
-```bash
-npm install            # dépendances (active aussi le hook pre-commit)
-npm run dev            # mode développement avec rechargement à chaud
-npm start              # build complet puis lancement d'Electron
-npm test               # tests unitaires (Vitest)
-npm run typecheck      # vérification des types
-npm run check          # typecheck + tests (hook pre-commit et CI)
-npm run build          # build et empaquetage via electron-builder
-```
-
-Les tests s'exécutent sous Node sans lancer Electron. Toute modification de comportement doit s'accompagner d'un test dans `tests/`.
+**I want to report a problem or suggest an idea.**
+Open a ticket in the [Issues](https://github.com/Matty-H/DLSGM/issues) tab.
 
 ---
 
-## Publication d'une version
+<div align="center">
 
-La CI GitHub Actions (`.github/workflows/build.yml`) exécute les tests puis compile Windows et macOS à chaque push sur `main`. Un tag `v*` publie en plus une release GitHub avec les installeurs et les fichiers de mise à jour automatique.
+DLSGM is free, under the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) license: you can share and modify it, but not sell it.
 
-```bash
-# 1. Mettre à jour "version" dans package.json, puis commit
-git tag vX.Y.Z           # doit correspondre exactement à la version de package.json
-git push origin main vX.Y.Z
-```
+DLSGM is not affiliated with or endorsed by DLsite.
 
----
+Are you a developer? See the [contributing guide](CONTRIBUTING.md).
 
-## Architecture
-
-Application Electron en trois processus avec une frontière de sécurité stricte (`contextIsolation`, `sandbox`, pas de `nodeIntegration`).
-
-| Dossier | Rôle |
-|---|---|
-| `src/main/` | Processus principal : fenêtres, IPC, accès disque et réseau, récupération DLsite, outils en jeu |
-| `src/preload/` | Pont unique entre l'interface et le processus principal (`window.electronAPI`) |
-| `src/shared/` | Contrat de types IPC partagé, sans code exécuté |
-| `src/renderer/` | Interface React + TypeScript + Tailwind CSS, compilée avec Vite (voir [son README](src/renderer/README.md)) |
-| `tests/` | Tests unitaires Vitest |
-
-Le stockage repose sur NeDB (une entrée par jeu ou par paramètre) et les requêtes DLsite passent par la pile réseau de Chromium (`net.fetch`) afin de respecter le proxy configuré.
-
----
-
-## Licence
-
-Ce projet est distribué sous licence [Creative Commons Attribution - Pas d'Utilisation Commerciale - Partage dans les Mêmes Conditions 4.0 International (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.fr).
-
-DLSGM n'est ni affilié à DLsite ni approuvé par DLsite.
+</div>
