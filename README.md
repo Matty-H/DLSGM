@@ -67,12 +67,12 @@ Drop your games in a folder. DLSGM finds them, fetches their covers and details,
     <td width="50%"><img src="docs/screenshots/settings.png" alt="In-game tools settings: overlay and auto-clicker"></td>
   </tr>
   <tr>
-    <td align="center"><sub><b>14 color palettes</b>, your own, or brand-new colors at every startup with <i>Super random turbo 2000 remix</i></sub></td>
+    <td align="center"><sub><b>14 color palettes</b>, your own, or brand-new colors at every startup with our patended <i><b>Super Random Turbo 2000 Remix technology</b> (it's just a randomizer)</i></sub></td>
     <td align="center"><sub><b>In-game tools</b>, set up in a few clicks</sub></td>
   </tr>
 </table>
 
-DLSGM speaks **English, French and Japanese** and follows your system language. Want it in yours? [Translating it](TRANSLATING.md) takes one file, no programming needed.
+DLSGM speaks **English, French and Japanese** and follows your system language. [Translating it](TRANSLATING.md) takes one file.
 
 ## Installation
 
@@ -81,7 +81,7 @@ DLSGM speaks **English, French and Japanese** and follows your system language. 
 
    | You are on… | Download | |
    |---|---|---|
-   | Windows | `DLSGM-…-Windows-Installeur.exe` | Recommended: DLSGM will offer you its new versions |
+   | Windows | `DLSGM-…-Windows-Installeur.exe` | Recommended: Installed version allowing auto-update |
    | Windows, without installing | `DLSGM-…-Windows-Portable.exe` | Runs directly, update it yourself |
    | Mac (Apple Silicon) | `DLSGM-…-macOS-arm64.dmg` | Drag DLSGM into Applications |
 
@@ -99,7 +99,7 @@ My games/
 └── VJ01000000/
 ```
 
-The number is in the address of the game's DLsite page. If your folders have names like `[RJ01234567] Title v1.2`, DLSGM offers to rename them for you.
+The number is in the URL of the game's DLsite page. `https://www.dlsite.com/<category>/work/=/product_id/[GAME_ID].html` If your folders have names like `[RJ01234567] Title v1.2`, DLSGM offers to rename them for you.
 
 ## FAQ
 
@@ -159,6 +159,7 @@ DLSGM is free, under the [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/
 
 DLSGM is not affiliated with or endorsed by DLsite.
 
-Want to translate DLSGM? See the [translating guide](TRANSLATING.md). Are you a developer? See the [contributing guide](CONTRIBUTING.md).
+Want to translate DLSGM? See the [translating guide](TRANSLATING.md).</br>
+Are you a developer? See the [contributing guide](CONTRIBUTING.md).
 
 </div>
