@@ -16,6 +16,8 @@ export interface SaveBackupsProps {
   gameId: string;
   /** Change à chaque fin de session : la copie automatique vient peut-être d'être faite. */
   lastPlayed?: string;
+  /** Change quand une copie a été faite ailleurs (éditeur de sauvegardes). */
+  refreshKey?: number;
 }
 
 const COLLAPSED_COUNT = 4;
@@ -24,7 +26,7 @@ const COLLAPSED_COUNT = 4;
  * Copies des sauvegardes d'un jeu (faites à chaque fermeture du jeu si
  * l'option est active, ou à la demande) : liste, restauration, suppression.
  */
-export default function SaveBackups({ gameId, lastPlayed }: SaveBackupsProps) {
+export default function SaveBackups({ gameId, lastPlayed, refreshKey }: SaveBackupsProps) {
   const [backups, setBackups] = useState<SaveBackup[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
@@ -38,7 +40,7 @@ export default function SaveBackups({ gameId, lastPlayed }: SaveBackupsProps) {
     return () => {
       cancelled = true;
     };
-  }, [gameId, lastPlayed]);
+  }, [gameId, lastPlayed, refreshKey]);
 
   const run = async (label: string, action: () => Promise<string | null>) => {
     setBusy(label);

@@ -13,7 +13,8 @@ export type { GameToolsInfo, InstalledPatch, SandboxieStatus, SaveBackup };
 export const BACKUP_REASON_LABELS: Record<SaveBackup['reason'], string> = {
   auto: msg('Auto'),
   manual: msg('Manuelle'),
-  'pre-restore': msg('Avant restauration')
+  'pre-restore': msg('Avant restauration'),
+  'pre-edit': msg('Avant modification')
 };
 
 /** Taille lisible (ex: "340 Ko", "1,2 Mo"). */

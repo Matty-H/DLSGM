@@ -25,6 +25,7 @@ import { isTrustedSender } from './ipc-guard';
 import { readInstallInfo } from './release-names';
 import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
+import { listSaveSlots, readSave, writeSave } from './rpgmaker-saves';
 import { findLeProc, leInstalled, runWithLocaleEmulator } from './locale-emulator';
 import { elevatedStartCommand, parseLaunchArguments } from './launch-args';
 import { DiskUsageScanner, diskInfo } from './disk-usage';
@@ -48,7 +49,7 @@ import { TriggerZonesWindow } from './trigger-zones';
 import { checkForUpdates, getAppUpdateInfo } from './updater';
 import { setMainLanguage, systemLanguages, tm } from './i18n';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, RpgSavePatch, SandboxieStatus } from '../shared/ipc-types';
 import type { OsPlatform } from '../shared/platforms';
 import { applyThemeIcon, applyThemeSetting, getActiveTheme, iconFromDataUrl, rerollTheme } from './theme';
 import { DEFAULT_THEME, normalizeThemeSetting, sanitizeCustomThemes } from '../shared/themes';
@@ -2193,6 +2194,41 @@ export function setupIpcHandlers(
   handle('delete-save-backup', async (event: IpcMainInvokeEvent, gameId: string, backupId: string) => {
     assertGameId(gameId);
     return withBackupLock(gameId, () => deleteSaveBackup(gameId, backupId));
+  });
+
+  // --- Éditeur de sauvegardes RPG Maker MV/MZ ---
+  /** Dossier web et dossier des sauvegardes (celui copié par les copies de sauvegarde, libellé `Saves`). */
+  const rpgMakerSaveDirs = async (gameId: string) => {
+    const info = await getGameToolsInfo(gameId);
+    const web = findRpgMakerWebRoot(info.installRootAbs);
+    const saves = info.saveLocations.find(location => location.label === 'Saves');
+    if (!web || !saves || path.resolve(saves.path) !== path.resolve(web.saveDir)) throw new Error(tm("Ce jeu n'est pas un RPG Maker MV/MZ."));
+    return { info, webDir: web.webDir, saveDir: web.saveDir };
+  };
+
+  handle('list-rpgmaker-saves', async (event: IpcMainInvokeEvent, gameId: string) => {
+    assertGameId(gameId);
+    const info = await getGameToolsInfo(gameId);
+    const web = findRpgMakerWebRoot(info.installRootAbs);
+    return web ? listSaveSlots(web.saveDir) : [];
+  });
+
+  handle('read-rpgmaker-save', async (event: IpcMainInvokeEvent, gameId: string, file: string) => {
+    assertGameId(gameId);
+    const { webDir, saveDir } = await rpgMakerSaveDirs(gameId);
+    return readSave(saveDir, webDir, file);
+  });
+
+  handle('write-rpgmaker-save', async (event: IpcMainInvokeEvent, gameId: string, file: string, patch: RpgSavePatch) => {
+    assertGameId(gameId);
+    if (runningGames.has(gameId)) throw new Error(tm("Le jeu est en cours d'exécution : ferme-le avant de modifier ses sauvegardes."));
+    return withBackupLock(gameId, async () => {
+      const { info, webDir, saveDir } = await rpgMakerSaveDirs(gameId);
+      // Jamais de modification sans copie : la copie échoue ou n'a rien copié → rien n'est écrit.
+      const backup = await createSaveBackup(gameId, info.saveLocations, 'pre-edit');
+      if (!backup) throw new Error(tm("Copie de sécurité impossible : sauvegarde non modifiée."));
+      return writeSave(saveDir, webDir, file, patch);
+    });
   });
 
   // --- Sandbox Sandboxie-Plus ---

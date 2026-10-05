@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Select from '../Select/Select';
 import SaveBackups from '../SaveBackups/SaveBackups';
 import TextTools from './TextTools';
+import RpgSaveEditor from './RpgSaveEditor';
 import {
   TRANSLATION_LANGUAGES,
   saveLocationLabel,
@@ -59,6 +60,8 @@ export default function GameToolsSection({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [language, setLanguage] = useState('en');
+  // Sauvegarde modifiée par l'éditeur : la liste des copies (nouvelle copie « Avant modification ») est à relire.
+  const [savesVersion, setSavesVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,7 +145,11 @@ export default function GameToolsSection({
         </div>
       )}
 
-      {info && info.saveLocations.length > 0 && <SaveBackups gameId={gameId} lastPlayed={lastPlayed} />}
+      {info && info.saveLocations.length > 0 && <SaveBackups gameId={gameId} lastPlayed={lastPlayed} refreshKey={savesVersion} />}
+
+      {(info?.engine.engine === 'rpgmaker-mv' || info?.engine.engine === 'rpgmaker-mz') && (
+        <RpgSaveEditor gameId={gameId} lastPlayed={lastPlayed} onSaved={() => setSavesVersion(v => v + 1)} />
+      )}
 
       <TextTools
         gameId={gameId}

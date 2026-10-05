@@ -311,6 +311,42 @@ export interface RpgMakerExtractResult {
   folder: string;
 }
 
+/** Sauvegarde RPG Maker MV/MZ (`fileN`, voir src/main/rpgmaker-saves.ts). */
+export interface RpgSaveSlot {
+  file: string;
+  /** N de `fileN` (0 : sauvegarde automatique de MZ). */
+  slot: number;
+  modified: string;
+  size: number;
+}
+
+/** Ligne de l'éditeur : identifiant de la base, nom (vide si sans nom) et valeur. */
+export interface RpgSaveEntry<T> {
+  id: number;
+  name: string;
+  value: T;
+}
+
+export interface RpgSaveData {
+  file: string;
+  gold: number;
+  items: RpgSaveEntry<number>[];
+  weapons: RpgSaveEntry<number>[];
+  armors: RpgSaveEntry<number>[];
+  variables: RpgSaveEntry<number | string | null>[];
+  switches: RpgSaveEntry<boolean>[];
+}
+
+/** Modifications (par identifiant) ; vérifiées par main. */
+export interface RpgSavePatch {
+  gold?: number;
+  items?: Record<string, number>;
+  weapons?: Record<string, number>;
+  armors?: Record<string, number>;
+  variables?: Record<string, number | string>;
+  switches?: Record<string, boolean>;
+}
+
 /** Enregistreur de macros (voir src/main/macro-recorder.ts). */
 export interface MacroRecorderSettings {
   enabled: boolean;
@@ -636,8 +672,8 @@ export interface PlaySession {
 export interface SaveBackup {
   id: string;
   createdAt: string;
-  /** auto = à la fermeture du jeu ; pre-restore = état écrasé par une restauration. */
-  reason: 'auto' | 'manual' | 'pre-restore';
+  /** auto = à la fermeture du jeu ; pre-restore = état écrasé par une restauration ; pre-edit = avant une modification dans l'éditeur de sauvegardes. */
+  reason: 'auto' | 'manual' | 'pre-restore' | 'pre-edit';
   /** Libellés des emplacements copiés (voir SaveLocation.label). */
   locations: string[];
   fileCount: number;
@@ -1207,6 +1243,11 @@ export interface ElectronAPI {
   /** Déchiffre images et sons d'un jeu RPG Maker MV/MZ dans son dossier de travaux. */
   extractRpgMakerAssets(gameId: string): Promise<RpgMakerExtractResult>;
   onRpgMakerExtractProgress(callback: (progress: { gameId: string; done: number; total: number }) => void): () => void;
+  /** Sauvegardes d'un jeu RPG Maker MV/MZ (vide si aucune). */
+  listRpgMakerSaves(gameId: string): Promise<RpgSaveSlot[]>;
+  readRpgMakerSave(gameId: string, file: string): Promise<RpgSaveData>;
+  /** Copie les sauvegardes (reason `pre-edit`), puis modifie ; refusé pendant que le jeu tourne. */
+  writeRpgMakerSave(gameId: string, file: string, patch: RpgSavePatch): Promise<RpgSaveData>;
   // Captures d'écran (src/main/screenshots.ts)
   /** Overlay : capture la fenêtre du jeu en cours (le plus récent) ; null si aucun jeu. */
   takeScreenshot(): Promise<CaptureInfo | null>;

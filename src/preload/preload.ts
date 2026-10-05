@@ -173,6 +173,9 @@ const electronAPI: ElectronAPI = {
     };
   },
   extractRpgMakerAssets: gameId => ipcRenderer.invoke('extract-rpgmaker-assets', gameId),
+  listRpgMakerSaves: gameId => ipcRenderer.invoke('list-rpgmaker-saves', gameId),
+  readRpgMakerSave: (gameId, file) => ipcRenderer.invoke('read-rpgmaker-save', gameId, file),
+  writeRpgMakerSave: (gameId, file, patch) => ipcRenderer.invoke('write-rpgmaker-save', gameId, file, patch),
   onRpgMakerExtractProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: { gameId: string; done: number; total: number }) => callback(progress);
     ipcRenderer.on('rpgmaker-extract-progress', listener);
