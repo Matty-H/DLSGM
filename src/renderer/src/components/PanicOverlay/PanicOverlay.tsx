@@ -63,8 +63,10 @@ export default function PanicOverlay({ active }: PanicOverlayProps) {
           <p className="mt-2 font-sans text-xs italic text-neutral-800">{t('(Alt+Espace pour fermer)')}</p>
         </div>
       </div>
+      {/* Site externe dans la fenêtre de DLSGM : ni navigation de la fenêtre, ni pop-up, ni téléchargement. */}
       <iframe
         src={iframeSrc}
+        sandbox="allow-scripts allow-same-origin allow-forms"
         onLoad={() => {
           if (active) setOverlayVisible(false);
         }}

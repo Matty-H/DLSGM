@@ -1,4 +1,4 @@
-import { app, clipboard, ipcMain, dialog, globalShortcut, net, Notification, safeStorage, screen, shell, session, BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions, type Rectangle } from 'electron';
+import { app, clipboard, ipcMain, dialog, globalShortcut, net, Notification, safeStorage, screen, shell, session, BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, OpenDialogOptions, type Rectangle } from 'electron';
 
 import path from 'path';
 import fs from 'fs';
@@ -18,6 +18,8 @@ import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { detectPlatforms } from './game-platforms';
 import { LibraryMoveError, moveLibrary, planLibraryMove } from './library-move';
 import { DEFAULT_SUPER_PANIC, SuperPanic, sanitizeSuperPanicSettings } from './super-panic';
+import { guardExecutablePaths, PickedPaths } from './trusted-paths';
+import { isTrustedSender } from './ipc-guard';
 import { readInstallInfo } from './release-names';
 import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
@@ -124,6 +126,8 @@ export async function shutdownVpn(): Promise<void> {
 }
 
 const cacheStore = new Store('cache.db', {});
+// Chemins choisis par l'utilisateur dans une boîte de dialogue : seuls acceptés pour les réglages qui lancent un programme.
+const pickedPaths = new PickedPaths();
 
 // Liste de souhaits : store séparé, jamais mêlé au cache des jeux.
 const wishlistStore = new Store('wishlist.db', {});
@@ -1163,6 +1167,38 @@ export interface PageLoader {
   preloadPath: string;
   /** Charge le renderer dans une fenêtre, à une route (#overlay). */
   loadPage: (window: BrowserWindow, hash?: string) => void;
+  /** Adresse d'une page de DLSGM (ipc-guard.ts) : seules celles-ci peuvent appeler les canaux IPC. */
+  isAppUrl: (url: string) => boolean;
+}
+
+// Fixé par setupIpcHandlers avant tout enregistrement de canal.
+let isAppPage: (url: string) => boolean = () => false;
+
+function assertTrustedSender(event: IpcMainEvent | IpcMainInvokeEvent, channel: string): void {
+  if (!isTrustedSender(event.senderFrame, isAppPage)) {
+    throw new Error(`Appel IPC refusé (${channel}) depuis ${event.senderFrame?.url ?? 'un cadre détruit'}`);
+  }
+}
+
+/** `ipcMain.handle` réservé aux pages de DLSGM (cadre principal). */
+function handle(channel: string, listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown): void {
+  ipcMain.handle(channel, (event, ...args) => {
+    assertTrustedSender(event, channel);
+    return listener(event, ...args);
+  });
+}
+
+/** `ipcMain.on` réservé aux pages de DLSGM : un message d'ailleurs est ignoré (journalisé). */
+function on(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => void): void {
+  ipcMain.on(channel, (event, ...args) => {
+    try {
+      assertTrustedSender(event, channel);
+    } catch (error) {
+      console.warn((error as Error).message);
+      return;
+    }
+    listener(event, ...args);
+  });
 }
 
 /**
@@ -1175,6 +1211,7 @@ export function setupIpcHandlers(
   onSettingsSaved: ((settings: AppSettings) => void) | undefined,
   pages: PageLoader
 ): void {
+  isAppPage = pages.isAppUrl;
   const clicker = new AutoClicker({
     scriptDir: app.getPath('userData'),
     logPath: path.join(app.getPath('userData'), 'auto-clicker.log'),
@@ -1262,7 +1299,7 @@ export function setupIpcHandlers(
   });
   applyMacroSettings().catch(error => console.error('Macros au démarrage :', error));
 
-  ipcMain.handle('set-game-macro-enabled', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
+  handle('set-game-macro-enabled', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
     assertGameId(gameId);
     await cacheStore.update(gameId, () => ({ macroEnabled: Boolean(enabled) }));
     if (enabled) {
@@ -1277,11 +1314,11 @@ export function setupIpcHandlers(
     refreshMacroRecorder();
     getWindow()?.webContents.send('cache-entry-changed', gameId, { macroEnabled: Boolean(enabled) });
   });
-  ipcMain.handle('set-active-macro', (event: IpcMainInvokeEvent, gameId: string, macroId: string) => {
+  handle('set-active-macro', (event: IpcMainInvokeEvent, gameId: string, macroId: string) => {
     assertGameId(gameId);
     return changeGameMacros(gameId, current => ({ ...current, activeId: String(macroId) }));
   });
-  ipcMain.handle('update-macro', (event: IpcMainInvokeEvent, gameId: string, macroId: string, patch: { loop?: boolean; name?: string }) => {
+  handle('update-macro', (event: IpcMainInvokeEvent, gameId: string, macroId: string, patch: { loop?: boolean; name?: string }) => {
     assertGameId(gameId);
     return changeGameMacros(gameId, current => ({
       ...current,
@@ -1296,7 +1333,7 @@ export function setupIpcHandlers(
       )
     }));
   });
-  ipcMain.handle('delete-macro', (event: IpcMainInvokeEvent, gameId: string, macroId: string) => {
+  handle('delete-macro', (event: IpcMainInvokeEvent, gameId: string, macroId: string) => {
     assertGameId(gameId);
     if (macroRecorder?.getStatus().playingMacroId === macroId) macroRecorder.stop();
     return changeGameMacros(gameId, current => ({ ...current, macros: current.macros.filter(m => m.id !== macroId) }));
@@ -1347,25 +1384,25 @@ export function setupIpcHandlers(
   });
   applySuperPanicSettings().catch(error => console.error('Super panique au démarrage :', error));
   // Overlay : il se cache d'abord (sinon il serait sur la capture), comme pour l'OCR.
-  ipcMain.handle('take-screenshot', async () => {
+  handle('take-screenshot', async () => {
     if (overlay?.isVisible()) {
       overlay.hide();
       await delay(250);
     }
     return takeScreenshot();
   });
-  ipcMain.handle('list-captures', (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('list-captures', (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
     return listCaptures(capturesDir(gameId));
   });
-  ipcMain.handle('delete-capture', async (event: IpcMainInvokeEvent, gameId: string, file: string) => {
+  handle('delete-capture', async (event: IpcMainInvokeEvent, gameId: string, file: string) => {
     assertGameId(gameId);
     const full = captureFilePath(gameId, file);
     if (!full) throw new Error(tm('Capture introuvable.'));
     await shell.trashItem(full);
     return listCaptures(capturesDir(gameId));
   });
-  ipcMain.handle('open-captures-folder', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('open-captures-folder', async (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
     fs.mkdirSync(capturesDir(gameId), { recursive: true });
     const error = await shell.openPath(capturesDir(gameId));
@@ -1379,22 +1416,22 @@ export function setupIpcHandlers(
     },
     status => getWindow()?.webContents.send('dictionary-status', status)
   );
-  ipcMain.handle('get-dictionary-status', () => dictionary!.status());
-  ipcMain.handle('install-dictionary', async () => {
+  handle('get-dictionary-status', () => dictionary!.status());
+  handle('install-dictionary', async () => {
     await dictionary!.install();
     return dictionary!.status();
   });
-  ipcMain.handle('remove-dictionary', () => {
+  handle('remove-dictionary', () => {
     dictionary!.remove();
     return dictionary!.status();
   });
-  ipcMain.handle('lookup-japanese', async (event: IpcMainInvokeEvent, text: string) => {
+  handle('lookup-japanese', async (event: IpcMainInvokeEvent, text: string) => {
     if (typeof text !== 'string' || text.length > 2000) throw new Error(tm('Texte invalide.'));
     const settings = await getSettings();
     return (await dictionary!.lookup([text], settings.ocrTranslate?.target === 'en' ? 'en' : 'fr'))[0];
   });
-  ipcMain.handle('get-ocr-view', () => ocrView?.getView() ?? null);
-  ipcMain.handle('ocr-languages', async () => {
+  handle('get-ocr-view', () => ocrView?.getView() ?? null);
+  handle('ocr-languages', async () => {
     try {
       return await (ocrReader?.languages() ?? Promise.resolve([]));
     } catch {
@@ -1402,7 +1439,7 @@ export function setupIpcHandlers(
     }
   });
   // Bouton de l'overlay : l'overlay se cache d'abord, sinon il serait lu avec le jeu.
-  ipcMain.handle('ocr-translate-now', () => {
+  handle('ocr-translate-now', () => {
     if (!ocrConfig.enabled) throw new Error(tm("La traduction à l'écran est désactivée (Paramètres › Outils en jeu)."));
     if (overlay?.isVisible()) {
       overlay.hide();
@@ -1411,11 +1448,11 @@ export function setupIpcHandlers(
       toggleOcr();
     }
   });
-  ipcMain.handle('get-translation-keys', async () => ({
+  handle('get-translation-keys', async () => ({
     deepl: (await translationKey('deepl')) !== null,
     google: (await translationKey('google')) !== null
   }));
-  ipcMain.handle('set-translation-key', async (event: IpcMainInvokeEvent, engine: string, key: string | null) => {
+  handle('set-translation-key', async (event: IpcMainInvokeEvent, engine: string, key: string | null) => {
     if (engine !== 'deepl' && engine !== 'google') throw new Error(tm('Service inconnu.'));
     if (key === null || key === '') {
       await translationKeyStore.set(engine, '');
@@ -1430,7 +1467,7 @@ export function setupIpcHandlers(
     getWindow()?.webContents.send('textractor-changed', gameId, view);
     overlay?.send('textractor-changed', gameId, view);
   };
-  ipcMain.handle('set-textractor-hook', async (event: IpcMainInvokeEvent, gameId: string, hookcode: string | null) => {
+  handle('set-textractor-hook', async (event: IpcMainInvokeEvent, gameId: string, hookcode: string | null) => {
     assertGameId(gameId);
     if (hookcode !== null && (typeof hookcode !== 'string' || hookcode.length > 300)) throw new Error(tm('Fil invalide.'));
     // '' = aucun fil choisi (Store.update fusionne : on ne retire pas la clé).
@@ -1447,7 +1484,7 @@ export function setupIpcHandlers(
     },
     (gameId, usage, pending) => getWindow()?.webContents.send('disk-usage-changed', gameId, usage, pending)
   );
-  ipcMain.handle('get-disk-usage', async (event: IpcMainInvokeEvent, gameIds: string[], force: boolean): Promise<DiskUsageReport> => {
+  handle('get-disk-usage', async (event: IpcMainInvokeEvent, gameIds: string[], force: boolean): Promise<DiskUsageReport> => {
     const ids = (Array.isArray(gameIds) ? gameIds : []).filter(id => typeof id === 'string' && GAME_ID_REGEX.test(id));
     const games = await Promise.all(ids.map(async gameId => ({ gameId, dir: await getGameDir(gameId) })));
     await diskScanner.refresh(games, Boolean(force));
@@ -1464,16 +1501,16 @@ export function setupIpcHandlers(
     };
   });
 
-  ipcMain.handle('check-locale-emulator', async (event: IpcMainInvokeEvent, dir?: string) => {
+  handle('check-locale-emulator', async (event: IpcMainInvokeEvent, dir?: string) => {
     const target = typeof dir === 'string' ? dir : (await getSettings()).localeEmulatorPath ?? '';
     return { found: findLeProc(target) !== null, installed: leInstalled(target) };
   });
-  ipcMain.handle('check-textractor', async (event: IpcMainInvokeEvent, dir?: string) => {
+  handle('check-textractor', async (event: IpcMainInvokeEvent, dir?: string) => {
     const target = typeof dir === 'string' ? dir : (await getSettings()).textractorPath ?? '';
     return { x86: findTextractorCli(target, 'x86') !== null, x64: findTextractorCli(target, 'x64') !== null };
   });
 
-  ipcMain.handle('extract-rpgmaker-assets', async (event: IpcMainInvokeEvent, gameId: string): Promise<RpgMakerExtractResult> => {
+  handle('extract-rpgmaker-assets', async (event: IpcMainInvokeEvent, gameId: string): Promise<RpgMakerExtractResult> => {
     assertGameId(gameId);
     if (!(await getSettings()).rpgMakerExtractor) throw new Error(tm("L'extracteur RPG Maker est désactivé (Paramètres › Lancement)."));
     const { installRootAbs } = await getGameToolsInfo(gameId);
@@ -1487,23 +1524,23 @@ export function setupIpcHandlers(
     return { ...result, folder };
   });
 
-  ipcMain.handle('toggle-macro-recording', () => toggleMacroRecordingNow());
-  ipcMain.handle('toggle-macro-playback', () => toggleMacroPlaybackNow());
+  handle('toggle-macro-recording', () => toggleMacroRecordingNow());
+  handle('toggle-macro-playback', () => toggleMacroPlaybackNow());
 
-  ipcMain.handle('get-pixel-trigger-state', () => ({ status: detector.getStatus(), settings: triggerConfig }));
+  handle('get-pixel-trigger-state', () => ({ status: detector.getStatus(), settings: triggerConfig }));
   // Témoin du détecteur : réglages rapides (déplié seulement à l'arrêt, comme celui de l'auto-clicker).
-  ipcMain.handle('set-trigger-hud-expanded', (event: IpcMainInvokeEvent, expanded: boolean) => {
+  handle('set-trigger-hud-expanded', (event: IpcMainInvokeEvent, expanded: boolean) => {
     triggerHud?.setExpanded(Boolean(expanded) && !detector.getStatus().running);
   });
-  ipcMain.handle('save-trigger-quick-settings', async (event: IpcMainInvokeEvent, patch: { hotkey?: string }) => {
+  handle('save-trigger-quick-settings', async (event: IpcMainInvokeEvent, patch: { hotkey?: string }) => {
     const next = sanitizePixelTriggerSettings({ ...triggerConfig, ...(typeof patch?.hotkey === 'string' && { hotkey: patch.hotkey }) });
     await settingsStore.set('pixelTrigger', next);
     await applyPixelTriggerSettings();
     notifySettingsChanged?.();
     return detector.getStatus();
   });
-  ipcMain.handle('get-trigger-zones', () => triggerZones?.getView() ?? null);
-  ipcMain.handle('set-game-pixel-trigger', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
+  handle('get-trigger-zones', () => triggerZones?.getView() ?? null);
+  handle('set-game-pixel-trigger', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
     if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error(tm('ID de jeu invalide.'));
     await cacheStore.update(gameId, () => ({ pixelTriggerEnabled: Boolean(enabled) }));
     // Retiré en pleine surveillance : refreshPixelTrigger repart sans ses zones (ou s'arrête).
@@ -1515,7 +1552,7 @@ export function setupIpcHandlers(
   });
   // « Viser » : le temps de placer la souris dans le jeu, puis sa position (DIP) et la couleur dessous.
   // Depuis l'overlay, il s'efface le temps de viser : sinon on lirait la couleur de son voile sombre.
-  ipcMain.handle('capture-pixel-target', async (event: IpcMainInvokeEvent, delayMs: number, hideOverlay: boolean) => {
+  handle('capture-pixel-target', async (event: IpcMainInvokeEvent, delayMs: number, hideOverlay: boolean) => {
     if (hideOverlay) overlay?.hide();
     try {
       const warm = detector.warmUp();
@@ -1529,7 +1566,7 @@ export function setupIpcHandlers(
       if (hideOverlay) overlay?.show();
     }
   });
-  ipcMain.handle('set-game-pixel-triggers', async (event: IpcMainInvokeEvent, gameId: string, raw: unknown) => {
+  handle('set-game-pixel-triggers', async (event: IpcMainInvokeEvent, gameId: string, raw: unknown) => {
     if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error(tm('ID de jeu invalide.'));
     const triggers = sanitizePixelTriggers(raw);
     await cacheStore.update(gameId, () => ({ pixelTriggers: triggers }));
@@ -1539,7 +1576,7 @@ export function setupIpcHandlers(
     return triggers;
   });
 
-  ipcMain.handle('get-overlay-state', async (): Promise<OverlayState> => ({
+  handle('get-overlay-state', async (): Promise<OverlayState> => ({
     games: gameOverlay.listGames(),
     clicker: clicker.getStatus(),
     clickerSettings: clickerConfig,
@@ -1553,12 +1590,12 @@ export function setupIpcHandlers(
     ocr: { enabled: ocrConfig.enabled && process.platform === 'win32', hotkey: ocrConfig.hotkey },
     screenshot: { ...screenshotConfig, enabled: screenshotConfig.enabled && process.platform === 'win32' }
   }));
-  ipcMain.handle('hide-overlay', () => gameOverlay.hide());
+  handle('hide-overlay', () => gameOverlay.hide());
   // Témoin : réglages rapides (déplié seulement à l'arrêt, sinon les clics tomberaient dessus).
-  ipcMain.handle('set-clicker-hud-expanded', (event: IpcMainInvokeEvent, expanded: boolean) => {
+  handle('set-clicker-hud-expanded', (event: IpcMainInvokeEvent, expanded: boolean) => {
     hud.setExpanded(Boolean(expanded) && !clicker.getStatus().running);
   });
-  ipcMain.handle('set-game-auto-clicker', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
+  handle('set-game-auto-clicker', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
     if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) throw new Error(tm('ID de jeu invalide.'));
     await cacheStore.update(gameId, () => ({ autoClickerEnabled: Boolean(enabled) }));
     if (enabled) clickerEnabledGames.add(gameId);
@@ -1566,7 +1603,7 @@ export function setupIpcHandlers(
     gameOverlay.updateGame(gameId, { autoClickerEnabled: Boolean(enabled) });
     refreshAutoClicker();
   });
-  ipcMain.handle('save-clicker-quick-settings', async (event: IpcMainInvokeEvent, patch: { intervalMs?: number; hotkey?: string }) => {
+  handle('save-clicker-quick-settings', async (event: IpcMainInvokeEvent, patch: { intervalMs?: number; hotkey?: string }) => {
     const next = sanitizeClickerSettings({
       ...clickerConfig,
       ...(typeof patch?.intervalMs === 'number' && { intervalMs: patch.intervalMs }),
@@ -1577,9 +1614,9 @@ export function setupIpcHandlers(
     notifySettingsChanged?.();
     return clicker.getStatus();
   });
-  ipcMain.handle('auto-clicker-status', () => clicker.getStatus());
+  handle('auto-clicker-status', () => clicker.getStatus());
   // « Prendre la position » : le temps de placer la souris, puis sa position (DIP).
-  ipcMain.handle('capture-cursor-position', async (event: IpcMainInvokeEvent, delayMs: number) => {
+  handle('capture-cursor-position', async (event: IpcMainInvokeEvent, delayMs: number) => {
     await delay(Math.min(10_000, Math.max(0, Number(delayMs) || 0)));
     return screen.getCursorScreenPoint();
   });
@@ -1599,7 +1636,7 @@ export function setupIpcHandlers(
   };
 
   // --- Infos App ---
-  ipcMain.handle('get-user-data-path', () => app.getPath('userData'));
+  handle('get-user-data-path', () => app.getPath('userData'));
 
   // --- Échange de jeux en réseau local ---
   const share = new LanShare({
@@ -1612,34 +1649,34 @@ export function setupIpcHandlers(
   });
   lanShare = share;
 
-  ipcMain.handle('get-lan-receiver-status', () => share.status());
-  ipcMain.handle('start-lan-receiver', (event: IpcMainInvokeEvent, port: number) => share.startReceiver(port));
-  ipcMain.handle('stop-lan-receiver', () => share.stopReceiver());
-  ipcMain.handle('discover-lan-peers', () => share.discoverPeers());
-  ipcMain.handle('send-games-over-lan', (event: IpcMainInvokeEvent, request: LanSendRequest) => share.sendGames(request, getGameDir));
-  ipcMain.handle('cancel-lan-send', () => share.cancelSend());
+  handle('get-lan-receiver-status', () => share.status());
+  handle('start-lan-receiver', (event: IpcMainInvokeEvent, port: number) => share.startReceiver(port));
+  handle('stop-lan-receiver', () => share.stopReceiver());
+  handle('discover-lan-peers', () => share.discoverPeers());
+  handle('send-games-over-lan', (event: IpcMainInvokeEvent, request: LanSendRequest) => share.sendGames(request, getGameDir));
+  handle('cancel-lan-send', () => share.cancelSend());
 
   // --- Mises à jour ---
-  ipcMain.handle('get-app-update-info', () => getAppUpdateInfo());
+  handle('get-app-update-info', () => getAppUpdateInfo());
   // Bouton « Quitter DLSGM » des paramètres : quitte vraiment, même avec la
   // réduction dans la zone de notification (tray.ts laisse passer app.quit).
-  ipcMain.on('quit-app', () => app.quit());
-  ipcMain.handle('check-for-updates', () => checkForUpdates({ manual: true, getWindow }));
+  on('quit-app', () => app.quit());
+  handle('check-for-updates', () => checkForUpdates({ manual: true, getWindow }));
 
   // --- Gestion des Paramètres ---
-  ipcMain.handle('get-settings', () => {
+  handle('get-settings', () => {
     return settingsStore.getAll();
   });
 
-  ipcMain.handle('get-system-languages', () => systemLanguages());
+  handle('get-system-languages', () => systemLanguages());
 
   // --- Thème de couleur (src/main/theme.ts) ---
-  ipcMain.handle('get-active-theme', () => getActiveTheme());
-  ipcMain.handle('reroll-theme', () => rerollTheme());
+  handle('get-active-theme', () => getActiveTheme());
+  handle('reroll-theme', () => rerollTheme());
   // Palettes perso : enregistrées tout de suite (sans attendre « Enregistrer »).
   // Pas de `settings-changed` : il réinitialiserait le formulaire des
   // paramètres ouvert ; le sélecteur de thème tient sa propre liste.
-  ipcMain.handle('save-custom-themes', async (event: IpcMainInvokeEvent, list: unknown) => {
+  handle('save-custom-themes', async (event: IpcMainInvokeEvent, list: unknown) => {
     const customThemes = sanitizeCustomThemes(list);
     await settingsStore.set('customThemes', customThemes);
     const { theme } = await getSettings();
@@ -1648,7 +1685,7 @@ export function setupIpcHandlers(
     applyThemeSetting(theme, customThemes);
     return customThemes;
   });
-  ipcMain.on('set-app-icon', (event, dataUrl: unknown) => {
+  on('set-app-icon', (event, dataUrl: unknown) => {
     // Seule la fenêtre principale dessine l'icône (l'overlay et les témoins ont le même thème).
     const window = getWindow();
     if (!window || event.sender !== window.webContents) return;
@@ -1656,13 +1693,15 @@ export function setupIpcHandlers(
     if (image) applyThemeIcon(window, image);
   });
 
-  ipcMain.handle('save-settings', async (event: IpcMainInvokeEvent, newSettings: AppSettings) => {
+  handle('save-settings', async (event: IpcMainInvokeEvent, newSettings: AppSettings) => {
     // Mot de passe du proxy : chiffré à part, jamais en clair dans settings.db
     // (le renderer ne renvoie que le masque, ou un nouveau mot de passe).
     const previous = await getSettings();
     const proxy = protectProxySettings(newSettings.dlsiteProxy, previous.dlsiteProxySecret);
     // Palettes perso : gérées par `save-custom-themes`, jamais écrasées par une copie périmée du formulaire.
     newSettings = { ...newSettings, customThemes: sanitizeCustomThemes(previous.customThemes) };
+    // Programmes lancés par DLSGM : un nouveau chemin seulement s'il vient d'une boîte de dialogue.
+    newSettings = guardExecutablePaths(newSettings, previous, pickedPaths);
     await settingsStore.setAll({ ...newSettings, ...proxy } as unknown as Record<string, unknown>);
     // Langue de l'interface changée : chaque fenêtre la relit à son chargement.
     setMainLanguage(newSettings.uiLanguage);
@@ -1686,7 +1725,7 @@ export function setupIpcHandlers(
     return true;
   });
 
-  ipcMain.on('update-language', (event, lang: string) => {
+  on('update-language', (event, lang: string) => {
     // Pas de réponse attendue par l'appelant (ipcRenderer.send) : on capture
     // l'erreur ici pour éviter un rejet de promesse non géré dans le main process.
     settingsStore.set('language', lang).catch(error => {
@@ -1695,7 +1734,7 @@ export function setupIpcHandlers(
   });
 
   // --- Gestion du Cache ---
-  ipcMain.handle('get-cache', () => {
+  handle('get-cache', () => {
     return cacheStore.getAll();
   });
 
@@ -1704,7 +1743,7 @@ export function setupIpcHandlers(
   // de la copie, éventuellement périmée, du renderer : perte de données dès
   // que deux écritures se croisaient (scan parallèle, note posée pendant un
   // scan...).
-  ipcMain.handle('update-cache-entry', async (event: IpcMainInvokeEvent, gameId: string, patch: Record<string, unknown>) => {
+  handle('update-cache-entry', async (event: IpcMainInvokeEvent, gameId: string, patch: Record<string, unknown>) => {
     assertGameId(gameId);
     if (patch && 'pixelTriggers' in patch) {
       const triggers = sanitizePixelTriggers(patch.pixelTriggers);
@@ -1714,32 +1753,32 @@ export function setupIpcHandlers(
     return cacheStore.update(gameId, patch);
   });
 
-  ipcMain.handle('replace-cache-entry', async (event: IpcMainInvokeEvent, gameId: string, data: GameMetadata) => {
+  handle('replace-cache-entry', async (event: IpcMainInvokeEvent, gameId: string, data: GameMetadata) => {
     assertGameId(gameId);
     await cacheStore.set(gameId, data);
     return true;
   });
 
-  ipcMain.handle('delete-cache-entry', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('delete-cache-entry', async (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
     return cacheStore.delete(gameId);
   });
 
   // --- Sélecteur de Dossier ---
-  ipcMain.handle('open-folder-dialog', async () => {
+  handle('open-folder-dialog', async () => {
     const result = await showOpenDialog({
       properties: ['openDirectory']
     });
 
     if (!result.canceled && result.filePaths.length > 0) {
-      return result.filePaths[0];
+      return pickedPaths.add(result.filePaths[0]);
     }
     return null;
   });
 
   // Plateformes présentes dans le dossier de chaque jeu (filtre « Jouable sur
   // ce Mac », icônes de la page du jeu) : d'après ses fichiers, un jeu à la fois.
-  ipcMain.handle('detect-game-platforms', async (event: IpcMainInvokeEvent, gameIds: unknown) => {
+  handle('detect-game-platforms', async (event: IpcMainInvokeEvent, gameIds: unknown) => {
     if (!Array.isArray(gameIds)) return {};
     const { destinationFolder } = await getSettings();
     const result: Record<string, OsPlatform[]> = {};
@@ -1772,7 +1811,7 @@ export function setupIpcHandlers(
     if (lanShare?.status().running) return tm("Ferme d'abord la réception réseau (onglet Partage).");
     return null;
   };
-  ipcMain.handle('plan-library-move', async (event: IpcMainInvokeEvent, target: unknown) => {
+  handle('plan-library-move', async (event: IpcMainInvokeEvent, target: unknown) => {
     if (typeof target !== 'string' || !target) return { ok: false, error: tm('Dossier de destination introuvable.') };
     const { destinationFolder } = await getSettings();
     if (!destinationFolder) return { ok: false, error: tm('Dossier de jeux non configuré') };
@@ -1782,7 +1821,7 @@ export function setupIpcHandlers(
       return { ok: false, error: libraryMoveMessage(error) };
     }
   });
-  ipcMain.handle('move-library', async (event: IpcMainInvokeEvent, target: unknown) => {
+  handle('move-library', async (event: IpcMainInvokeEvent, target: unknown) => {
     if (typeof target !== 'string' || !target) return { ok: false, error: tm('Dossier de destination introuvable.') };
     const busy = libraryBusy();
     if (busy) return { ok: false, error: busy };
@@ -1806,15 +1845,15 @@ export function setupIpcHandlers(
   });
 
   // Fenêtre de travail du super bouton panique : un fichier ou une application choisis par l'utilisateur.
-  ipcMain.handle('choose-super-panic-target', async () => {
+  handle('choose-super-panic-target', async () => {
     const result = await showOpenDialog({ properties: ['openFile'] });
-    return !result.canceled && result.filePaths.length > 0 ? result.filePaths[0] : null;
+    return !result.canceled && result.filePaths.length > 0 ? pickedPaths.add(result.filePaths[0]) : null;
   });
 
   // --- Opérations Système ---
   // Renvoie null (et non []) si le dossier n'existe pas, pour que l'appelant
   // distingue "dossier introuvable" de "dossier vide".
-  ipcMain.handle('list-game-folders', async (event: IpcMainInvokeEvent, folderPath: string) => {
+  handle('list-game-folders', async (event: IpcMainInvokeEvent, folderPath: string) => {
     if (!folderPath || !fs.existsSync(folderPath)) return null;
 
     try {
@@ -1829,21 +1868,21 @@ export function setupIpcHandlers(
 
   // Canal dédié plutôt qu'un `open-path` générique : shell.openPath sur un
   // chemin arbitraire exécuterait n'importe quel .exe fourni par le renderer.
-  ipcMain.handle('open-game-folder', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('open-game-folder', async (event: IpcMainInvokeEvent, gameId: string) => {
     const gamePath = await getGameDir(gameId);
     if (!fs.existsSync(gamePath)) return false;
     const error = await shell.openPath(gamePath);
     return error === '';
   });
 
-  ipcMain.handle('open-external', async (event: IpcMainInvokeEvent, url: string) => {
+  handle('open-external', async (event: IpcMainInvokeEvent, url: string) => {
     if (!/^https?:\/\//i.test(url)) return false;
     await shell.openExternal(url);
     return true;
   });
 
   // --- Lancement de Jeu ---
-  ipcMain.handle('launch-game', async (event: IpcMainInvokeEvent, gameId: string): Promise<LaunchGameResult> => {
+  handle('launch-game', async (event: IpcMainInvokeEvent, gameId: string): Promise<LaunchGameResult> => {
     const gamePath = await getGameDir(gameId);
     if (!fs.existsSync(gamePath)) throw new Error(tm('Dossier du jeu introuvable'));
 
@@ -1925,7 +1964,7 @@ export function setupIpcHandlers(
     return launchResult;
   });
 
-  ipcMain.handle('choose-game-executable', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('choose-game-executable', async (event: IpcMainInvokeEvent, gameId: string) => {
     const gamePath = await getGameDir(gameId);
     if (!fs.existsSync(gamePath)) throw new Error(tm('Dossier du jeu introuvable'));
 
@@ -1951,18 +1990,18 @@ export function setupIpcHandlers(
   });
 
   // --- Outils par jeu (moteur, sauvegardes, patchs) ---
-  ipcMain.handle('get-game-tools-info', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('get-game-tools-info', async (event: IpcMainInvokeEvent, gameId: string) => {
     return publicToolsInfo(await getGameToolsInfo(gameId));
   });
 
-  ipcMain.handle('open-save-location', async (event: IpcMainInvokeEvent, gameId: string, index: number) => {
+  handle('open-save-location', async (event: IpcMainInvokeEvent, gameId: string, index: number) => {
     const { saveLocations } = await getGameToolsInfo(gameId);
     const location = saveLocations[index];
     if (!location || !fs.existsSync(location.path)) return false;
     return (await shell.openPath(location.path)) === '';
   });
 
-  ipcMain.handle('install-auto-translator', async (event: IpcMainInvokeEvent, gameId: string, targetLanguage: string) => {
+  handle('install-auto-translator', async (event: IpcMainInvokeEvent, gameId: string, targetLanguage: string) => {
     return withPatchLock(gameId, async () => {
       const info = await getGameToolsInfo(gameId);
       await installAutoTranslator(info.gamePath, info.installRootAbs, info.engine, targetLanguage);
@@ -1970,7 +2009,7 @@ export function setupIpcHandlers(
     });
   });
 
-  ipcMain.handle('apply-user-patch', async (event: IpcMainInvokeEvent, gameId: string, source: 'zip' | 'folder') => {
+  handle('apply-user-patch', async (event: IpcMainInvokeEvent, gameId: string, source: 'zip' | 'folder') => {
     return withPatchLock(gameId, async () => {
       const info = await getGameToolsInfo(gameId);
       const result = await showOpenDialog(source === 'zip'
@@ -1985,7 +2024,7 @@ export function setupIpcHandlers(
     });
   });
 
-  ipcMain.handle('uninstall-last-patch', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('uninstall-last-patch', async (event: IpcMainInvokeEvent, gameId: string) => {
     return withPatchLock(gameId, async () => {
       const gamePath = await getGameDir(gameId);
       uninstallLastPatch(gamePath);
@@ -2017,7 +2056,7 @@ export function setupIpcHandlers(
       return result;
     }
   };
-  ipcMain.handle('import-game-archives', async (): Promise<ArchiveImportResult[]> => {
+  handle('import-game-archives', async (): Promise<ArchiveImportResult[]> => {
     if (importing) throw new Error(tm('Un import est déjà en cours.'));
     importing = true;
     try {
@@ -2042,7 +2081,7 @@ export function setupIpcHandlers(
     }
   });
 
-  ipcMain.handle('retry-archive-import', async (event: IpcMainInvokeEvent, retryId: string, password: string, remember: boolean): Promise<ArchiveImportResult> => {
+  handle('retry-archive-import', async (event: IpcMainInvokeEvent, retryId: string, password: string, remember: boolean): Promise<ArchiveImportResult> => {
     const file = typeof retryId === 'string' ? passwordRetries.get(retryId) : undefined;
     if (!file) throw new Error(tm('Import introuvable : relance-le depuis « Importer ».'));
     if (!validArchivePassword(password)) throw new Error(tm('Mot de passe invalide.'));
@@ -2062,25 +2101,25 @@ export function setupIpcHandlers(
     }
   });
 
-  ipcMain.handle('list-archive-passwords', () => archivePasswords());
-  ipcMain.handle('add-archive-password', async (event: IpcMainInvokeEvent, password: string) => {
+  handle('list-archive-passwords', () => archivePasswords());
+  handle('add-archive-password', async (event: IpcMainInvokeEvent, password: string) => {
     if (!validArchivePassword(password)) throw new Error(tm('Mot de passe invalide.'));
     return addArchivePassword(password);
   });
-  ipcMain.handle('remove-archive-password', async (event: IpcMainInvokeEvent, password: string) => {
+  handle('remove-archive-password', async (event: IpcMainInvokeEvent, password: string) => {
     const next = (await archivePasswords()).filter(p => p !== password);
     await archivePasswordStore.set('passwords', next);
     return next;
   });
 
   // --- Assistant de renommage des dossiers ---
-  ipcMain.handle('find-misnamed-folders', async (): Promise<MisnamedFolder[]> => {
+  handle('find-misnamed-folders', async (): Promise<MisnamedFolder[]> => {
     const { destinationFolder } = await getSettings();
     if (!destinationFolder || !fs.existsSync(destinationFolder)) return [];
     return findMisnamedFolders(destinationFolder);
   });
 
-  ipcMain.handle('rename-misnamed-folders', async (event: IpcMainInvokeEvent, folders: string[]): Promise<FolderRenameResult[]> => {
+  handle('rename-misnamed-folders', async (event: IpcMainInvokeEvent, folders: string[]): Promise<FolderRenameResult[]> => {
     const { destinationFolder } = await getSettings();
     if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
     if (!Array.isArray(folders) || folders.some(f => typeof f !== 'string')) throw new Error(tm('Liste de dossiers invalide.'));
@@ -2089,7 +2128,7 @@ export function setupIpcHandlers(
   });
 
   // Corbeille plutôt que suppression définitive : récupérable en cas d'erreur.
-  ipcMain.handle('trash-imported-archives', async (event: IpcMainInvokeEvent, importIds: string[]): Promise<TrashArchivesResult> => {
+  handle('trash-imported-archives', async (event: IpcMainInvokeEvent, importIds: string[]): Promise<TrashArchivesResult> => {
     const result: TrashArchivesResult = { trashed: 0, errors: [] };
     for (const importId of Array.isArray(importIds) ? importIds : []) {
       const files = importedArchives.get(importId);
@@ -2108,14 +2147,14 @@ export function setupIpcHandlers(
     return result;
   });
 
-  ipcMain.handle('test-dlsite-connection', () => testDlsiteConnection());
+  handle('test-dlsite-connection', () => testDlsiteConnection());
   // Même pile réseau que DLsite (net.fetch) : l'IP publique affichée est celle que DLsite verra.
-  ipcMain.handle('check-ip', () => checkIp((url, init) => net.fetch(url, init)));
+  handle('check-ip', () => checkIp((url, init) => net.fetch(url, init)));
 
   // --- VPN Private Internet Access ---
-  ipcMain.handle('get-pia-status', () => pia.status());
+  handle('get-pia-status', () => pia.status());
 
-  ipcMain.handle('begin-vpn-session', async () => {
+  handle('begin-vpn-session', async () => {
     const { piaRegion } = await getSettings();
     await pia.begin(piaRegion || 'jp-tokyo');
     // Connexions HTTP ouvertes avant le tunnel : fermées, pour que les
@@ -2123,13 +2162,13 @@ export function setupIpcHandlers(
     await session.defaultSession.closeAllConnections();
   });
 
-  ipcMain.handle('end-vpn-session', async () => {
+  handle('end-vpn-session', async () => {
     await pia.end();
     if (!pia.active) await session.defaultSession.closeAllConnections();
   });
 
   // --- Copie de la base (avant une mise à jour groupée) ---
-  ipcMain.handle('snapshot-cache', async () => {
+  handle('snapshot-cache', async () => {
     // Écritures en attente appliquées avant la copie.
     await cacheStore.getAll();
     return snapshotDatabase(app.getPath('userData'), 'cache.db');
@@ -2142,11 +2181,11 @@ export function setupIpcHandlers(
     return path.join(workspaceRoot((await getSettings()).workspaceFolder, app.getPath('documents')), gameId);
   };
 
-  ipcMain.handle('get-workspace-root', async () => workspaceRoot((await getSettings()).workspaceFolder, app.getPath('documents')));
+  handle('get-workspace-root', async () => workspaceRoot((await getSettings()).workspaceFolder, app.getPath('documents')));
 
-  ipcMain.handle('get-game-workspace', async (event: IpcMainInvokeEvent, gameId: string) => describeWorkspace(await gameWorkspaceDir(gameId)));
+  handle('get-game-workspace', async (event: IpcMainInvokeEvent, gameId: string) => describeWorkspace(await gameWorkspaceDir(gameId)));
 
-  ipcMain.handle('open-game-workspace', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('open-game-workspace', async (event: IpcMainInvokeEvent, gameId: string) => {
     const dir = await gameWorkspaceDir(gameId);
     await fs.promises.mkdir(dir, { recursive: true });
     const error = await shell.openPath(dir);
@@ -2157,34 +2196,34 @@ export function setupIpcHandlers(
   // --- Copies des sauvegardes ---
 
 
-  ipcMain.handle('list-save-backups', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('list-save-backups', async (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
     return listSaveBackups(gameId);
   });
 
-  ipcMain.handle('create-save-backup', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('create-save-backup', async (event: IpcMainInvokeEvent, gameId: string) => {
     return withBackupLock(gameId, async () => createSaveBackup(gameId, (await getGameToolsInfo(gameId)).saveLocations, 'manual'));
   });
 
-  ipcMain.handle('restore-save-backup', async (event: IpcMainInvokeEvent, gameId: string, backupId: string) => {
+  handle('restore-save-backup', async (event: IpcMainInvokeEvent, gameId: string, backupId: string) => {
     assertGameId(gameId);
     if (runningGames.has(gameId)) throw new Error(tm("Le jeu est en cours d'exécution : ferme-le avant de restaurer ses sauvegardes."));
     return withBackupLock(gameId, async () => restoreSaveBackup(gameId, backupId, (await getGameToolsInfo(gameId)).saveLocations));
   });
 
-  ipcMain.handle('delete-save-backup', async (event: IpcMainInvokeEvent, gameId: string, backupId: string) => {
+  handle('delete-save-backup', async (event: IpcMainInvokeEvent, gameId: string, backupId: string) => {
     assertGameId(gameId);
     return withBackupLock(gameId, () => deleteSaveBackup(gameId, backupId));
   });
 
   // --- Sandbox Sandboxie-Plus ---
 
-  ipcMain.handle('get-sandboxie-status', async (): Promise<SandboxieStatus> => {
+  handle('get-sandboxie-status', async (): Promise<SandboxieStatus> => {
     const installDir = await findSandboxieDir();
     return { available: installDir !== null, installDir };
   });
 
-  ipcMain.handle('clear-game-sandbox', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('clear-game-sandbox', async (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
     if (runningGames.has(gameId)) throw new Error(tm("Le jeu est en cours d'exécution : ferme-le avant de vider sa sandbox."));
     const sandboxieDir = await findSandboxieDir();
@@ -2194,7 +2233,7 @@ export function setupIpcHandlers(
   });
 
   // --- Récupération des métadonnées DLsite (japonais + traductions) ---
-  ipcMain.handle('fetch-game-metadata', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('fetch-game-metadata', async (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
     const { metadata, genreTranslations: learned } = await fetchWork(gameId);
     await genreTranslations.learn(learned);
@@ -2206,8 +2245,8 @@ export function setupIpcHandlers(
   // « genres liés » sont repris par la migration 004.
   genreTranslations.seed(KNOWN_GENRE_TRANSLATIONS).catch(error => console.error('Amorçage du dictionnaire des tags impossible:', error));
 
-  ipcMain.handle('get-genre-translations', () => genreTranslations.all());
-  ipcMain.handle('set-genre-translation', async (event: IpcMainInvokeEvent, japanese: string, english: string | null) => {
+  handle('get-genre-translations', () => genreTranslations.all());
+  handle('set-genre-translation', async (event: IpcMainInvokeEvent, japanese: string, english: string | null) => {
     if (typeof japanese !== 'string' || !japanese || japanese.length > 200) throw new Error(tm('Genre invalide.'));
     if (english !== null && (typeof english !== 'string' || english.length > 200)) throw new Error(tm('Traduction invalide.'));
     await genreTranslations.setManual(japanese, english);
@@ -2220,7 +2259,7 @@ export function setupIpcHandlers(
   // Les images ajoutées à la main (work_image / sample_images === 'manual')
   // sont conservées : elles ne sont téléchargeables nulle part, les supprimer
   // les perdrait définitivement.
-  ipcMain.handle('reset-image-cache', async () => {
+  handle('reset-image-cache', async () => {
     const imgCacheDir = getImgCacheDir();
     const cache = await cacheStore.getAll() as Record<string, Partial<GameMetadata> | undefined>;
     fs.mkdirSync(imgCacheDir, { recursive: true });
@@ -2253,7 +2292,7 @@ export function setupIpcHandlers(
   // (jamais un chemin : le renderer n'a pas à désigner de fichier du disque).
   // Tout est validé avant de toucher au disque ; les échantillons passent par
   // des fichiers `.staged` pour que les renumérotations ne s'écrasent pas.
-  ipcMain.handle('apply-game-images', async (event: IpcMainInvokeEvent, gameId: string, plan: GameImagesPlan) => {
+  handle('apply-game-images', async (event: IpcMainInvokeEvent, gameId: string, plan: GameImagesPlan) => {
     assertGameId(gameId);
     if (!plan || typeof plan !== 'object' || !Array.isArray(plan.samples)) throw new Error(tm("Plan d'images invalide."));
 
@@ -2328,14 +2367,14 @@ export function setupIpcHandlers(
   });
 
   // --- Plein écran ---
-  ipcMain.handle('toggle-fullscreen', () => {
+  handle('toggle-fullscreen', () => {
     const window = getWindow();
     if (!window) return false;
     window.setFullScreen(!window.isFullScreen());
     return window.isFullScreen();
   });
 
-  ipcMain.handle('is-fullscreen', () => getWindow()?.isFullScreen() ?? false);
+  handle('is-fullscreen', () => getWindow()?.isFullScreen() ?? false);
 
   // --- Téléchargement d'images ---
   // Par la pile réseau de Chromium (proxy DLsite / système, voir
@@ -2379,7 +2418,7 @@ export function setupIpcHandlers(
   // Chaque fichier n'est remplacé qu'une fois le nouveau complet (`.part`
   // renommé par-dessus), donc un échec garde l'ancienne image ; les
   // échantillons en trop ne sont supprimés que si tout a réussi.
-  ipcMain.handle('download-game-images', async (event: IpcMainInvokeEvent, gameId: string, metadata: GameMetadata, options?: { overwrite?: boolean }) => {
+  handle('download-game-images', async (event: IpcMainInvokeEvent, gameId: string, metadata: GameMetadata, options?: { overwrite?: boolean }) => {
     assertGameId(gameId);
     const overwrite = options?.overwrite === true;
     const fetchImage = async (url: string, outputPath: string): Promise<boolean> => {
@@ -2438,16 +2477,16 @@ export function setupIpcHandlers(
     coverDir: () => path.join(getImgCacheDir(), '_wishlist')
   });
 
-  ipcMain.handle('get-wishlist', () => wishlist.list());
-  ipcMain.handle('add-to-wishlist', (event: IpcMainInvokeEvent, text: string) => {
+  handle('get-wishlist', () => wishlist.list());
+  handle('add-to-wishlist', (event: IpcMainInvokeEvent, text: string) => {
     if (typeof text !== 'string' || text.length > 20000) throw new Error(tm('Saisie invalide.'));
     return wishlist.add(text);
   });
-  ipcMain.handle('remove-from-wishlist', (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('remove-from-wishlist', (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
     return wishlist.remove(gameId);
   });
-  ipcMain.handle('refresh-wishlist-item', async (event: IpcMainInvokeEvent, gameId: string) => {
+  handle('refresh-wishlist-item', async (event: IpcMainInvokeEvent, gameId: string) => {
     assertGameId(gameId);
     if (!(await wishlistStore.get(gameId))) throw new Error(tm("{id} n'est pas dans la liste de souhaits.", { id: gameId }));
     return wishlist.refresh(gameId);

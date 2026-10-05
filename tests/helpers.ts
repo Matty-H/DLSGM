@@ -41,6 +41,8 @@ export interface ZipEntry {
   data?: string | Buffer;
   /** Pose le bit 11 (noms en UTF-8), comme les outils modernes. */
   utf8Flag?: boolean;
+  /** Mode Unix de l'entrée (ex. 0o120777 : lien symbolique, `data` = sa cible), comme un zip fait sous Linux/macOS. */
+  unixMode?: number;
 }
 
 /**
@@ -71,7 +73,9 @@ export function makeZip(entries: ZipEntry[]): Buffer {
 
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE(20, 4);
+    // « Créé par » Unix (3) pour que le mode des attributs externes compte.
+    central.writeUInt16LE(entry.unixMode ? (3 << 8) | 20 : 20, 4);
+    if (entry.unixMode) central.writeUInt32LE((entry.unixMode << 16) >>> 0, 38);
     central.writeUInt16LE(20, 6);
     central.writeUInt16LE(flags, 8);
     central.writeUInt32LE(crc, 16);

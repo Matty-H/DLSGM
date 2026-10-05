@@ -2,7 +2,7 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import extractZip from 'extract-zip';
+import { extractZip } from './zip-extract';
 import type { EngineInfo, GameEngine, InstalledPatch, SaveLocation } from '../shared/ipc-types';
 import { tm } from './i18n';
 
@@ -318,10 +318,45 @@ function manifestPath(gameDir: string): string {
   return path.join(gameDir, META_DIR, 'patches.json');
 }
 
+// Identifiant de patch : `Date.now()` à l'écriture ; sert de nom de dossier de sauvegarde.
+const PATCH_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * Chemin du manifeste (relatif au dossier du jeu) qui désigne bien un
+ * fichier du jeu : ni hors du dossier (`..`, chemin absolu), ni le dossier
+ * lui-même, ni dans `.dlsgm` (manifeste, sauvegardes).
+ */
+function isPatchFile(gameDir: string, rel: unknown): rel is string {
+  if (typeof rel !== 'string' || rel === '') return false;
+  const relative = path.relative(gameDir, path.resolve(gameDir, rel));
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) return false;
+  return relative.split(path.sep)[0] !== META_DIR;
+}
+
+/**
+ * Le manifeste vit dans le dossier du jeu, qui peut venir d'ailleurs (autre
+ * PC via le partage LAN, archive importée) : rien n'y est cru sur parole.
+ * Désinstaller supprime et écrit les chemins qu'il liste, et vide le dossier
+ * de sauvegarde nommé d'après l'identifiant : un patch dont l'un d'eux
+ * sortirait du dossier du jeu est ignoré.
+ */
+function isSafePatch(gameDir: string, value: unknown): value is InstalledPatch {
+  if (!value || typeof value !== 'object') return false;
+  const patch = value as Partial<InstalledPatch>;
+  return typeof patch.id === 'string' && PATCH_ID.test(patch.id)
+    && typeof patch.name === 'string'
+    && (patch.kind === 'auto-translator' || patch.kind === 'custom')
+    && Array.isArray(patch.added) && patch.added.every(rel => isPatchFile(gameDir, rel))
+    && Array.isArray(patch.overwritten) && patch.overwritten.every(rel => isPatchFile(gameDir, rel));
+}
+
 export function readPatches(gameDir: string): InstalledPatch[] {
   try {
     const parsed = JSON.parse(fs.readFileSync(manifestPath(gameDir), 'utf8')) as PatchManifest;
-    return Array.isArray(parsed.patches) ? parsed.patches : [];
+    if (!Array.isArray(parsed.patches)) return [];
+    const patches = parsed.patches.filter(patch => isSafePatch(gameDir, patch));
+    if (patches.length < parsed.patches.length) console.warn(`Patchs invalides ignorés dans ${manifestPath(gameDir)}`);
+    return patches;
   } catch {
     return [];
   }
@@ -407,6 +442,8 @@ function removeEmptyParents(startDir: string, stopDir: string): void {
 }
 
 function revertPatch(gameDir: string, patch: InstalledPatch): void {
+  // Garde-fou en plus du filtre de readPatches : rien n'est supprimé ni écrit hors du jeu.
+  if (!isSafePatch(gameDir, patch)) throw new Error(tm('Patch invalide : désinstallation refusée.'));
   const backupDir = path.join(gameDir, META_DIR, 'backup', patch.id);
   for (const rel of patch.added) {
     const target = path.join(gameDir, rel);
@@ -449,7 +486,7 @@ export async function applyUserPatch(gameDir: string, installRoot: string, sourc
     throw new Error(tm('Seuls les patchs .zip ou les dossiers sont pris en charge.'));
   }
   return withTempDir(async tempDir => {
-    await extractZip(sourcePath, { dir: tempDir });
+    await extractZip(sourcePath, tempDir);
     return applyPatchFromDirectory(gameDir, installRoot, resolvePatchRoot(tempDir, installRoot), { name, kind: 'custom' });
   });
 }
@@ -539,8 +576,8 @@ export async function installAutoTranslator(
   const xunityZip = await getVerifiedDownload('xunity-bepinex');
 
   return withTempDir(async tempDir => {
-    await extractZip(bepinexZip, { dir: tempDir });
-    await extractZip(xunityZip, { dir: tempDir });
+    await extractZip(bepinexZip, tempDir);
+    await extractZip(xunityZip, tempDir, { overwrite: true });
 
     // Config pré-remplie : XUnity complète lui-même les clés manquantes au
     // premier lancement. GoogleTranslateV2 en secours, l'API historique

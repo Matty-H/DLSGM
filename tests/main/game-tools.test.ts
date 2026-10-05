@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { listTree, makeTempDir, removeTempDir, writeTree } from '../helpers';
+import { listTree, makeTempDir, makeZip, removeTempDir, writeTree } from '../helpers';
 
 const electron = vi.hoisted(() => ({ root: '' }));
 vi.mock('electron', () => ({
@@ -16,6 +16,8 @@ beforeEach(() => {
   electron.root = makeTempDir();
   game = path.join(electron.root, 'RJ01000001');
   fs.mkdirSync(game);
+  // app.getPath('temp') : extraction des patchs .zip.
+  fs.mkdirSync(path.join(electron.root, 'system', 'temp'), { recursive: true });
 });
 
 afterEach(() => removeTempDir(electron.root));
@@ -86,6 +88,72 @@ describe('patchs réversibles', () => {
     await applyUserPatch(game, game, patch);
     expect(fs.readFileSync(path.join(game, 'data', 'a.txt'), 'utf8')).toBe('patché');
     expect(fs.existsSync(path.join(game, 'MonPatch'))).toBe(false);
+  });
+
+  it('applique un patch .zip', async () => {
+    writeTree(game, { 'data/a.txt': 'original' });
+    const zip = path.join(electron.root, 'patch.zip');
+    fs.writeFileSync(zip, makeZip([{ name: 'data/a.txt', data: 'patché' }, { name: 'data/b.txt', data: 'nouveau' }]));
+    await applyUserPatch(game, game, zip);
+    expect(fs.readFileSync(path.join(game, 'data', 'a.txt'), 'utf8')).toBe('patché');
+    uninstallLastPatch(game);
+    expect(fs.readFileSync(path.join(game, 'data', 'a.txt'), 'utf8')).toBe('original');
+    expect(fs.existsSync(path.join(game, 'data', 'b.txt'))).toBe(false);
+  });
+
+  it('un lien symbolique dans un patch .zip ne fait rien écrire hors du jeu', async () => {
+    writeTree(game, { 'Game.exe': 'exe' });
+    const outside = path.join(electron.root, 'outside');
+    fs.mkdirSync(outside);
+    const zip = path.join(electron.root, 'patch.zip');
+    // Faille d'extract-zip ≤ 2.0.1 : « lien » vers l'extérieur, puis un fichier écrit à travers lui.
+    fs.writeFileSync(zip, makeZip([
+      { name: 'link', data: outside, unixMode: 0o120777 },
+      { name: 'link/evil.txt', data: 'pwned' }
+    ]));
+    // Le « lien » devient un fichier ordinaire : le fichier suivant ne peut pas passer à travers (échec du patch).
+    await expect(applyUserPatch(game, game, zip)).rejects.toThrow();
+    expect(fs.readdirSync(outside)).toEqual([]);
+    expect(listTree(game)).toEqual(['Game.exe']);
+  });
+});
+
+describe('manifeste de patchs venu d’ailleurs (LAN, archive)', () => {
+  const library = () => path.dirname(game);
+  const writeManifest = (patches: unknown[]) => writeTree(game, { '.dlsgm/patches.json': JSON.stringify({ patches }) });
+  const patch = (fields: Record<string, unknown>) => ({ id: '1700000000000', name: 'Uncensor', kind: 'custom', installedAt: '', added: [], overwritten: [], ...fields });
+
+  it('ignore un patch qui supprimerait un fichier hors du jeu', () => {
+    writeTree(library(), { 'precious.txt': 'data' });
+    writeManifest([patch({ added: ['../precious.txt'] })]);
+    expect(readPatches(game)).toEqual([]);
+    expect(uninstallLastPatch(game)).toBeNull();
+    expect(fs.existsSync(path.join(library(), 'precious.txt'))).toBe(true);
+  });
+
+  it('ignore un patch qui écrirait hors du jeu depuis une « sauvegarde » du jeu', () => {
+    writeTree(game, { 'payload/evil.bat': 'calc' });
+    // id → dossier de sauvegarde = <jeu>/payload/x, donc la sauvegarde lue est payload/evil.bat ; cible = à côté du jeu.
+    writeManifest([patch({ id: '../../../RJ01000001/payload/x', overwritten: ['../evil.bat'] })]);
+    expect(uninstallLastPatch(game)).toBeNull();
+    expect(fs.existsSync(path.join(electron.root, 'evil.bat'))).toBe(false);
+  });
+
+  it('ignore un identifiant qui viderait un dossier hors du jeu', () => {
+    writeTree(library(), { 'RJ02000000/Game.exe': 'autre jeu' });
+    writeManifest([patch({ id: '../../..' })]);
+    expect(uninstallLastPatch(game)).toBeNull();
+    expect(fs.existsSync(path.join(library(), 'RJ02000000', 'Game.exe'))).toBe(true);
+  });
+
+  it('ignore les chemins absolus et ceux qui visent .dlsgm, garde les patchs valides', () => {
+    writeTree(game, { 'data/a.txt': 'x' });
+    writeManifest([
+      patch({ name: 'ok', added: ['data/a.txt'] }),
+      patch({ name: 'absolu', added: [path.join(electron.root, 'x.txt')] }),
+      patch({ name: 'méta', added: ['.dlsgm/patches.json'] })
+    ]);
+    expect(readPatches(game).map(p => p.name)).toEqual(['ok']);
   });
 });
 

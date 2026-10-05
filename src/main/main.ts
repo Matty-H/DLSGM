@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, Menu, net, protocol, screen } from 'electron';
+import { app, BrowserWindow, globalShortcut, Menu, net, protocol, screen, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
@@ -10,6 +10,7 @@ import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanSha
 import { applyDlsiteProxy } from './dlsite-net';
 import { hideInsteadOfClose, setTrayEnabled, setTrayIcon } from './tray';
 import { initTheme, onThemeIcon } from './theme';
+import { isAppUrl } from './ipc-guard';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -46,13 +47,28 @@ const PRELOAD_PATH = path.join(__dirname, '..', 'preload', 'preload.js');
  * racine du repo avant de redescendre vers src/renderer/dist. `hash` :
  * route du renderer (#overlay pour l'overlay en jeu).
  */
+const RENDERER_INDEX = path.join(__dirname, '..', '..', '..', 'src', 'renderer', 'dist', 'index.html');
+const DEV_SERVER_URL = !app.isPackaged ? process.env.VITE_DEV_SERVER_URL : undefined;
+
 function loadRenderer(window: BrowserWindow, hash?: string): void {
-  if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
-    window.loadURL(hash ? `${process.env.VITE_DEV_SERVER_URL}#${hash}` : process.env.VITE_DEV_SERVER_URL);
+  if (DEV_SERVER_URL) {
+    window.loadURL(hash ? `${DEV_SERVER_URL}#${hash}` : DEV_SERVER_URL);
   } else {
-    window.loadFile(path.join(__dirname, '..', '..', '..', 'src', 'renderer', 'dist', 'index.html'), hash ? { hash } : undefined);
+    window.loadFile(RENDERER_INDEX, hash ? { hash } : undefined);
   }
 }
+
+// Toute page web créée par DLSGM (fenêtre principale, overlay, HUD…) : pas
+// de nouvelle fenêtre (window.open, clic molette ou Maj+clic sur un lien
+// ouvriraient sinon une fenêtre Electron sur un site externe) — un lien web
+// part dans le navigateur — et pas de navigation hors de l'interface.
+app.on('web-contents-created', (_event, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(error => console.error('Ouverture du lien impossible :', error));
+    return { action: 'deny' };
+  });
+  contents.on('will-navigate', event => event.preventDefault());
+});
 
 // Largeur à partir de laquelle la barre du haut affiche tous ses onglets en
 // entier (point de rupture min-[1180px] de TopNav.tsx), avec de la marge.
@@ -172,7 +188,8 @@ app.whenReady().then(async () => {
   onThemeIcon(setTrayIcon);
   setupIpcHandlers(getWindow, settings => setTrayEnabled(Boolean(settings.closeToTray), getWindow), {
     preloadPath: PRELOAD_PATH,
-    loadPage: loadRenderer
+    loadPage: loadRenderer,
+    isAppUrl: url => isAppUrl(url, RENDERER_INDEX, DEV_SERVER_URL)
   });
   // Proxy DLsite avant tout fetch (le premier scan part dès le chargement).
   await getSettings()

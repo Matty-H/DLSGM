@@ -12,6 +12,11 @@ export const SUPER_PANIC_HOTKEYS = [
   { value: 'ScrollLock', label: msg('Arrêt défil') }
 ];
 
+/** Adresse web, seule forme de cible que main accepte saisie au clavier (src/main/trusted-paths.ts). */
+export function superPanicTargetIsUrl(target: string): boolean {
+  return /^https?:\/\/\S+$/i.test(target.trim());
+}
+
 /** Même règle que main (src/main/super-panic.ts) : adresse http(s) ou chemin absolu (Windows ou Unix). */
 export function superPanicTargetValid(target: string): boolean {
   const value = target.trim();

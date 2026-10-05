@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { FolderOpen, Siren } from 'lucide-react';
 import type { SuperPanicSettings as Settings } from '../../../../shared/ipc-types';
-import { SUPER_PANIC_HOTKEYS, superPanicTargetValid } from '../../lib/superPanic.js';
+import { SUPER_PANIC_HOTKEYS, superPanicTargetIsUrl, superPanicTargetValid } from '../../lib/superPanic.js';
 import { t, tr } from '../../lib/i18n.js';
 import Select from '../Select/Select';
 
@@ -20,6 +21,9 @@ export default function SuperPanicSettings({ value, onChange, takenHotkeys }: Su
   const taken = takenHotkeys.map(k => k.toLowerCase());
   const options = SUPER_PANIC_HOTKEYS.filter(o => o.value === value.hotkey || !taken.includes(o.value.toLowerCase())).map(o => ({ value: o.value, label: tr(o.label) }));
   const targetInvalid = value.target.trim() !== '' && !superPanicTargetValid(value.target);
+  // Un chemin n'est enregistré par main que choisi avec « Parcourir » (ou déjà enregistré) : jamais tapé.
+  const [pickedPath, setPickedPath] = useState(value.target);
+  const typedPath = !targetInvalid && value.target.trim() !== '' && !superPanicTargetIsUrl(value.target) && value.target !== pickedPath;
 
   return (
     <section className="my-4 rounded-md border border-divider px-4 pb-1 pt-3">
@@ -59,7 +63,10 @@ export default function SuperPanicSettings({ value, onChange, takenHotkeys }: Su
                 className="btn"
                 onClick={async () => {
                   const file = await window.electronAPI.chooseSuperPanicTarget();
-                  if (file) set({ target: file });
+                  if (file) {
+                    setPickedPath(file);
+                    set({ target: file });
+                  }
                 }}
               >
                 <FolderOpen size={16} strokeWidth={2.25} />
@@ -67,6 +74,7 @@ export default function SuperPanicSettings({ value, onChange, takenHotkeys }: Su
               </button>
             </div>
             {targetInvalid && <div className="mt-1 text-[12px] text-danger">{t('Ni une adresse web, ni un chemin complet : rien ne sera ouvert.')}</div>}
+            {typedPath && <div className="mt-1 text-[12px] text-danger">{t('Choisis le fichier ou l’application avec « Parcourir » : par sécurité, un chemin tapé au clavier n’est pas enregistré.')}</div>}
           </div>
           <label className="flex cursor-pointer items-center justify-between gap-6 py-3">
             <span className="text-[14px] font-semibold">{t('Couper le son')}</span>
