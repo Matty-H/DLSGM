@@ -72,6 +72,7 @@ const electronAPI: ElectronAPI = {
   removeArchivePassword: password => ipcRenderer.invoke('remove-archive-password', password),
   findMisnamedFolders: () => ipcRenderer.invoke('find-misnamed-folders'),
   renameMisnamedFolders: folders => ipcRenderer.invoke('rename-misnamed-folders', folders),
+  checkLibraryHealth: () => ipcRenderer.invoke('check-library-health'),
   onArchiveImportProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: ArchiveImportProgress) => callback(progress);
     ipcRenderer.on('archive-import-progress', listener);

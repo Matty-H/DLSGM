@@ -565,7 +565,8 @@ export default function App() {
           onOpenGame={gameId => handleOpenGameFrom('stats', gameId)}
           blurAdultContent={settings?.blurAdultContent ?? true}
           revealedGames={revealedGames}
-
+          onChooseExecutable={library.chooseExecutable}
+          onLibraryChanged={library.rescan}
         />
       )}
 

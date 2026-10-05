@@ -710,6 +710,23 @@ export interface MisnamedFolder {
   conflict?: 'exists' | 'duplicate';
 }
 
+/** Bilan de santé de la bibliothèque (src/main/library-health.ts) : constats seulement, rien n'est corrigé d'office. */
+export interface LibraryHealthReport {
+  checkedAt: string;
+  /** Dossiers de jeux présents. */
+  gameCount: number;
+  /** Jeux (catégorie DLsite « jeu ») sans exécutable trouvé ; `chosenMissing` : celui choisi à la main a disparu. */
+  noExecutable: { gameId: string; chosenMissing: string | null }[];
+  fetchFailed: { gameId: string; error: string | null }[];
+  /** Images DLsite absentes du cache (jaquette, nombre d'échantillons), ou téléchargement resté incomplet. */
+  missingImages: { gameId: string; cover: boolean; samples: number }[];
+  misnamed: MisnamedFolder[];
+  /** Fiches gardées dont le dossier a disparu (invisibles dans la bibliothèque). */
+  orphans: { gameId: string; name: string; failed: boolean }[];
+  /** Patchs installés dont des fichiers ajoutés ou des copies d'origine ont disparu. */
+  brokenPatches: { gameId: string; patchId: string; name: string; missingFiles: string[]; missingBackups: string[]; isLast: boolean }[];
+}
+
 export interface FolderRenameResult {
   folder: string;
   gameId?: string;
@@ -1088,6 +1105,8 @@ export interface ElectronAPI {
   findMisnamedFolders(): Promise<MisnamedFolder[]>;
   /** Renomme ces dossiers d'après leur ID (jamais par-dessus un dossier existant). */
   renameMisnamedFolders(folders: string[]): Promise<FolderRenameResult[]>;
+  /** Bilan de santé de la bibliothèque (constats seulement). */
+  checkLibraryHealth(): Promise<LibraryHealthReport>;
 
   /** Copie cache.db dans userData/db_backups (5 dernières gardées) ; renvoie le chemin de la copie. */
   snapshotCache(): Promise<string>;

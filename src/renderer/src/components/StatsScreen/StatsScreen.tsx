@@ -10,6 +10,7 @@ import { collectionBytes, formatBytes, summarizeDisks, type DiskUsageReport } fr
 import { t, uiLocale } from '../../lib/i18n.js';
 import Trans from '../Trans/Trans';
 import { isAdultBlurred } from '../../lib/adultContent.js';
+import LibraryHealth from '../LibraryHealth/LibraryHealth';
 
 export interface StatsScreenProps {
   cache: GameCache;
@@ -23,6 +24,9 @@ export interface StatsScreenProps {
   /** Flou des jaquettes R18 (Paramètres › Affichage), sauf jeux révélés dans la session. */
   blurAdultContent: boolean;
   revealedGames: Set<string>;
+  /** Bilan de santé : choix de l'exécutable d'un jeu, et relecture après une correction. */
+  onChooseExecutable: (gameId: string) => Promise<void>;
+  onLibraryChanged: () => void;
 }
 
 function StatTile({ kicker, value }: { kicker: string; value: string }) {
@@ -78,7 +82,7 @@ function BarRow({ label, count, width, labelWidthClass }: { label: string; count
   );
 }
 
-export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpenGame, diskUsage, onRecomputeSizes, blurAdultContent, revealedGames }: StatsScreenProps) {
+export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpenGame, diskUsage, onRecomputeSizes, blurAdultContent, revealedGames, onChooseExecutable, onLibraryChanged }: StatsScreenProps) {
   const blurredId = (gameId: string) => isAdultBlurred(cache[gameId]?.age_category, blurAdultContent, revealedGames.has(gameId));
   const stats = useMemo(() => computeLibraryStats(cache, genreNames), [cache, genreNames]);
   const totalHours = Math.round(stats.totalPlayTimeSeconds / 3600);
@@ -96,6 +100,8 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
   return (
     <div data-scroll-root className="animate-steam-in min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4">
       <h1 className="mb-5">{t('Ma collection')}</h1>
+
+      <LibraryHealth nameOf={nameOf} onOpenGame={onOpenGame} onChooseExecutable={onChooseExecutable} onChanged={onLibraryChanged} />
 
       <div className="mb-5 grid grid-cols-5 items-stretch gap-4">
         <StatTile kicker={t('Œuvres')} value={String(stats.totalGames)} />

@@ -16,6 +16,8 @@ import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup 
 import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
 import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { detectPlatforms } from './game-platforms';
+import { findExe, findMacApp } from './executables';
+import { checkLibraryHealth } from './library-health';
 import { LibraryMoveError, moveLibrary, planLibraryMove } from './library-move';
 import { DEFAULT_SUPER_PANIC, SuperPanic, sanitizeSuperPanicSettings } from './super-panic';
 import { guardExecutablePaths, PickedPaths } from './trusted-paths';
@@ -213,41 +215,6 @@ async function getGameDir(gameId: string): Promise<string> {
   const settings = await settingsStore.getAll() as unknown as AppSettings;
   if (!settings.destinationFolder) throw new Error(tm('Dossier de jeux non configuré'));
   return path.join(settings.destinationFolder, gameId);
-}
-
-/**
- * Recherche heuristique de l'exécutable d'un jeu Windows : le plus gros .exe
- * du premier niveau de dossier qui en contient (hors désinstalleurs, crash
- * handlers et redistribuables).
- */
-function findExe(dir: string, depth = 0): string | null {
-  if (depth > 3) return null; // Limite la profondeur
-  const files = fs.readdirSync(dir, { withFileTypes: true });
-
-  const ignored = ['unins', 'unitycrashhandler', 'vcredist', 'vc_redist', 'dxsetup', 'dxwebsetup'];
-  const exes = files
-    .filter(f => f.isFile() && f.name.toLowerCase().endsWith('.exe') && !ignored.some(word => f.name.toLowerCase().includes(word)))
-    .map(f => path.join(dir, f.name));
-
-  if (exes.length > 0) {
-    // Tri par taille pour trouver l'exécutable principal (souvent le plus gros)
-    return exes.sort((a, b) => fs.statSync(b).size - fs.statSync(a).size)[0];
-  }
-
-  // Sinon chercher dans les sous-dossiers (hors métadonnées DLSGM et mods :
-  // BepInEx/XUnity embarquent leurs propres .exe utilitaires)
-  for (const f of files) {
-    if (f.isDirectory() && !f.name.startsWith('.') && f.name !== 'BepInEx') {
-      const found = findExe(path.join(dir, f.name), depth + 1);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-function findMacApp(gamePath: string): string | null {
-  const appDirName = fs.readdirSync(gamePath).find(file => file.endsWith('.app'));
-  return appDirName ? path.join(gamePath, appDirName) : null;
 }
 
 /**
@@ -2125,6 +2092,18 @@ export function setupIpcHandlers(
     if (!Array.isArray(folders) || folders.some(f => typeof f !== 'string')) throw new Error(tm('Liste de dossiers invalide.'));
     // Seuls des noms proposés par findMisnamedFolders sont renommés (revérifiés dans renameMisnamedFolders).
     return renameMisnamedFolders(destinationFolder, folders);
+  });
+
+  // --- Bilan de santé de la bibliothèque (constats seulement) ---
+  handle('check-library-health', async () => {
+    const { destinationFolder } = await getSettings();
+    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
+    return checkLibraryHealth({
+      libraryDir: destinationFolder,
+      cache: await cacheStore.getAll() as Record<string, GameMetadata>,
+      imgCacheDir: getImgCacheDir(),
+      platform: process.platform
+    });
   });
 
   // Corbeille plutôt que suppression définitive : récupérable en cas d'erreur.
