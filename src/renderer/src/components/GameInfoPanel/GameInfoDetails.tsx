@@ -8,6 +8,8 @@ import GameToolsSection from '../GameToolsSection/GameToolsSection';
 import WorkspaceSection from '../WorkspaceSection/WorkspaceSection';
 import CaptureGallery from '../CaptureGallery/CaptureGallery';
 import LaunchArgumentsInput from '../LaunchArgumentsInput/LaunchArgumentsInput';
+import PlatformIcons from '../PlatformIcons/PlatformIcons';
+import type { OsPlatform } from '../../../../shared/platforms';
 import { useDiskUsage } from '../../hooks/useDiskUsage';
 import { formatBytes } from '../../lib/diskUsage.js';
 import { categoryLabel, workLanguageLabel } from '../../lib/metadataManager.js';
@@ -24,6 +26,8 @@ const RECENT_SESSIONS = 5;
 export interface GameInfoDetailsProps {
   gameId: string;
   gameData: any;
+  /** Plateformes dont une version est dans le dossier du jeu. */
+  platforms: OsPlatform[];
   carouselIndex: number;
   onCarouselIndexChange: (index: number) => void;
   getWorkImageSrc: (gameId: string) => string;
@@ -81,6 +85,7 @@ function Section({ title, action, children }: { title: string; action?: ReactNod
 export default function GameInfoDetails({
   gameId,
   gameData,
+  platforms,
   carouselIndex,
   onCarouselIndexChange,
   getWorkImageSrc,
@@ -181,6 +186,7 @@ export default function GameInfoDetails({
             {options.includes('AIG') && <span className="tag bg-black/50">{t('Généré par IA')}</span>}
             {options.includes('AIP') && <span className="tag bg-black/50">{t('IA en partie')}</span>}
             {options.includes('TRI') && <span className="tag bg-black/50">{t("Version d'essai")}</span>}
+            <PlatformIcons platforms={platforms} />
             <span className="tag bg-black/50 font-mono text-text-muted">{gameId}</span>
           </div>
         </div>

@@ -15,6 +15,7 @@ export interface AppSettings {
   collections: GameCollection[];
   homeShelves: Record<string, HomeShelfPrefs>;
   hideCompleted: boolean;
+  playableOnly?: boolean;
   autoClicker: AutoClickerSettings;
   pixelTrigger: PixelTriggerSettings;
   overlayEnabled: boolean;

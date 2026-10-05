@@ -1,4 +1,5 @@
 import type { ActiveTheme, CustomTheme } from './themes';
+import type { OsPlatform } from './platforms';
 
 /**
  * Contrat de types partagé pour la surface IPC entre main (ipc-handlers.ts),
@@ -44,6 +45,8 @@ export interface AppSettings {
   homeShelves: Record<string, HomeShelfPrefs>;
   /** Bibliothèque : masquer les jeux marqués finis (case « Masquer les finis »). */
   hideCompleted: boolean;
+  /** Bibliothèque (Mac) : seulement les jeux dont une version Mac est dans le dossier. */
+  playableOnly?: boolean;
   /** Auto-clicker (Paramètres › Auto-clicker, et l'overlay en jeu). */
   autoClicker: AutoClickerSettings;
   /** Détecteur de rythme (Paramètres › Auto-clicker ; zones réglées jeu par jeu, `GameMetadata.pixelTriggers`). */
@@ -977,6 +980,8 @@ export interface ElectronAPI {
   // Opérations système
   /** `null` si le dossier n'existe pas (distinct d'un dossier vide). */
   listGameFolders(folderPath: string): Promise<string[] | null>;
+  /** Plateformes dont une version est présente dans le dossier de chaque jeu (fichiers .exe, .app/.dmg, .apk). */
+  detectGamePlatforms(gameIds: string[]): Promise<Record<string, OsPlatform[]>>;
   openGameFolder(gameId: string): Promise<boolean>;
   openExternal(url: string): Promise<boolean>;
   launchGame(gameId: string): Promise<LaunchGameResult>;

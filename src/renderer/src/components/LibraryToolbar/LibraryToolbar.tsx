@@ -1,4 +1,4 @@
-import { CircleCheck, EyeOff, Search, SlidersHorizontal, X } from 'lucide-react';
+import { CircleCheck, EyeOff, Laptop, Search, SlidersHorizontal, X } from 'lucide-react';
 import SortSelect from '../SortSelect/SortSelect';
 import Select from '../Select/Select';
 import { CREATOR_FIELD_LABELS, type CreatorFilter } from '../../lib/filterManager.js';
@@ -25,6 +25,9 @@ export interface LibraryToolbarProps {
   /** Masquer les jeux marqués finis (paramètre enregistré). */
   hideCompleted: boolean;
   onHideCompletedChange: (value: boolean) => void;
+  /** Seulement les jeux dont une version pour ce Mac est dans le dossier ; null = filtre non proposé (hors Mac). */
+  playableOnly: boolean | null;
+  onPlayableOnlyChange: (value: boolean) => void;
 }
 
 /**
@@ -48,7 +51,9 @@ export default function LibraryToolbar({
   creatorFilter,
   onClearCreatorFilter,
   hideCompleted,
-  onHideCompletedChange
+  onHideCompletedChange,
+  playableOnly,
+  onPlayableOnlyChange
 }: LibraryToolbarProps) {
   const tabs = [{ code: 'all', name: t('Tout') }, ...categories];
 
@@ -119,6 +124,19 @@ export default function LibraryToolbar({
           {hideCompleted ? <EyeOff size={15} strokeWidth={2.25} /> : <CircleCheck size={15} strokeWidth={2.25} />}
           {hideCompleted ? t('Finis masqués') : t('Masquer les finis')}
         </button>
+
+        {playableOnly !== null && (
+          <button
+            type="button"
+            onClick={() => onPlayableOnlyChange(!playableOnly)}
+            aria-pressed={playableOnly}
+            title={t('Seulement les jeux dont une version Mac (.app ou .dmg) est dans le dossier')}
+            className={`btn ${playableOnly ? 'btn-primary' : ''}`}
+          >
+            <Laptop size={15} strokeWidth={2.25} />
+            {t('Jouables sur ce Mac')}
+          </button>
+        )}
 
         {creatorFilter && (
           <span className="tag tag-accent pr-1.5 text-[13px]">

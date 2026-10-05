@@ -17,6 +17,8 @@ import ArchiveCleanupToast from './components/ArchiveCleanupToast/ArchiveCleanup
 import { useArchiveImport } from './hooks/useArchiveImport';
 import ArchivePasswordDialog from './components/ArchivePasswordDialog/ArchivePasswordDialog';
 import { useDiskUsage } from './hooks/useDiskUsage';
+import { useGamePlatforms } from './hooks/useGamePlatforms';
+import { currentPlatform, isPlayableHere } from './lib/platforms.js';
 import FolderRenameAssistant from './components/FolderRenameAssistant/FolderRenameAssistant';
 import { useFolderRename } from './hooks/useFolderRename';
 import PanicOverlay from './components/PanicOverlay/PanicOverlay';
@@ -58,6 +60,13 @@ export default function App() {
     () => Object.fromEntries(Object.entries(diskUsage.report?.games ?? {}).map(([id, usage]) => [id, usage.bytes])),
     [diskUsage.report]
   );
+  // Versions présentes dans chaque dossier (.exe, .app/.dmg, .apk) : filtre
+  // « Jouable sur ce Mac » et icônes de la page du jeu.
+  const gamePlatforms = useGamePlatforms(library.gameFolders, library.status);
+  const host = currentPlatform(window.electronAPI.platform);
+  // Le filtre n'est proposé que sur Mac (sous Windows, presque tout est jouable).
+  const playableFilterAvailable = host === 'mac';
+  const playableOnly = playableFilterAvailable && (settings?.playableOnly ?? false);
   // Dossiers mal nommés (« [RJ…] Titre v1.2 ») : revus à chaque scan, renommés sur confirmation.
   const folderRename = useFolderRename(`${library.status}:${library.gameFolders.join('|')}`, library.rescan);
   // PIA installé : proposé sur les fiches en échec (restriction régionale).
@@ -178,6 +187,7 @@ export default function App() {
     };
 
     return presentGames
+      .filter(game => !playableOnly || isPlayableHere(gamePlatforms[game.id], host))
       .filter(game => matchesFilters(game.data, filterState))
       .sort((a, b) => compareGames(a, b, filters.selectedSort, diskSizes));
   }, [
@@ -192,7 +202,10 @@ export default function App() {
     collectionFilter,
     collections,
     settings?.hideCompleted,
-    genreNames
+    genreNames,
+    playableOnly,
+    gamePlatforms,
+    host
   ]);
 
   const displayedGameIds = useMemo(() => displayedGames.map(g => g.id), [displayedGames]);
@@ -418,6 +431,8 @@ export default function App() {
             onClearCreatorFilter={() => filters.setCreatorFilter(null)}
             hideCompleted={settings?.hideCompleted ?? false}
             onHideCompletedChange={hideCompleted => settings && saveSettings({ ...settings, hideCompleted })}
+            playableOnly={playableFilterAvailable ? playableOnly : null}
+            onPlayableOnlyChange={value => settings && saveSettings({ ...settings, playableOnly: value })}
           />
 
           {archiveImport.results && (
@@ -485,6 +500,7 @@ export default function App() {
           <GameInfoPanel
             gameId={selectedGameId}
             gameData={selectedGameId ? library.cache[selectedGameId] : undefined}
+            platforms={selectedGameId ? gamePlatforms[selectedGameId] : undefined}
             carouselIndex={carouselIndex}
             onCarouselIndexChange={setCarouselIndex}
             getWorkImageSrc={library.getWorkImageSrc}

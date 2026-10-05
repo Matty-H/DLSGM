@@ -15,6 +15,7 @@ import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir
 import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup } from './save-backups';
 import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
 import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
+import { detectPlatforms } from './game-platforms';
 import { readInstallInfo } from './release-names';
 import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
@@ -42,6 +43,7 @@ import { checkForUpdates, getAppUpdateInfo } from './updater';
 import { setMainLanguage, systemLanguages, tm } from './i18n';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
 import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, SandboxieStatus } from '../shared/ipc-types';
+import type { OsPlatform } from '../shared/platforms';
 import { applyThemeIcon, applyThemeSetting, getActiveTheme, iconFromDataUrl, rerollTheme } from './theme';
 import { DEFAULT_THEME, normalizeThemeSetting, sanitizeCustomThemes } from '../shared/themes';
 
@@ -1666,6 +1668,20 @@ export function setupIpcHandlers(
       return result.filePaths[0];
     }
     return null;
+  });
+
+  // Plateformes présentes dans le dossier de chaque jeu (filtre « Jouable sur
+  // ce Mac », icônes de la page du jeu) : d'après ses fichiers, un jeu à la fois.
+  ipcMain.handle('detect-game-platforms', async (event: IpcMainInvokeEvent, gameIds: unknown) => {
+    if (!Array.isArray(gameIds)) return {};
+    const { destinationFolder } = await getSettings();
+    const result: Record<string, OsPlatform[]> = {};
+    if (!destinationFolder) return result;
+    for (const gameId of gameIds) {
+      if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) continue;
+      result[gameId] = await detectPlatforms(path.join(destinationFolder, gameId));
+    }
+    return result;
   });
 
   // --- Opérations Système ---

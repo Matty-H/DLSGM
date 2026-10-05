@@ -3,6 +3,7 @@ import { ChevronLeft } from 'lucide-react';
 import FetchFailedView from '../FetchFailedView/FetchFailedView';
 import ManualEditForm from '../ManualEditForm/ManualEditForm';
 import GameInfoDetails from './GameInfoDetails';
+import type { OsPlatform } from '../../../../shared/platforms';
 import { fetchGameMetadata, refetchGameMetadata, retryThroughVpn } from '../../lib/dataFetcher.js';
 import type { GenreNames } from '../../lib/genreNames.js';
 import type { CreatorFilter } from '../../lib/filterManager.js';
@@ -13,6 +14,8 @@ import { isAdultBlurred } from '../../lib/adultContent.js';
 export interface GameInfoPanelProps {
   gameId: string | null;
   gameData: any | undefined;
+  /** Plateformes dont une version est dans le dossier du jeu (undefined : pas encore détectées). */
+  platforms?: OsPlatform[];
   carouselIndex: number;
   onCarouselIndexChange: (index: number) => void;
   getWorkImageSrc: (gameId: string) => string;
@@ -52,6 +55,7 @@ export interface GameInfoPanelProps {
 export default function GameInfoPanel({
   gameId,
   gameData,
+  platforms,
   carouselIndex,
   onCarouselIndexChange,
   getWorkImageSrc,
@@ -104,6 +108,7 @@ export default function GameInfoPanel({
         <GameInfoDetails
           gameId={gameId}
           gameData={gameData}
+          platforms={platforms ?? []}
           carouselIndex={carouselIndex}
           onCarouselIndexChange={onCarouselIndexChange}
           getWorkImageSrc={getWorkImageSrc}

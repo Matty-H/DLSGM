@@ -28,6 +28,7 @@ const electronAPI: ElectronAPI = {
 
   // Opérations système
   listGameFolders: (folderPath) => ipcRenderer.invoke('list-game-folders', folderPath),
+  detectGamePlatforms: (gameIds) => ipcRenderer.invoke('detect-game-platforms', gameIds),
   openGameFolder: (gameId) => ipcRenderer.invoke('open-game-folder', gameId),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   launchGame: (gameId) => ipcRenderer.invoke('launch-game', gameId),
