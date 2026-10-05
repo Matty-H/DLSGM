@@ -68,7 +68,7 @@ describe.skipIf(process.platform !== 'win32')('registry saves (real registry)', 
   const setValue = (name: string, data: string) => execFileSync('reg.exe', ['add', key, '/v', name, '/t', 'REG_DWORD', '/d', data, '/f'], { stdio: 'ignore' });
   const getValue = (name: string): string | null => {
     try {
-      return /0x([0-9a-f]+)/i.exec(execFileSync('reg.exe', ['query', key, '/v', name], { encoding: 'utf8' }))?.[1] ?? null;
+      return /0x([0-9a-f]+)/i.exec(execFileSync('reg.exe', ['query', key, '/v', name], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }))?.[1] ?? null;
     } catch {
       return null;
     }
