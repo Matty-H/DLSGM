@@ -35,6 +35,9 @@ export interface GameToolsSectionProps {
   onTextractorEnabledChange: (enabled: boolean) => void;
   localeEmulator: boolean;
   onLocaleEmulatorChange: (enabled: boolean) => void;
+  /** Mode debug RPG Maker MV/MZ (entrée de cache `debugMode`) ; Ren'Py passe par un patch. */
+  debugMode: boolean;
+  onDebugModeChange: (enabled: boolean) => void;
 }
 
 const LABEL_CLASS = 'text-[12px] text-text-muted';
@@ -54,7 +57,9 @@ export default function GameToolsSection({
   textractorEnabled,
   onTextractorEnabledChange,
   localeEmulator,
-  onLocaleEmulatorChange
+  onLocaleEmulatorChange,
+  debugMode,
+  onDebugModeChange
 }: GameToolsSectionProps) {
   const [info, setInfo] = useState<GameToolsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +101,9 @@ export default function GameToolsSection({
   };
 
   const lastPatch = info?.patches[info.patches.length - 1];
+  const isWindows = window.electronAPI.platform === 'win32';
+  const isRpgMakerWeb = info?.engine.engine === 'rpgmaker-mv' || info?.engine.engine === 'rpgmaker-mz';
+  const renpyDebug = Boolean(info?.patches.some(patch => patch.kind === 'debug'));
   const sandboxed = info !== null && info.sandbox.globallyEnabled && !sandboxDisabled;
   const engineDetails = info ? describeEngine(info) : '';
 
@@ -146,6 +154,31 @@ export default function GameToolsSection({
       )}
 
       {info && info.saveLocations.length > 0 && <SaveBackups gameId={gameId} lastPlayed={lastPlayed} refreshKey={savesVersion} />}
+
+      {info && isWindows && (isRpgMakerWeb || info.engine.engine === 'renpy') && (
+        <div>
+          <div className={`${LABEL_CLASS} mb-1`}>{t('Mode debug')}</div>
+          <label className="flex cursor-pointer items-center justify-between gap-3">
+            {isRpgMakerWeb ? t('Lancer en mode test') : t('Console et passage du texte non lu')}
+            <input
+              type="checkbox"
+              className="toggle"
+              disabled={busy !== null}
+              checked={isRpgMakerWeb ? debugMode : renpyDebug}
+              onChange={e => {
+                const enabled = e.target.checked;
+                if (isRpgMakerWeb) onDebugModeChange(enabled);
+                else run('debug', () => window.electronAPI.setRenpyDebug(gameId, enabled));
+              }}
+            />
+          </label>
+          <p className="mt-1 text-text-secondary">
+            {isRpgMakerWeb
+              ? t("Menu de debug F9 sur la carte (interrupteurs, variables, téléportation), outils de développement F8 si le jeu les inclut. Rien n'est modifié dans le dossier du jeu.")
+              : t("Console développeur (Maj+O), menu développeur (Maj+D) et passage du texte non lu. Un petit script est ajouté dans game/, retiré en décochant.")}
+          </p>
+        </div>
+      )}
 
       {(info?.engine.engine === 'rpgmaker-mv' || info?.engine.engine === 'rpgmaker-mz') && (
         <RpgSaveEditor gameId={gameId} lastPlayed={lastPlayed} onSaved={() => setSavesVersion(v => v + 1)} />
@@ -218,7 +251,7 @@ export default function GameToolsSection({
 
           {info.patches.map(patch => (
             <div key={patch.id} className="mb-1 truncate rounded-sm bg-bg-deep px-2.5 py-1.5" title={patch.name}>
-              {patch.name}
+              {patch.kind === 'debug' ? t("Mode debug Ren'Py") : patch.name}
             </div>
           ))}
 

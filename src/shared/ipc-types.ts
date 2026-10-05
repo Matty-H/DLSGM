@@ -937,6 +937,8 @@ export interface GameMetadata {
   localeEmulator?: boolean;
   /** Lancer ce jeu avec Textractor (page du jeu). Donnée personnelle, jamais partagée en LAN. */
   textractorEnabled?: boolean;
+  /** Mode debug RPG Maker MV/MZ : lancé en mode test (F9, F8). Donnée personnelle, jamais partagée en LAN. */
+  debugMode?: boolean;
   /** Hookcode du fil Textractor choisi pour ce jeu (retrouvé aux lancements suivants). */
   textractorHook?: string;
   /** Zones du détecteur de rythme pour ce jeu. Donnée personnelle, jamais partagée en LAN. */
@@ -1000,7 +1002,8 @@ export interface SaveLocation {
 export interface InstalledPatch {
   id: string;
   name: string;
-  kind: 'auto-translator' | 'custom';
+  /** debug : script du mode debug Ren'Py (voir game-tools.ts). */
+  kind: 'auto-translator' | 'custom' | 'debug';
   installedAt: string;
   /** Fichiers ajoutés, relatifs au dossier du jeu (supprimés à la désinstallation). */
   added: string[];
@@ -1108,6 +1111,8 @@ export interface ElectronAPI {
   /** Ouvre un sélecteur (.zip ou dossier) puis applique le patch ; null si annulé. */
   applyUserPatch(gameId: string, source: 'zip' | 'folder'): Promise<GameToolsInfo | null>;
   uninstallLastPatch(gameId: string): Promise<GameToolsInfo>;
+  /** Mode debug Ren'Py (console, texte non lu) : ajoute ou retire son script (patch `debug`). */
+  setRenpyDebug(gameId: string, enabled: boolean): Promise<GameToolsInfo>;
 
   // Liste de souhaits (voir src/main/wishlist.ts)
   /** Liste, sans les jeux arrivés entre-temps dans la bibliothèque (retirés au passage). */

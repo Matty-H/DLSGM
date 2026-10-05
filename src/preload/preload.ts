@@ -55,6 +55,7 @@ const electronAPI: ElectronAPI = {
   installAutoTranslator: (gameId, targetLanguage) => ipcRenderer.invoke('install-auto-translator', gameId, targetLanguage),
   applyUserPatch: (gameId, source) => ipcRenderer.invoke('apply-user-patch', gameId, source),
   uninstallLastPatch: (gameId) => ipcRenderer.invoke('uninstall-last-patch', gameId),
+  setRenpyDebug: (gameId, enabled) => ipcRenderer.invoke('set-renpy-debug', gameId, enabled),
 
   // Liste de souhaits
   getWishlist: () => ipcRenderer.invoke('get-wishlist'),

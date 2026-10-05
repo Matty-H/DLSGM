@@ -10,7 +10,7 @@ import Store from './store';
 import { fetchWork } from './dlsite-fetcher';
 import { GenreTranslations, KNOWN_GENRE_TRANSLATIONS } from './genre-translations';
 import { applyDlsiteProxy, dlsiteFetch, protectProxySettings, testDlsiteConnection } from './dlsite-net';
-import { detectEngine, findRpgMakerWebRoot, findSaveLocations, readPeArch, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, type SaveSource } from './game-tools';
+import { detectEngine, findRpgMakerWebRoot, findSaveLocations, readPeArch, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, findDebugPatch, installRenpyDebug, uninstallPatch, type SaveSource } from './game-tools';
 import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand, sandboxedPathFor } from './sandboxie';
 import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup } from './save-backups';
 import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
@@ -18,6 +18,7 @@ import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { detectPlatforms } from './game-platforms';
 import { findExe, findMacApp } from './executables';
 import { checkLibraryHealth } from './library-health';
+import { rpgMakerDebugLaunch } from './engine-debug';
 import { LibraryMoveError, moveLibrary, planLibraryMove } from './library-move';
 import { DEFAULT_SUPER_PANIC, SuperPanic, sanitizeSuperPanicSettings } from './super-panic';
 import { guardExecutablePaths, PickedPaths } from './trusted-paths';
@@ -268,12 +269,19 @@ function startElevated(executablePath: string, args: string[]): Promise<TrackedL
  * Lance l'exécutable d'un jeu — dans sa sandbox Sandboxie si l'option est
  * active et que le jeu n'en est pas exclu — et résout à sa fermeture.
  */
-async function startGameProcess(gameId: string, gamePath: string, executablePath: string): Promise<TrackedLaunchResult> {
+async function startGameProcess(gameId: string, gamePath: string, chosenExecutable: string): Promise<TrackedLaunchResult> {
   const settings = await settingsStore.getAll() as unknown as AppSettings;
   const entry = await cacheStore.get(gameId) as GameMetadata | undefined;
   const sandboxed = process.platform === 'win32' && settings.sandboxLaunch && !entry?.sandboxDisabled;
   // Arguments saisis sur la page du jeu (`-dx11`...), passés dans tous les modes de lancement.
-  const gameArgs = parseLaunchArguments(entry?.launchArguments);
+  let gameArgs = parseLaunchArguments(entry?.launchArguments);
+  let executablePath = chosenExecutable;
+  // Mode debug RPG Maker MV/MZ : `test` doit être le premier argument de NW.js.
+  const debug = entry?.debugMode && process.platform === 'win32' ? rpgMakerDebugLaunch(executablePath) : null;
+  if (debug && isInside(gamePath, debug.executablePath)) {
+    executablePath = debug.executablePath;
+    gameArgs = [...debug.args, ...gameArgs];
+  }
 
   // Lancement en japonais demandé : jamais de repli sur un lancement normal.
   if (process.platform === 'win32' && entry?.localeEmulator) {
@@ -1996,6 +2004,20 @@ export function setupIpcHandlers(
     return withPatchLock(gameId, async () => {
       const gamePath = await getGameDir(gameId);
       uninstallLastPatch(gamePath);
+      return publicToolsInfo(await getGameToolsInfo(gameId));
+    });
+  });
+
+  // Mode debug Ren'Py : script ajouté / retiré comme un patch (kind `debug`).
+  handle('set-renpy-debug', async (event: IpcMainInvokeEvent, gameId: string, enabled: boolean) => {
+    assertGameId(gameId);
+    if (runningGames.has(gameId)) throw new Error(tm("Le jeu est en cours d'exécution : ferme-le d'abord."));
+    return withPatchLock(gameId, async () => {
+      const info = await getGameToolsInfo(gameId);
+      if (info.engine.engine !== 'renpy') throw new Error(tm("Ce jeu n'est pas un jeu Ren'Py."));
+      const installed = findDebugPatch(info.gamePath);
+      if (enabled && !installed) await installRenpyDebug(info.gamePath, info.installRootAbs);
+      if (!enabled && installed) uninstallPatch(info.gamePath, installed.id);
       return publicToolsInfo(await getGameToolsInfo(gameId));
     });
   });

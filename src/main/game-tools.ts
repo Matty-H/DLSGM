@@ -345,7 +345,7 @@ function isSafePatch(gameDir: string, value: unknown): value is InstalledPatch {
   const patch = value as Partial<InstalledPatch>;
   return typeof patch.id === 'string' && PATCH_ID.test(patch.id)
     && typeof patch.name === 'string'
-    && (patch.kind === 'auto-translator' || patch.kind === 'custom')
+    && (patch.kind === 'auto-translator' || patch.kind === 'custom' || patch.kind === 'debug')
     && Array.isArray(patch.added) && patch.added.every(rel => isPatchFile(gameDir, rel))
     && Array.isArray(patch.overwritten) && patch.overwritten.every(rel => isPatchFile(gameDir, rel));
 }
@@ -455,6 +455,74 @@ function revertPatch(gameDir: string, patch: InstalledPatch): void {
     if (exists(backupPath)) fs.copyFileSync(backupPath, path.join(gameDir, rel));
   }
   fs.rmSync(backupDir, { recursive: true, force: true });
+}
+
+/** Chemin comparable (Windows et macOS ne distinguent pas la casse). */
+const pathKey = (rel: string) => path.normalize(rel).toLowerCase();
+
+/**
+ * Désinstalle un patch précis. L'ordre de pile n'importe que lorsque deux
+ * patchs touchent les mêmes fichiers : refusé si un patch installé après
+ * celui-ci en ajoute ou en écrase un des siens.
+ */
+export function uninstallPatch(gameDir: string, patchId: string): InstalledPatch {
+  const patches = readPatches(gameDir);
+  const index = patches.findIndex(p => p.id === patchId);
+  if (index < 0) throw new Error(tm('Patch introuvable.'));
+  const patch = patches[index];
+  const own = new Set([...patch.added, ...patch.overwritten].map(pathKey));
+  const blocking = patches.slice(index + 1).find(later => [...later.added, ...later.overwritten].some(rel => own.has(pathKey(rel))));
+  if (blocking) throw new Error(tm("Désinstalle d'abord « {name} », installé après et qui touche les mêmes fichiers.", { name: blocking.name }));
+  revertPatch(gameDir, patch);
+  writePatches(gameDir, patches.filter(p => p.id !== patchId));
+  return patch;
+}
+
+// --- Mode debug Ren'Py ------------------------------------------------------
+
+export const RENPY_DEBUG_FILE = path.join('game', 'zz_dlsgm_debug.rpy');
+
+/**
+ * Script ajouté par le mode debug : console développeur (Maj+O), menu
+ * développeur (Maj+D) et passage du texte non lu. `init 999` : après le
+ * jeu, pour l'emporter sur ses propres réglages.
+ */
+const RENPY_DEBUG_SCRIPT = [
+  '# Ajouté par DLSGM (mode debug), retiré en désactivant le mode debug sur la page du jeu.',
+  'init 999 python:',
+  '    config.developer = True',
+  '    config.console = True',
+  '    config.allow_skipping = True',
+  '',
+  '    def _dlsgm_skip_unseen(*args):',
+  '        _preferences.skip_unseen = True',
+  '',
+  '    config.start_callbacks.append(_dlsgm_skip_unseen)',
+  '    config.after_load_callbacks.append(_dlsgm_skip_unseen)',
+  ''
+].join('\n');
+
+export function findDebugPatch(gameDir: string): InstalledPatch | null {
+  return readPatches(gameDir).find(patch => patch.kind === 'debug') ?? null;
+}
+
+/**
+ * Ajoute le script de debug comme un patch (kind `debug`), donc
+ * désinstallable. Ren'Py le compile au lancement en `.rpyc` : ce fichier
+ * est déclaré parmi les ajouts pour partir avec le patch.
+ */
+export async function installRenpyDebug(gameDir: string, installRoot: string): Promise<InstalledPatch> {
+  if (findDebugPatch(gameDir)) throw new Error(tm('Le mode debug est déjà installé.'));
+  if (!isDir(path.join(installRoot, 'game'))) throw new Error(tm("Dossier game/ de Ren'Py introuvable."));
+  const patch = await withTempDir(async tempDir => {
+    fs.mkdirSync(path.join(tempDir, 'game'));
+    fs.writeFileSync(path.join(tempDir, RENPY_DEBUG_FILE), RENPY_DEBUG_SCRIPT);
+    return applyPatchFromDirectory(gameDir, installRoot, tempDir, { name: "Mode debug Ren'Py", kind: 'debug' });
+  });
+  const compiled = path.relative(gameDir, path.join(installRoot, `${RENPY_DEBUG_FILE}c`));
+  const withCompiled = { ...patch, added: [...patch.added, compiled] };
+  writePatches(gameDir, readPatches(gameDir).map(p => (p.id === patch.id ? withCompiled : p)));
+  return withCompiled;
 }
 
 /** Désinstalle le dernier patch appliqué (ordre de pile). */

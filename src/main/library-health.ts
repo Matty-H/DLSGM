@@ -121,7 +121,8 @@ export function checkLibraryHealth({ libraryDir, cache, imgCacheDir, platform }:
 
     const patches = readPatches(gameDir);
     patches.forEach((patch, index) => {
-      const missingFiles = patch.added.filter(rel => !exists(path.join(gameDir, rel)));
+      // Le .rpyc du mode debug Ren'Py n'existe qu'après le premier lancement.
+      const missingFiles = patch.added.filter(rel => !exists(path.join(gameDir, rel)) && !(patch.kind === 'debug' && rel.endsWith('.rpyc')));
       const backupDir = path.join(gameDir, '.dlsgm', 'backup', patch.id);
       const missingBackups = patch.overwritten.filter(rel => !exists(path.join(backupDir, rel)));
       if (missingFiles.length > 0 || missingBackups.length > 0) {

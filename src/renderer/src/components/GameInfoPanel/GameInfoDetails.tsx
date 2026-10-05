@@ -376,6 +376,8 @@ export default function GameInfoDetails({
               onTextractorEnabledChange={enabled => onUpdateGame(gameId, { textractorEnabled: enabled })}
               localeEmulator={Boolean(gameData.localeEmulator)}
               onLocaleEmulatorChange={enabled => onUpdateGame(gameId, { localeEmulator: enabled })}
+              debugMode={Boolean(gameData.debugMode)}
+              onDebugModeChange={enabled => onUpdateGame(gameId, { debugMode: enabled })}
             />
           </Section>
         </div>
