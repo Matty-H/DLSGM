@@ -236,6 +236,10 @@ export default function SettingsScreen({
   initialSection = 'library',
   initialCollectionId
 }: SettingsScreenProps) {
+  // Sandboxie, Locale Emulator, Textractor, l'OCR et les captures reposent sur des
+  // outils/API Windows (PowerShell, LEProc.exe, TextractorCLI.exe, Windows.Media.Ocr) :
+  // inutile de les proposer ailleurs.
+  const isWindows = window.electronAPI.platform === 'win32';
   const [destinationFolder, setDestinationFolder] = useState(settings.destinationFolder);
   const [refreshRate, setRefreshRate] = useState(settings.refreshRate);
   const [language, setLanguage] = useState(settings.language);
@@ -718,6 +722,8 @@ export default function SettingsScreen({
               onChange={e => setAutoBackupSaves(e.target.checked)}
             />
           </SettingRow>
+          {isWindows && (
+          <>
           <SettingRow
             label={t('Lancer les jeux dans Sandboxie-Plus')}
             description={
@@ -849,6 +855,8 @@ export default function SettingsScreen({
               ))}
             </div>
           </SettingRow>
+          </>
+          )}
           <SettingRow
             label={t("Extracteur d'images RPG Maker")}
             description={t('Ajoute « Extraire images et sons » sur la page des jeux RPG Maker MV / MZ chiffrés (.rpgmvp, .png_, .ogg_…) : les fichiers sont déchiffrés dans le dossier de travaux du jeu, jamais dans le dossier du jeu.')}
@@ -869,6 +877,8 @@ export default function SettingsScreen({
               </SettingRow>
             </ToolGroup>
 
+            {isWindows && (
+            <>
             <ToolGroup Icon={MousePointerClick} title={t('Auto-clicker')} summary={t('Clics à intervalle régulier, au curseur ou sur un point fixe — raccourci {hotkey}.', { hotkey: autoClicker.hotkey })}>
               <AutoClickerSettings value={autoClicker} onChange={setAutoClicker} isDirty={clickerDirty} />
             </ToolGroup>
@@ -907,6 +917,8 @@ export default function SettingsScreen({
                 />
               </SettingRow>
             </ToolGroup>
+            </>
+            )}
           </>
         )}
 

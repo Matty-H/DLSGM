@@ -1113,7 +1113,6 @@
     "Somme de contrôle invalide pour {file} (attendu {expected}, obtenu {actual}).": "{file} のチェックサムが無効です（期待値 {expected}、実際 {actual}）。",
     "Sélection de jeux invalide.": "ゲームの選択が無効です。",
     "Texte invalide.": "テキストが無効です。",
-    "Textractor n'existe que sous Windows : décoche « Lancer avec Textractor » sur la page du jeu.": "Textractor は Windows 専用です。ゲームページの「Textractor と一緒に起動」をオフにしてください。",
     "TextractorCLI ({arch}) s'est arrêté (code {code}).": "TextractorCLI（{arch}）が停止しました（コード {code}）。",
     "TextractorCLI n'a pas pu démarrer : {error}": "TextractorCLI を起動できませんでした：{error}",
     "TextractorCLI.exe introuvable dans {dir} : vérifie le dossier de Textractor (Paramètres › Lancement), ou décoche « Lancer avec Textractor ».": "{dir} に TextractorCLI.exe が見つかりません。Textractor のフォルダ（設定 › 起動）を確認するか、「Textractor と一緒に起動」をオフにしてください。",

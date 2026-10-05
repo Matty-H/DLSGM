@@ -935,6 +935,8 @@ export interface GameToolsInfo {
 
 export interface ElectronAPI {
   // Infos App
+  /** process.platform du processus main ('win32', 'darwin'...) : sert à masquer les outils Windows-only sur les autres OS. */
+  platform: string;
   getUserDataPath(): Promise<string>;
 
   // Gestion des paramètres

@@ -1113,7 +1113,6 @@
     "Somme de contrôle invalide pour {file} (attendu {expected}, obtenu {actual}).": "Invalid checksum for {file} (expected {expected}, got {actual}).",
     "Sélection de jeux invalide.": "Invalid game selection.",
     "Texte invalide.": "Invalid text.",
-    "Textractor n'existe que sous Windows : décoche « Lancer avec Textractor » sur la page du jeu.": "Textractor only exists on Windows: untick “Launch with Textractor” on the game page.",
     "TextractorCLI ({arch}) s'est arrêté (code {code}).": "TextractorCLI ({arch}) stopped (code {code}).",
     "TextractorCLI n'a pas pu démarrer : {error}": "TextractorCLI could not start: {error}",
     "TextractorCLI.exe introuvable dans {dir} : vérifie le dossier de Textractor (Paramètres › Lancement), ou décoche « Lancer avec Textractor ».": "TextractorCLI.exe not found in {dir}: check the Textractor folder (Settings › Launch), or untick “Launch with Textractor”.",

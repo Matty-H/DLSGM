@@ -9,6 +9,7 @@ import type { ActiveTheme } from '../shared/themes';
  */
 const electronAPI: ElectronAPI = {
   // Infos App
+  platform: process.platform,
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
 
   // Gestion des paramètres

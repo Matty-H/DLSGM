@@ -377,7 +377,7 @@ async function getGameToolsInfo(gameId: string): Promise<Omit<GameToolsInfo, 'sa
 async function getGameSandboxInfo(gameId: string): Promise<GameToolsInfo['sandbox']> {
   const settings = await settingsStore.getAll() as unknown as AppSettings;
   return {
-    globallyEnabled: Boolean(settings.sandboxLaunch),
+    globallyEnabled: process.platform === 'win32' && Boolean(settings.sandboxLaunch),
     available: (await findSandboxieDir()) !== null,
     boxName: boxNameFor(gameId)
   };
@@ -950,8 +950,10 @@ interface TextractorLaunch {
 /** Réglages du lancement avec Textractor, ou null si ce jeu ne le demande pas. Lève si Textractor manque. */
 async function textractorLaunch(gameId: string): Promise<TextractorLaunch | null> {
   const entry = ((await cacheStore.get(gameId)) ?? {}) as Partial<GameMetadata>;
-  if (entry.textractorEnabled !== true) return null;
-  if (process.platform !== 'win32') throw new Error(tm("Textractor n'existe que sous Windows : décoche « Lancer avec Textractor » sur la page du jeu."));
+  // Textractor n'existe pas hors Windows : comme Sandboxie et Locale Emulator,
+  // l'option n'a simplement aucun sens sur cet OS plutôt que de bloquer le lancement
+  // (utile si l'entrée vient d'un profil Windows copié tel quel).
+  if (entry.textractorEnabled !== true || process.platform !== 'win32') return null;
   const settings = await getSettings();
   const dir = settings.textractorPath ?? '';
   if (!findTextractorCli(dir, 'x86') && !findTextractorCli(dir, 'x64')) {

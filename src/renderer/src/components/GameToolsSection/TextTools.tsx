@@ -66,8 +66,12 @@ export default function TextTools({ gameId, info, textractorEnabled, onTextracto
     }
   };
 
+  const isWindows = window.electronAPI.platform === 'win32';
+
   return (
     <>
+      {isWindows && (
+      <>
       <div>
         <div className={`${LABEL_CLASS} mb-1`}>{t('Texte du jeu')}</div>
         <label className="flex cursor-pointer items-center justify-between gap-3">
@@ -100,6 +104,8 @@ export default function TextTools({ gameId, info, textractorEnabled, onTextracto
           <p className="mt-1 text-danger">{t('Textractor introuvable (Paramètres › Lancement) : le jeu ne pourra pas être lancé.')}</p>
         )}
       </div>
+      </>
+      )}
 
       {isRpgMakerWeb && extractorEnabled && (
         <div>
