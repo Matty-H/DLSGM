@@ -993,6 +993,7 @@
     "Envoi annulé.": "送信をキャンセルしました。",
     "Envoi interrompu : {path}": "送信が中断されました：{path}",
     "Erreur HTTP {status}": "HTTP エラー {status}",
+    "Erreur interne du receveur.": "受信側で内部エラーが発生しました。",
     "Espace disque insuffisant sur le receveur ({gb} Go nécessaires).": "受信側のディスク容量が不足しています（{gb} GB 必要）。",
     "Extraction impossible (7-Zip, code {code})": "展開できませんでした（7-Zip、コード {code}）",
     "Exécutable de {id}": "{id} の実行ファイル",

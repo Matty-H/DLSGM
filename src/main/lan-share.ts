@@ -57,6 +57,25 @@ const FORBIDDEN_CHARS = /[<>:"\\|?*\x00-\x1f]/;
 // Marqueur d'image fournie par l'utilisateur (voir ipc-handlers.ts).
 const MANUAL_IMAGE = 'manual';
 
+/**
+ * Métadonnées du Finder (.DS_Store) et fichiers AppleDouble (._nom) : propres
+ * au Mac qui envoie, jamais des fichiers du jeu.
+ */
+export function isMacMetadataFile(name: string): boolean {
+  return name === '.DS_Store' || name.startsWith('._');
+}
+
+/**
+ * Chemin d'un fichier du transfert, en Unicode NFC. Un Mac peut avoir ses
+ * noms en NFD (ゲ = ケ + ゙) : APFS les confond avec la forme NFC, mais NTFS
+ * les garde tels quels, et un jeu qui cherche le nom habituel (NFC) ne le
+ * trouverait plus. Deux chemins qui ne diffèrent que par la forme désignent
+ * donc le même fichier.
+ */
+export function transferKey(value: string): string {
+  return value.normalize('NFC');
+}
+
 export interface LanShareDeps {
   getDestinationFolder(): Promise<string>;
   getImgCacheDir(): string;
@@ -296,7 +315,10 @@ export class LanShare {
       this.handleRequest(req, res).catch((error: unknown) => {
         const status = error instanceof HttpError ? error.status : 500;
         if (status === 500) console.error('Erreur de réception LAN:', error);
-        sendJson(res, status, { error: error instanceof Error ? error.message : String(error) });
+        // Une erreur interne (fs...) contient les chemins de ce PC, nom
+        // d'utilisateur compris : elle reste dans le journal du receveur.
+        const message = error instanceof HttpError ? error.message : tm('Erreur interne du receveur.');
+        sendJson(res, status, { error: message });
       });
     });
     // Un gros fichier peut mettre bien plus que les 5 min par défaut de
@@ -428,16 +450,18 @@ export class LanShare {
     const lowerCaseKeys = new Set<string>();
     let totalBytes = 0;
     for (const file of body.files as unknown[]) {
-      const { path: key, size } = (file ?? {}) as { path?: unknown; size?: unknown };
-      if (typeof key !== 'string' || typeof size !== 'number' || !Number.isSafeInteger(size) || size < 0) {
+      const { path: rawKey, size } = (file ?? {}) as { path?: unknown; size?: unknown };
+      if (typeof rawKey !== 'string' || typeof size !== 'number' || !Number.isSafeInteger(size) || size < 0) {
         throw new HttpError(400, tm('Entrée de fichier invalide.'));
       }
+      const key = transferKey(rawKey);
       const [namespace, ...rest] = key.split('/');
       const valid =
         (namespace === 'game' && safeSegments(rest.join('/'))) ||
         (namespace === 'images' && rest.length === 1 && IMAGE_FILE_REGEX.test(rest[0]));
       if (!valid) throw new HttpError(400, tm('Chemin refusé : {path}', { path: key }));
-      // Windows ne distingue pas la casse : deux chemins "égaux" s'y écraseraient.
+      // Windows ne distingue pas la casse, ni macOS la casse et la forme
+      // Unicode : deux chemins "égaux" s'y écraseraient.
       if (lowerCaseKeys.has(key.toLowerCase())) throw new HttpError(400, tm('Fichier en double : {path}', { path: key }));
       lowerCaseKeys.add(key.toLowerCase());
       files.set(key, { size, received: false });
@@ -447,7 +471,7 @@ export class LanShare {
 
     const dirs: string[][] = [];
     for (const dir of Array.isArray(body.dirs) ? body.dirs as unknown[] : []) {
-      const segments = safeSegments(dir);
+      const segments = safeSegments(typeof dir === 'string' ? transferKey(dir) : dir);
       if (!segments) throw new HttpError(400, tm('Dossier refusé : {path}', { path: String(dir) }));
       dirs.push(segments);
     }
@@ -501,7 +525,8 @@ export class LanShare {
     };
   }
 
-  private async handleFile(t: IncomingTransfer, key: string | null, req: http.IncomingMessage): Promise<{ sha256: string }> {
+  private async handleFile(t: IncomingTransfer, rawKey: string | null, req: http.IncomingMessage): Promise<{ sha256: string }> {
+    const key = rawKey === null ? null : transferKey(rawKey);
     const entry = key ? t.files.get(key) : undefined;
     if (!key || !entry) throw new HttpError(400, tm('Fichier non annoncé : {path}', { path: String(key) }));
     if (entry.received || t.writing.has(key) || t.completing) throw new HttpError(409, tm('Fichier déjà reçu : {path}', { path: key }));
@@ -517,11 +542,13 @@ export class LanShare {
       await fs.promises.mkdir(path.dirname(target), { recursive: true });
       const counter = new Transform({
         transform: (chunk: Buffer, _encoding, callback) => {
-          bytes += chunk.length;
-          if (bytes > entry.size) {
+          // Le morceau refusé n'est pas compté : `bytes` est retiré de
+          // receivedBytes en cas d'échec et doit n'y avoir que ce qui y a été ajouté.
+          if (bytes + chunk.length > entry.size) {
             callback(new HttpError(400, tm("Fichier plus gros qu'annoncé : {path}", { path: key })));
             return;
           }
+          bytes += chunk.length;
           hash.update(chunk);
           t.receivedBytes += chunk.length;
           t.lastActivity = Date.now();
@@ -560,6 +587,14 @@ export class LanShare {
 
       const stagedGame = path.join(t.stagingDir, 'game');
       for (const segments of t.dirs) await fs.promises.mkdir(path.join(stagedGame, ...segments), { recursive: true });
+      // Envoyés par un DLSGM plus ancien depuis un Mac : retirés avant que
+      // le dossier n'apparaisse.
+      for (const key of t.files.keys()) {
+        const segments = key.split('/');
+        if (segments[0] === 'game' && isMacMetadataFile(segments[segments.length - 1])) {
+          await fs.promises.rm(path.join(t.stagingDir, ...segments), { force: true });
+        }
+      }
 
       // Fiche créée avant que le dossier n'apparaisse : un scan qui le
       // verrait ne relancerait pas de fetch DLsite par-dessus. Une fiche déjà
@@ -846,8 +881,9 @@ async function renameWithRetry(from: string, to: string): Promise<void> {
 }
 
 /**
- * Fichiers ordinaires et dossiers d'un jeu, chemins relatifs en '/'. Les
- * liens symboliques sont ignorés : ils pointeraient ailleurs sur l'autre PC.
+ * Fichiers ordinaires et dossiers d'un jeu, chemins relatifs en '/' et en
+ * NFC (voir transferKey). Les liens symboliques sont ignorés : ils
+ * pointeraient ailleurs sur l'autre PC ; les métadonnées du Finder aussi.
  */
 async function collectGameFiles(gameDir: string): Promise<{ files: FileToSend[]; dirs: string[] }> {
   const files: FileToSend[] = [];
@@ -857,11 +893,11 @@ async function collectGameFiles(gameDir: string): Promise<{ files: FileToSend[];
       const abs = path.join(dir, entry.name);
       const entryRel = [...rel, entry.name];
       if (entry.isDirectory()) {
-        dirs.push(entryRel.join('/'));
+        dirs.push(transferKey(entryRel.join('/')));
         await walk(abs, entryRel);
-      } else if (entry.isFile()) {
+      } else if (entry.isFile() && !isMacMetadataFile(entry.name)) {
         const { size } = await fs.promises.stat(abs);
-        files.push({ key: `game/${entryRel.join('/')}`, abs, size });
+        files.push({ key: transferKey(`game/${entryRel.join('/')}`), abs, size });
       }
     }
   };

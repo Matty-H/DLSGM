@@ -993,6 +993,7 @@
     "Envoi annulé.": "Sending cancelled.",
     "Envoi interrompu : {path}": "Transfer interrupted: {path}",
     "Erreur HTTP {status}": "HTTP error {status}",
+    "Erreur interne du receveur.": "Internal error on the receiver.",
     "Espace disque insuffisant sur le receveur ({gb} Go nécessaires).": "Not enough disk space on the receiver ({gb} GB needed).",
     "Extraction impossible (7-Zip, code {code})": "Extraction failed (7-Zip, code {code})",
     "Exécutable de {id}": "Executable for {id}",
