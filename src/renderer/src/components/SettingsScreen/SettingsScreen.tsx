@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Power, Camera, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
+import { Power, Camera, Stethoscope, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
@@ -10,6 +10,7 @@ import IpChecker from '../IpChecker/IpChecker';
 import ArchivePasswords from '../ArchivePasswords/ArchivePasswords';
 import SuperPanicSettings from '../SuperPanicSettings/SuperPanicSettings';
 import LibraryMove from '../LibraryMove/LibraryMove';
+import LibraryHealth from '../LibraryHealth/LibraryHealth';
 import { addExtraFolder } from '../../lib/libraryFolders.js';
 import { DEFAULT_SUPER_PANIC_SETTINGS } from '../../lib/superPanic.js';
 import type { GenreNames, GenreTranslations } from '../../lib/genreNames.js';
@@ -54,6 +55,10 @@ export interface SettingsScreenProps {
   /** Ouverture sur une section (et une collection dépliée) — lien depuis l'accueil. */
   initialSection?: SettingsSection;
   initialCollectionId?: string | null;
+  /** Bilan de santé : ouvrir la page d'un jeu, choisir son exécutable, relire après une correction. */
+  onOpenGame: (gameId: string) => void;
+  onChooseExecutable: (gameId: string) => Promise<void>;
+  onLibraryChanged: () => void;
 }
 
 /** Version installée et vérification manuelle ; les pop-ups (mise à jour disponible, à jour, erreur) viennent de main. */
@@ -178,10 +183,11 @@ function nearestPreset(minutes: number): number {
   , REFRESH_PRESETS[0].value);
 }
 
-export type SettingsSection = 'library' | 'network' | 'display' | 'launch' | 'clicker' | 'collections' | 'genres' | 'storage' | 'updates';
+export type SettingsSection = 'library' | 'health' | 'network' | 'display' | 'launch' | 'clicker' | 'collections' | 'genres' | 'storage' | 'updates';
 
 const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
   { id: 'library', label: msg('Bibliothèque'), Icon: Library },
+  { id: 'health', label: msg('Santé de la bibliothèque'), Icon: Stethoscope },
   { id: 'network', label: msg('Réseau & VPN'), Icon: Globe },
   { id: 'display', label: msg('Affichage'), Icon: Eye },
   { id: 'launch', label: msg('Lancement'), Icon: Gamepad2 },
@@ -241,7 +247,10 @@ export default function SettingsScreen({
   onUpdateGame,
   getWorkImageSrc,
   initialSection = 'library',
-  initialCollectionId
+  initialCollectionId,
+  onOpenGame,
+  onChooseExecutable,
+  onLibraryChanged
 }: SettingsScreenProps) {
   // Sandboxie, Locale Emulator, Textractor, l'OCR et les captures reposent sur des
   // outils/API Windows (PowerShell, LEProc.exe, TextractorCLI.exe, Windows.Media.Ocr) :
@@ -636,6 +645,15 @@ export default function SettingsScreen({
               </div>
             </SettingRow>
           </>
+        )}
+
+        {section === 'health' && (
+          <LibraryHealth
+            nameOf={gameId => (games.find(game => game.id === gameId)?.data.work_name as string | undefined) || gameId}
+            onOpenGame={onOpenGame}
+            onChooseExecutable={onChooseExecutable}
+            onChanged={onLibraryChanged}
+          />
         )}
 
         {section === 'network' && (

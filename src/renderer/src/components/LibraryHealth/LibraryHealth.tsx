@@ -48,7 +48,7 @@ function IssueRow({ label, detail, children }: { label: string; detail?: string 
 }
 
 /**
- * Bilan de santé (onglet Statistiques) : ce qui cloche dans la bibliothèque,
+ * Bilan de santé (Paramètres › Santé de la bibliothèque) : ce qui cloche dans la bibliothèque,
  * chaque problème avec sa correction. Rien n'est corrigé ni supprimé sans clic.
  */
 export default function LibraryHealth({ nameOf, onOpenGame, onChooseExecutable, onChanged }: LibraryHealthProps) {
@@ -117,7 +117,7 @@ export default function LibraryHealth({ nameOf, onOpenGame, onChooseExecutable, 
   const renamable = report ? renamableFolders(report) : [];
 
   return (
-    <div className="panel mb-4 p-5">
+    <div className="py-4">
       <div className="flex items-center gap-3">
         <Stethoscope size={18} strokeWidth={2.25} className="text-accent" />
         <div className="section-title flex-1">{t('Bilan de santé de la bibliothèque')}</div>

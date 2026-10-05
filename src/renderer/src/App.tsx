@@ -174,6 +174,8 @@ export default function App() {
   );
   // Paramètres ouverts sur une collection précise (lien d'une étagère vide de l'accueil).
   const [settingsTarget, setSettingsTarget] = useState<{ section: SettingsSection; collectionId: string | null } | null>(null);
+  // Section des paramètres d'où la page d'un jeu a été ouverte (bilan de santé).
+  const settingsReturnSection = useRef<SettingsSection | null>(null);
 
   const displayedGames = useMemo(() => {
     const filterState = {
@@ -251,6 +253,10 @@ export default function App() {
     const gameId = selectedGameId;
     setSelectedGameId(null);
     if (returnTab) {
+      if (returnTab === 'settings' && settingsReturnSection.current) {
+        setSettingsTarget({ section: settingsReturnSection.current, collectionId: null });
+        settingsReturnSection.current = null;
+      }
       setActiveTab(returnTab);
       return;
     }
@@ -578,8 +584,6 @@ export default function App() {
           onOpenGame={gameId => handleOpenGameFrom('stats', gameId)}
           blurAdultContent={settings?.blurAdultContent ?? true}
           revealedGames={revealedGames}
-          onChooseExecutable={library.chooseExecutable}
-          onLibraryChanged={library.rescan}
         />
       )}
 
@@ -606,6 +610,13 @@ export default function App() {
           getWorkImageSrc={library.getWorkImageSrc}
           initialSection={settingsTarget?.section}
           initialCollectionId={settingsTarget?.collectionId}
+          onOpenGame={gameId => {
+            // Retour sur le bilan de santé à la fermeture de la page du jeu.
+            settingsReturnSection.current = 'health';
+            handleOpenGameFrom('settings', gameId);
+          }}
+          onChooseExecutable={library.chooseExecutable}
+          onLibraryChanged={library.rescan}
         />
 
       )}
