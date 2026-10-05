@@ -1039,6 +1039,8 @@ export interface SaveLocation {
   path: string;
   /** Faux si le dossier attendu n'existe pas (encore) — ex: jeu jamais lancé. */
   exists: boolean;
+  /** Clé du registre (Windows, PlayerPrefs de Unity) : `path` est alors la clé `HKCU\Software\…`. */
+  registry?: boolean;
 }
 
 export interface InstalledPatch {

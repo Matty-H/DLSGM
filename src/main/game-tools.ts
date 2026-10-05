@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { extractZip } from './zip-extract';
 import type { EngineInfo, GameEngine, InstalledPatch, SaveLocation } from '../shared/ipc-types';
 import { tm } from './i18n';
+import { registryKeyExists, unityRegistryKey } from './registry-saves';
 
 /**
  * Outils par jeu : détection du moteur, emplacements de sauvegarde, et
@@ -243,12 +244,17 @@ export function findSaveLocations(root: string, exePath: string | null, info: En
   const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
   const localLow = path.join(home, 'AppData', 'LocalLow');
   const exeBase = exePath ? path.basename(exePath, path.extname(exePath)) : null;
-  const candidates: { label: string; path: string; fileFilter?: RegExp }[] = [];
+  const candidates: { label: string; path: string; fileFilter?: RegExp; registry?: boolean }[] = [];
 
   switch (info.engine) {
     case 'unity':
       if (info.unityCompany && info.unityProduct) {
         candidates.push({ label: 'Unity (LocalLow)', path: path.join(localLow, info.unityCompany, info.unityProduct) });
+      }
+      // PlayerPrefs : certains jeux y gardent toute leur progression (voir registry-saves.ts).
+      if (process.platform === 'win32') {
+        const key = unityRegistryKey(info.unityCompany, info.unityProduct);
+        if (key) candidates.push({ label: 'Unity (registry)', path: key, registry: true });
       }
       break;
     case 'rpgmaker-mv':
@@ -305,7 +311,7 @@ export function findSaveLocations(root: string, exePath: string | null, info: En
       break;
   }
 
-  return candidates.map(c => ({ ...c, exists: isDir(c.path) }));
+  return candidates.map(c => ({ ...c, exists: c.registry ? registryKeyExists(c.path) : isDir(c.path) }));
 }
 
 // --- Patchs réversibles ---------------------------------------------------

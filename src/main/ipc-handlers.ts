@@ -370,7 +370,10 @@ async function getGameToolsInfo(gameId: string): Promise<Omit<GameToolsInfo, 'sa
   const exePath = await resolveExecutable(gameId, gamePath);
   const installRootAbs = exePath ? path.dirname(exePath) : gamePath;
   const engine = detectEngine(installRootAbs, exePath);
-  const saveLocations = findSaveLocations(installRootAbs, exePath, engine);
+  const entry = await cacheStore.get(gameId) as GameMetadata | undefined;
+  const sandboxed = process.platform === 'win32' && (await getSettings()).sandboxLaunch && !entry?.sandboxDisabled;
+  // En sandbox, le jeu écrit dans le registre de sa sandbox : la vraie clé serait vide ou périmée.
+  const saveLocations = findSaveLocations(installRootAbs, exePath, engine).filter(location => !(sandboxed && location.registry));
   return {
     gamePath,
     installRootAbs,
@@ -399,7 +402,7 @@ async function getGameSandboxInfo(gameId: string): Promise<GameToolsInfo['sandbo
  * que les dossiers réels, vides ou périmés.
  */
 async function sandboxedSaveLocations(gameId: string, gamePath: string, locations: SaveSource[]): Promise<SaveSource[]> {
-  const outside = locations.filter(l => !isInside(gamePath, l.path));
+  const outside = locations.filter(l => !l.registry && !isInside(gamePath, l.path));
   if (outside.length === 0 || process.platform !== 'win32') return [];
   const settings = await getSettings();
   const entry = await cacheStore.get(gameId) as GameMetadata | undefined;
@@ -2030,7 +2033,7 @@ export function setupIpcHandlers(
   handle('open-save-location', async (event: IpcMainInvokeEvent, gameId: string, index: number) => {
     const { saveLocations } = await getGameToolsInfo(gameId);
     const location = saveLocations[index];
-    if (!location || !fs.existsSync(location.path)) return false;
+    if (!location || location.registry || !fs.existsSync(location.path)) return false;
     return (await shell.openPath(location.path)) === '';
   });
 

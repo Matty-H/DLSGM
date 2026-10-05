@@ -34,7 +34,8 @@ const SAVE_LOCATION_LABELS: Record<string, string> = {
   'Saves (game)': msg('Sauvegardes (jeu)'),
   'Game folder (SaveNN)': msg('Dossier du jeu (SaveNN)'),
   'Godot (Roaming, dedicated folder)': msg('Godot (Roaming, dossier dédié)'),
-  'Unreal (game)': msg('Unreal (jeu)')
+  'Unreal (game)': msg('Unreal (jeu)'),
+  'Unity (registry)': msg('Unity (registre)')
 };
 
 /** Libellé affiché d'un emplacement de sauvegarde (« … (sandbox) » compris). */

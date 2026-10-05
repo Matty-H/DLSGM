@@ -148,7 +148,7 @@ export default function GameToolsSection({
                 {saveLocationLabel(location.label)}
                 {!location.exists && <span className="text-text-secondary"> {t('(pas encore créé)')}</span>}
               </span>
-              {location.exists && (
+              {location.exists && !location.registry && (
                 <button type="button" onClick={() => openSaveLocation(gameId, index)} className="btn btn-ghost flex-shrink-0 px-2 py-1 text-[13px]">
                   {t('Ouvrir')}
                 </button>

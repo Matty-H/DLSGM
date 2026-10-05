@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import type { SaveBackup, SaveRestoreResult } from '../shared/ipc-types';
 import type { SaveSource } from './game-tools';
 import { tm } from './i18n';
+import { REGISTRY_FILE, exportRegistryKey, fingerprintRegFile, importRegistryKey } from './registry-saves';
 
 /**
  * Copies des sauvegardes des jeux, dans `userData/save_backups/<ID>/<copie>/`
@@ -118,15 +119,21 @@ export async function createSaveBackup(
   reason: SaveBackup['reason'],
   { prune = true }: { prune?: boolean } = {}
 ): Promise<SaveBackup | null> {
-  const collected: { source: SaveSource; files: SourceFile[] }[] = [];
+  // `registry` : export de la clé (emplacement du registre, voir registry-saves.ts).
+  const collected: { source: SaveSource; files: SourceFile[]; registry?: Buffer }[] = [];
   for (const source of sources) {
+    if (source.registry) {
+      const exported = await exportRegistrySource(source.path);
+      if (exported) collected.push({ source, files: [], registry: exported });
+      continue;
+    }
     if (!(await isDirectory(source.path))) continue;
     const files = await listSourceFiles(source);
     if (files.length > 0) collected.push({ source, files });
   }
   if (collected.length === 0) return null;
 
-  const totalBytes = collected.reduce((sum, c) => sum + c.files.reduce((s, f) => s + f.size, 0), 0);
+  const totalBytes = collected.reduce((sum, c) => sum + (c.registry?.length ?? 0) + c.files.reduce((s, f) => s + f.size, 0), 0);
   if (totalBytes > MAX_BACKUP_BYTES) {
     throw new Error(
       tm("Sauvegardes trop volumineuses pour être copiées ({mb} Mo, max {max} Mo) : l'emplacement détecté contient sans doute autre chose que des sauvegardes.", { mb: Math.round(totalBytes / 1024 / 1024), max: MAX_BACKUP_BYTES / 1024 / 1024 })
@@ -135,7 +142,7 @@ export async function createSaveBackup(
 
   const fingerprint = crypto
     .createHash('sha256')
-    .update(JSON.stringify(collected.map(c => [c.source.label, c.files.map(f => [f.rel, f.size, f.mtimeMs])])))
+    .update(JSON.stringify(collected.map(c => [c.source.label, c.registry ? fingerprintRegFile(c.registry) : c.files.map(f => [f.rel, f.size, f.mtimeMs])])))
     .digest('hex');
   const existing = await readManifests(gameId);
   if (reason === 'auto' && existing[0]?.fingerprint === fingerprint) return null;
@@ -152,7 +159,7 @@ export async function createSaveBackup(
     createdAt: now.toISOString(),
     reason,
     locations: collected.map(c => c.source.label),
-    fileCount: collected.reduce((sum, c) => sum + c.files.length, 0),
+    fileCount: collected.reduce((sum, c) => sum + c.files.length + (c.registry ? 1 : 0), 0),
     totalBytes,
     folders: collected.map((c, i) => ({ label: c.source.label, folder: String(i) })),
     fingerprint
@@ -160,7 +167,11 @@ export async function createSaveBackup(
 
   try {
     await fs.promises.rm(tempDir, { recursive: true, force: true });
-    for (const [i, { source, files }] of collected.entries()) {
+    for (const [i, { source, files, registry }] of collected.entries()) {
+      if (registry) {
+        await fs.promises.mkdir(path.join(tempDir, String(i)), { recursive: true });
+        await fs.promises.writeFile(path.join(tempDir, String(i), REGISTRY_FILE), registry);
+      }
       for (const file of files) {
         const destination = path.join(tempDir, String(i), file.rel);
         await fs.promises.mkdir(path.dirname(destination), { recursive: true });
@@ -205,7 +216,7 @@ export async function restoreSaveBackup(gameId: string, backupId: string, source
   // L'état actuel d'abord : si la copie ne peut pas être faite, on ne
   // restaure pas (on écraserait des sauvegardes sans retour possible).
   // Pas de nettoyage avant la fin : il pourrait supprimer la copie restaurée.
-  await createSaveBackup(gameId, sources, 'pre-restore', { prune: false });
+  const before = await createSaveBackup(gameId, sources, 'pre-restore', { prune: false });
 
   const skipped: string[] = [];
   for (const { label, folder } of manifest.folders) {
@@ -216,6 +227,10 @@ export async function restoreSaveBackup(gameId: string, backupId: string, source
       continue;
     }
     const from = path.join(backupDir, folder);
+    if (target.registry) {
+      await restoreRegistry(gameId, target, path.join(from, REGISTRY_FILE), before);
+      continue;
+    }
     await fs.promises.mkdir(target.path, { recursive: true });
     for (const entry of await fs.promises.readdir(target.path, { withFileTypes: true })) {
       if (target.fileFilter ? entry.isFile() && target.fileFilter.test(entry.name) : true) {
@@ -226,6 +241,32 @@ export async function restoreSaveBackup(gameId: string, backupId: string, source
   }
   await pruneAutomaticBackups(gameId);
   return { skipped };
+}
+
+/** Exporte une clé du registre (fichier temporaire, relu puis supprimé) ; null si elle n'existe pas. */
+async function exportRegistrySource(key: string): Promise<Buffer | null> {
+  const file = path.join(app.getPath('temp'), `dlsgm-registry-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.reg`);
+  try {
+    return (await exportRegistryKey(key, file)) ? await fs.promises.readFile(file) : null;
+  } finally {
+    await fs.promises.rm(file, { force: true });
+  }
+}
+
+/**
+ * Restaure la clé depuis la copie. Si l'import échoue après la suppression de
+ * la clé, l'état d'avant (copie « pre-restore ») est réimporté.
+ */
+async function restoreRegistry(gameId: string, target: SaveSource, file: string, before: SaveBackup | null): Promise<void> {
+  try {
+    await importRegistryKey(target.path, file);
+  } catch (error) {
+    const previous = before ? (await readManifest(path.join(backupsDir(gameId), before.id)))?.folders.find(f => f.label === target.label) : undefined;
+    if (before && previous) {
+      await importRegistryKey(target.path, path.join(backupsDir(gameId), before.id, previous.folder, REGISTRY_FILE)).catch(() => undefined);
+    }
+    throw error;
+  }
 }
 
 export async function deleteSaveBackup(gameId: string, backupId: string): Promise<boolean> {
