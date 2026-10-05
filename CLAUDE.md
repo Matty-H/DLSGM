@@ -141,6 +141,8 @@ npm run screenshots          # README screenshots (docs/screenshots), one theme 
 npm run screenshots:gif      # README navigation GIF (docs/screenshots/navigation.gif), needs ffmpeg (PATH or FFMPEG)
 ```
 
+Real tests across two machines (e.g. LAN sharing Windows ↔ macOS) go through the `lan-peer` project skill (`.claude/skills/lan-peer/`): a message relay between two Claude Code sessions plus scripts running the real `LanShare` code without the UI. `.claude/skills/` is tracked by git; the rest of `.claude/` (local settings, the session token) is not.
+
 There is no lint command. Unit tests live in `tests/` (`tests/main` for main-process modules, `tests/renderer` for `src/renderer/src/lib`), run with vitest in Node — no test launches Electron: modules that import `electron` get a `vi.mock('electron', ...)` returning just what they use (typically `app.getPath` pointing at a temp dir). Pure helpers are exported from their module for testing (e.g. `parseWorkHtml`, `sanitizeMetadata`). `tests/helpers.ts` has temp-dir helpers and `makeZip` (hand-built zips, e.g. Shift-JIS names or `../` paths). A `.githooks/pre-commit` hook (enabled by `npm install` via the `prepare` script, `core.hooksPath`) runs `npm run check`; CI runs the same `test` job before the builds. Add a test with every behavior change, especially for the invariants below. Type-check/compile main+preload with `npx tsc -p tsconfig.main.json` (this one emits — `npm run typecheck` uses `--noEmit`).
 
 

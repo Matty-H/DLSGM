@@ -5,7 +5,9 @@ renderer/data_base
 renderer/img_cache
 TODO
 .DS_Store
-.claude/
+.claude/*
+!.claude/skills/
+.claude/lan-peer-session.json
 
 FEATURES-PROPOSEES.md
 ignore-stuff/
