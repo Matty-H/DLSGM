@@ -8,6 +8,8 @@ import PiaSettings from '../PiaSettings/PiaSettings';
 import WipBadge from '../WipBadge/WipBadge';
 import IpChecker from '../IpChecker/IpChecker';
 import ArchivePasswords from '../ArchivePasswords/ArchivePasswords';
+import SuperPanicSettings from '../SuperPanicSettings/SuperPanicSettings';
+import { DEFAULT_SUPER_PANIC_SETTINGS } from '../../lib/superPanic.js';
 import type { GenreNames, GenreTranslations } from '../../lib/genreNames.js';
 import { getSandboxieStatus, type SandboxieStatus } from '../../lib/gameTools.js';
 import type { AppSettings } from '../../hooks/useSettings';
@@ -269,6 +271,7 @@ export default function SettingsScreen({
   const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
   const [closeToTray, setCloseToTray] = useState(settings.closeToTray);
+  const [superPanic, setSuperPanic] = useState(settings.superPanic ?? DEFAULT_SUPER_PANIC_SETTINGS);
   const [checkUpdatesOnStartup, setCheckUpdatesOnStartup] = useState(settings.checkUpdatesOnStartup !== false);
   const [piaRetry, setPiaRetry] = useState(settings.piaRetry);
   const [piaRegion, setPiaRegion] = useState(settings.piaRegion);
@@ -311,6 +314,7 @@ export default function SettingsScreen({
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
+    setSuperPanic(settings.superPanic ?? DEFAULT_SUPER_PANIC_SETTINGS);
     setCheckUpdatesOnStartup(settings.checkUpdatesOnStartup !== false);
     setPiaRetry(settings.piaRetry);
     setPiaRegion(settings.piaRegion);
@@ -384,6 +388,7 @@ export default function SettingsScreen({
     proxyDirty ||
     autoBackupSaves !== settings.autoBackupSaves ||
     closeToTray !== settings.closeToTray ||
+    JSON.stringify(superPanic) !== JSON.stringify(settings.superPanic ?? DEFAULT_SUPER_PANIC_SETTINGS) ||
     checkUpdatesOnStartup !== (settings.checkUpdatesOnStartup !== false) ||
     piaRetry !== settings.piaRetry ||
     piaRegion !== settings.piaRegion ||
@@ -437,6 +442,7 @@ export default function SettingsScreen({
       overlayEnabled,
       autoBackupSaves,
       closeToTray,
+      superPanic,
       checkUpdatesOnStartup,
       piaRetry,
       piaRegion,
@@ -705,6 +711,13 @@ export default function SettingsScreen({
                 onChange={e => setCloseToTray(e.target.checked)}
               />
             </SettingRow>
+            {(isWindows || window.electronAPI.platform === 'darwin') && (
+              <SuperPanicSettings
+                value={superPanic}
+                onChange={setSuperPanic}
+                takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey, macroRecorder.recordHotkey, macroRecorder.playHotkey, ocrTranslate.hotkey, screenshot.hotkey]}
+              />
+            )}
           </>
         )}
 

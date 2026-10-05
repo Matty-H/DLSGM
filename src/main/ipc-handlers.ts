@@ -16,6 +16,7 @@ import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup 
 import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
 import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { detectPlatforms } from './game-platforms';
+import { DEFAULT_SUPER_PANIC, SuperPanic, sanitizeSuperPanicSettings } from './super-panic';
 import { readInstallInfo } from './release-names';
 import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
@@ -99,6 +100,7 @@ const settingsStore = new Store('settings.db', {
   ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'dictionary', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
   localeEmulatorPath: '',
   screenshot: { enabled: true, hotkey: 'Ctrl+F8' },
+  superPanic: DEFAULT_SUPER_PANIC,
   checkUpdatesOnStartup: true,
   uiLanguage: 'system',
   theme: DEFAULT_THEME,
@@ -494,6 +496,32 @@ let gameWindow: GameWindowTracker | null = null;
 let clickerHud: ClickerHud | null = null;
 // Mode panique (Alt+Espace, bascule) : le témoin se cache avec l'application.
 let panicActive = false;
+
+// Super bouton panique (raccourci global distinct d'Alt+Espace).
+let superPanic: SuperPanic | null = null;
+let superPanicHotkey: string | null = null;
+let superPanicMinimizedApp = false;
+
+/** Raccourci pris tant que l'option est active, partie en cours ou non. */
+export async function applySuperPanicSettings(): Promise<void> {
+  const config = sanitizeSuperPanicSettings((await getSettings()).superPanic);
+  superPanic?.configure(config);
+  const wanted = config.enabled && superPanic ? config.hotkey : null;
+  if (superPanicHotkey && superPanicHotkey !== wanted) {
+    globalShortcut.unregister(superPanicHotkey);
+    superPanicHotkey = null;
+  }
+  if (!wanted || superPanicHotkey) return;
+  // Jamais le raccourci d'un outil en jeu (enregistré pendant une partie).
+  const tools = [clickerConfig.hotkey, ...(macroHotkeys ?? []), screenshotConfig.hotkey, ocrConfig.hotkey].map(k => k?.toLowerCase());
+  if (tools.includes(wanted.toLowerCase())) return;
+  try {
+    // Raccourci global : rien d'attendu avant l'effet (voir AutoClicker.start).
+    if (globalShortcut.register(wanted, () => superPanic?.toggle())) superPanicHotkey = wanted;
+  } catch {
+    // accélérateur invalide
+  }
+}
 // Prévient la fenêtre principale d'un changement de paramètres fait ailleurs (témoin).
 let notifySettingsChanged: (() => void) | null = null;
 // Raccourci marche / arrêt de l'auto-clicker actuellement enregistré.
@@ -1091,11 +1119,18 @@ async function toggleAutoClicker(requestedAt = Date.now()): Promise<AutoClickerS
 }
 
 /** Alt+Espace : arrête les clics et bascule le mode panique (le témoin suit). */
-export function togglePanic(): void {
+/** Alt+Espace : bascule le mode panique ; renvoie le nouvel état. */
+export function togglePanic(): boolean {
+  setPanic(!panicActive);
+  return panicActive;
+}
+
+/** Mode panique fixé (Alt+Espace, super bouton panique) : outils en jeu arrêtés et masqués. */
+function setPanic(active: boolean): void {
   autoClicker?.stop();
   pixelTrigger?.stop();
   macroRecorder?.stop(true);
-  panicActive = !panicActive;
+  panicActive = active;
   refreshAutoClicker();
   refreshPixelTrigger();
   refreshMacroRecorder();
@@ -1105,6 +1140,9 @@ export function togglePanic(): void {
 
 /** Fermeture de la fenêtre principale ou de l'application. */
 export function shutdownInGameTools(): void {
+  // Fenêtres encore réduites par le super bouton panique : restaurées avant de partir.
+  if (superPanic?.active) superPanic.toggle();
+  superPanic?.dispose();
   autoClicker?.dispose();
   pixelTrigger?.dispose();
   macroRecorder?.dispose();
@@ -1280,6 +1318,33 @@ export function setupIpcHandlers(
     overlay?.send('captures-changed', gameId);
   };
   applyScreenshotSettings().catch(error => console.error('Captures au démarrage :', error));
+
+  superPanic = new SuperPanic(app.getPath('userData'), {
+    setPanic: active => {
+      setPanic(active);
+      getWindow()?.webContents.send('panic-button-triggered', active);
+    },
+    hideApp: () => {
+      overlay?.hide();
+      const window = getWindow();
+      if (process.platform === 'darwin') app.hide();
+      else if (window && !window.isDestroyed() && window.isVisible() && !window.isMinimized()) {
+        window.minimize();
+        superPanicMinimizedApp = true;
+      }
+    },
+    showApp: () => {
+      if (process.platform === 'darwin') app.show();
+      // Fenêtre de DLSGM réduite par le super bouton : rendue (le worker ne touche pas à DLSGM).
+      else if (superPanicMinimizedApp) getWindow()?.restore();
+      superPanicMinimizedApp = false;
+    },
+    openTarget: target => {
+      if (target.kind === 'url') shell.openExternal(target.value).catch(error => console.error('Super panique :', error));
+      else shell.openPath(target.value).then(error => error && console.error('Super panique :', error));
+    }
+  });
+  applySuperPanicSettings().catch(error => console.error('Super panique au démarrage :', error));
   // Overlay : il se cache d'abord (sinon il serait sur la capture), comme pour l'OCR.
   ipcMain.handle('take-screenshot', async () => {
     if (overlay?.isVisible()) {
@@ -1614,6 +1679,7 @@ export function setupIpcHandlers(
     await applyMacroSettings();
     await applyOcrSettings();
     await applyScreenshotSettings();
+    await applySuperPanicSettings();
     await overlay?.refreshHotkey();
     onSettingsSaved?.(newSettings);
     return true;
@@ -1682,6 +1748,12 @@ export function setupIpcHandlers(
       result[gameId] = await detectPlatforms(path.join(destinationFolder, gameId));
     }
     return result;
+  });
+
+  // Fenêtre de travail du super bouton panique : un fichier ou une application choisis par l'utilisateur.
+  ipcMain.handle('choose-super-panic-target', async () => {
+    const result = await showOpenDialog({ properties: ['openFile'] });
+    return !result.canceled && result.filePaths.length > 0 ? result.filePaths[0] : null;
   });
 
   // --- Opérations Système ---

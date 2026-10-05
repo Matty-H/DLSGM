@@ -200,9 +200,9 @@ app.whenReady().then(async () => {
 
   // Enregistrement du raccourci Panic Button (Alt+Space)
   globalShortcut.register('Alt+Space', () => {
-    togglePanic();
+    const active = togglePanic();
     if (mainWindow) {
-      mainWindow.webContents.send('panic-button-triggered');
+      mainWindow.webContents.send('panic-button-triggered', active);
     }
   });
 

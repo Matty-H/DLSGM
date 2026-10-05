@@ -83,6 +83,8 @@ export interface AppSettings {
   localeEmulatorPath: string;
   /** Captures d'écran du jeu (raccourci pendant une partie, overlay). */
   screenshot: ScreenshotSettings;
+  /** Super bouton panique (Paramètres › Affichage). */
+  superPanic: SuperPanicSettings;
   /** Chercher une nouvelle version au démarrage (Paramètres › Mises à jour). */
   checkUpdatesOnStartup: boolean;
   /**
@@ -126,6 +128,17 @@ export type UpdateCheckResult =
   | { status: 'up-to-date' | 'available'; version: string }
   | { status: 'error'; message: string }
   | { status: 'busy' };
+
+/** Super bouton panique (src/main/super-panic.ts). */
+export interface SuperPanicSettings {
+  enabled: boolean;
+  /** Raccourci global, jamais Alt+Espace (panique simple) ni Maj+Tab. */
+  hotkey: string;
+  /** Fenêtre de travail ouverte : adresse web, chemin d'une appli ou d'un document ; vide = rien. */
+  target: string;
+  /** Coupe le son de l'ordinateur (rétabli au second appui, s'il n'était pas déjà coupé). */
+  mute: boolean;
+}
 
 export interface ScreenshotSettings {
   enabled: boolean;
@@ -982,6 +995,8 @@ export interface ElectronAPI {
   listGameFolders(folderPath: string): Promise<string[] | null>;
   /** Plateformes dont une version est présente dans le dossier de chaque jeu (fichiers .exe, .app/.dmg, .apk). */
   detectGamePlatforms(gameIds: string[]): Promise<Record<string, OsPlatform[]>>;
+  /** Sélecteur de fichier pour la fenêtre de travail du super bouton panique (null : annulé). */
+  chooseSuperPanicTarget(): Promise<string | null>;
   openGameFolder(gameId: string): Promise<boolean>;
   openExternal(url: string): Promise<boolean>;
   launchGame(gameId: string): Promise<LaunchGameResult>;
@@ -1204,7 +1219,8 @@ export interface ElectronAPI {
   onUpdateDownloadProgress(callback: (progress: UpdateDownloadProgress | null) => void): () => void;
 
   // Événements (du Main vers le Renderer)
-  onPanicTriggered(callback: () => void): void;
+  /** Mode panique basculé (Alt+Espace) ou fixé (`active`, super bouton panique). */
+  onPanicTriggered(callback: (active?: boolean) => void): void;
   /** Progression des envois et réceptions ; renvoie la fonction de désabonnement. */
   onLanTransferProgress(callback: (progress: LanTransferProgress) => void): () => void;
   /** Changements d'état de la réception non demandés par le renderer (arrêt automatique). */

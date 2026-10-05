@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadSettings, saveSettings as persistSettings } from '../lib/settings.js';
 import type { CustomTheme } from '../../../shared/themes';
-import type { AutoClickerSettings, GameCollection, HomeShelfPrefs, MacroRecorderSettings, OcrTranslateSettings, PixelTriggerSettings, ScreenshotSettings } from '../../../shared/ipc-types';
+import type { SuperPanicSettings, AutoClickerSettings, GameCollection, HomeShelfPrefs, MacroRecorderSettings, OcrTranslateSettings, PixelTriggerSettings, ScreenshotSettings } from '../../../shared/ipc-types';
 
 export interface AppSettings {
   destinationFolder: string;
@@ -31,6 +31,7 @@ export interface AppSettings {
   ocrTranslate: OcrTranslateSettings;
   localeEmulatorPath: string;
   screenshot: ScreenshotSettings;
+  superPanic: SuperPanicSettings;
   checkUpdatesOnStartup: boolean;
   /** `system` ou le code d'une langue (lib/i18n.ts). */
   uiLanguage: string;

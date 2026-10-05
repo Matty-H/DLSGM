@@ -29,6 +29,7 @@ const electronAPI: ElectronAPI = {
   // Opérations système
   listGameFolders: (folderPath) => ipcRenderer.invoke('list-game-folders', folderPath),
   detectGamePlatforms: (gameIds) => ipcRenderer.invoke('detect-game-platforms', gameIds),
+  chooseSuperPanicTarget: () => ipcRenderer.invoke('choose-super-panic-target'),
   openGameFolder: (gameId) => ipcRenderer.invoke('open-game-folder', gameId),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   launchGame: (gameId) => ipcRenderer.invoke('launch-game', gameId),
@@ -284,7 +285,7 @@ const electronAPI: ElectronAPI = {
     };
   },
 
-  onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', () => callback()),
+  onPanicTriggered: (callback) => ipcRenderer.on('panic-button-triggered', (_event, active?: boolean) => callback(active)),
   onLanTransferProgress: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, progress: LanTransferProgress) => callback(progress);
     ipcRenderer.on('lan-transfer-progress', listener);

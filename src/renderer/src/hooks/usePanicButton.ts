@@ -10,8 +10,9 @@ export function usePanicButton() {
 
   useEffect(() => {
     if (!window.electronAPI?.onPanicTriggered) return;
-    window.electronAPI.onPanicTriggered(() => {
-      setPanicActive(prev => !prev);
+    window.electronAPI.onPanicTriggered(active => {
+      // État fixé par main (super bouton panique), sinon bascule (Alt+Espace).
+      setPanicActive(prev => (typeof active === 'boolean' ? active : !prev));
     });
   }, []);
 
