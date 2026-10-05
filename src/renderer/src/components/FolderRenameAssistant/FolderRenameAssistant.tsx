@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CircleCheck, FolderPen, TriangleAlert, X } from 'lucide-react';
 import type { FolderRenameResult, MisnamedFolder } from '../../../../shared/ipc-types';
 import { releaseLabel } from '../../lib/releaseInfo.js';
+import { misnamedPath } from '../../lib/libraryFolders.js';
 import { t } from '../../lib/i18n.js';
 
 export interface FolderRenameAssistantProps {
@@ -27,7 +28,7 @@ export default function FolderRenameAssistant({ folders, results, busy, onRename
 
   // Nouvelle liste (après un scan ou un renommage) : tout ce qui est renommable est coché.
   useEffect(() => {
-    setSelected(new Set(folders.filter(f => !f.conflict).map(f => f.folder)));
+    setSelected(new Set(folders.filter(f => !f.conflict).map(misnamedPath)));
   }, [folders]);
 
   if (folders.length === 0 && !results) return null;
@@ -64,15 +65,15 @@ export default function FolderRenameAssistant({ folders, results, busy, onRename
       {folders.length > 0 && (
         <ul className="m-0 flex max-h-[220px] list-none flex-col gap-1 overflow-y-auto p-0 pl-7">
           {folders.map(folder => (
-            <li key={folder.folder}>
+            <li key={misnamedPath(folder)}>
               <label className={`flex items-center gap-2 ${folder.conflict ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
                   disabled={Boolean(folder.conflict) || busy}
-                  checked={selected.has(folder.folder)}
-                  onChange={() => toggle(folder.folder)}
+                  checked={selected.has(misnamedPath(folder))}
+                  onChange={() => toggle(misnamedPath(folder))}
                 />
-                <span className="min-w-0 truncate" title={folder.folder}>{folder.folder}</span>
+                <span className="min-w-0 truncate" title={misnamedPath(folder)}>{folder.folder}</span>
                 <span className="flex-shrink-0 text-text-secondary">→</span>
                 <span className="flex-shrink-0 font-mono font-semibold">{folder.gameId}</span>
                 {releaseLabel(folder) && <span className="flex-shrink-0 text-text-secondary">({releaseLabel(folder)})</span>}

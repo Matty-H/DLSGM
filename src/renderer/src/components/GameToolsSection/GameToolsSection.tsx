@@ -3,6 +3,7 @@ import Select from '../Select/Select';
 import SaveBackups from '../SaveBackups/SaveBackups';
 import TextTools from './TextTools';
 import RpgSaveEditor from './RpgSaveEditor';
+import GameLocation from './GameLocation';
 import {
   TRANSLATION_LANGUAGES,
   saveLocationLabel,
@@ -67,6 +68,8 @@ export default function GameToolsSection({
   const [language, setLanguage] = useState('en');
   // Sauvegarde modifiée par l'éditeur : la liste des copies (nouvelle copie « Avant modification ») est à relire.
   const [savesVersion, setSavesVersion] = useState(0);
+  // Jeu déplacé vers un autre dossier de bibliothèque : chemins (sauvegardes, patchs) à relire.
+  const [locationVersion, setLocationVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +81,7 @@ export default function GameToolsSection({
     return () => {
       cancelled = true;
     };
-  }, [gameId, executablePath, lastPlayed]);
+  }, [gameId, executablePath, lastPlayed, locationVersion]);
 
   const run = async (label: string, action: () => Promise<GameToolsInfo | null>) => {
     setBusy(label);
@@ -133,6 +136,8 @@ export default function GameToolsSection({
           )}
         </div>
       )}
+
+      <GameLocation gameId={gameId} onMoved={() => setLocationVersion(v => v + 1)} />
 
       {info && info.saveLocations.length > 0 && (
         <div>

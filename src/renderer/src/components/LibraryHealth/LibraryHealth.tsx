@@ -5,6 +5,7 @@ import { fetchGameMetadata, retryMissingImages } from '../../lib/dataFetcher.js'
 import { updateCacheEntry } from '../../lib/cacheManager.js';
 import { addToWishlist, describeAddResult } from '../../lib/wishlist.js';
 import { ipcErrorMessage, uninstallLastPatch } from '../../lib/gameTools.js';
+import { misnamedPath } from '../../lib/libraryFolders.js';
 import { t } from '../../lib/i18n.js';
 
 export interface LibraryHealthProps {
@@ -199,10 +200,30 @@ export default function LibraryHealth({ nameOf, onOpenGame, onChooseExecutable, 
           >
             {report.misnamed.map(folder => (
               <IssueRow
-                key={folder.folder}
-                label={`${folder.folder} → ${folder.gameId}`}
+                key={misnamedPath(folder)}
+                label={`${misnamedPath(folder)} → ${folder.gameId}`}
                 detail={folder.conflict === 'exists' ? t('un dossier porte déjà cet ID') : folder.conflict === 'duplicate' ? t('plusieurs dossiers pour cet ID') : null}
               />
+            ))}
+          </IssueGroup>
+
+          <IssueGroup title={t('Dossiers de bibliothèque introuvables')} count={report.missingRoots.length}>
+            <li className="text-[12px] text-text-secondary">
+              {t('Disque débranché ou dossier renommé : ses jeux sont cachés (et listés plus bas comme disparus) jusqu’à son retour.')}
+            </li>
+            {report.missingRoots.map(root => (
+              <IssueRow key={root} label={root} />
+            ))}
+          </IssueGroup>
+
+          <IssueGroup title={t('Jeux présents dans plusieurs dossiers')} count={report.duplicates.length}>
+            <li className="text-[12px] text-text-secondary">
+              {t('Seule la copie du premier dossier est utilisée ; supprime ou déplace l’autre à la main.')}
+            </li>
+            {report.duplicates.map(issue => (
+              <IssueRow key={issue.gameId} label={`${issue.gameId} · ${nameOf(issue.gameId)}`} detail={issue.roots.join(' · ')}>
+                {button(`open:${issue.gameId}`, t('Ouvrir'), () => onOpenGame(issue.gameId))}
+              </IssueRow>
             ))}
           </IssueGroup>
 

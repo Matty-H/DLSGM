@@ -37,6 +37,8 @@ interface StoredItem {
 export interface WishlistDeps {
   store: Store;
   getDestinationFolder: () => Promise<string>;
+  /** Jeu présent dans un des dossiers de bibliothèque (absent : seul le dossier principal compte). */
+  isInLibrary?: (gameId: string) => Promise<boolean>;
   fetchMetadata: (gameId: string) => Promise<GameMetadata>;
   /** Télécharge `url` vers `outputPath` (fichier complet ou rien). */
   downloadImage: (url: string, outputPath: string) => Promise<void>;
@@ -64,6 +66,7 @@ export class Wishlist {
   }
 
   private async isInLibrary(gameId: string): Promise<boolean> {
+    if (this.deps.isInLibrary) return this.deps.isInLibrary(gameId);
     const folder = await this.deps.getDestinationFolder();
     return Boolean(folder) && fs.existsSync(path.join(folder, gameId));
   }

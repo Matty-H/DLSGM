@@ -3,6 +3,7 @@ import path from 'path';
 import { findExe, findMacApp } from './executables';
 import { findMisnamedFolders } from './folder-rename';
 import { readPatches } from './game-tools';
+import { scanLibraryRoots } from './library-folders';
 import type { GameMetadata, LibraryHealthReport } from '../shared/ipc-types';
 
 /**
@@ -23,7 +24,8 @@ const MANUAL_IMAGE = 'manual';
 export const GAME_CATEGORIES = new Set(['ACN', 'ADV', 'QIZ', 'DNV', 'ETC', 'PZL', 'RPG', 'STG', 'SLN', 'TBL', 'TYP']);
 
 export interface LibraryHealthInput {
-  libraryDir: string;
+  /** Dossiers de bibliothèque, principal d'abord (voir library-folders.ts). */
+  libraryRoots: string[];
   cache: Record<string, GameMetadata>;
   imgCacheDir: string;
   platform: NodeJS.Platform;
@@ -41,17 +43,6 @@ function exists(p: string): boolean {
 function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
-/** Dossiers de jeux présents (nommés exactement d'après un ID). */
-function listGameFolders(libraryDir: string): string[] {
-  try {
-    return fs.readdirSync(libraryDir, { withFileTypes: true })
-      .filter(e => e.isDirectory() && GAME_ID_REGEX.test(e.name))
-      .map(e => e.name);
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -88,8 +79,9 @@ function missingImages(gameImgDir: string, entry: GameMetadata): { cover: boolea
   return { cover, samples };
 }
 
-export function checkLibraryHealth({ libraryDir, cache, imgCacheDir, platform }: LibraryHealthInput): LibraryHealthReport {
-  const folders = listGameFolders(libraryDir);
+export function checkLibraryHealth({ libraryRoots, cache, imgCacheDir, platform }: LibraryHealthInput): LibraryHealthReport {
+  const scan = scanLibraryRoots(libraryRoots);
+  const folders = [...scan.games.keys()];
   const present = new Set(folders);
   const report: LibraryHealthReport = {
     checkedAt: new Date().toISOString(),
@@ -99,11 +91,13 @@ export function checkLibraryHealth({ libraryDir, cache, imgCacheDir, platform }:
     missingImages: [],
     misnamed: [],
     orphans: [],
+    duplicates: scan.duplicates,
+    missingRoots: scan.missingRoots,
     brokenPatches: []
   };
 
   for (const gameId of folders.sort()) {
-    const gameDir = path.join(libraryDir, gameId);
+    const gameDir = path.join(scan.games.get(gameId)!, gameId);
     const entry = cache[gameId];
     if (!entry) continue; // pas encore récupéré : le prochain scan s'en charge
 
@@ -138,10 +132,13 @@ export function checkLibraryHealth({ libraryDir, cache, imgCacheDir, platform }:
     });
   }
 
-  try {
-    report.misnamed = findMisnamedFolders(libraryDir);
-  } catch {
-    report.misnamed = [];
+  for (const root of libraryRoots) {
+    if (scan.missingRoots.includes(root)) continue;
+    try {
+      report.misnamed.push(...findMisnamedFolders(root, folders.filter(id => scan.games.get(id) !== root)));
+    } catch {
+      // dossier illisible
+    }
   }
 
   for (const [gameId, entry] of Object.entries(cache)) {

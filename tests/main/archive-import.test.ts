@@ -114,6 +114,15 @@ describe('importArchive (.zip)', () => {
     expect(listTree(path.join(library, 'RJ01234567'))).toEqual(['mine.txt']);
   });
 
+  it("refuse un jeu déjà présent dans un autre dossier de bibliothèque (ID dans le nom ou trouvé dedans)", async () => {
+    const elsewhere = new Set(['RJ01234567', 'RJ02222222']);
+    const isInLibrary = (id: string) => elsewhere.has(id);
+    await expect(importArchive(writeZip('RJ01234567.zip', [{ name: 'Game.exe', data: 'x' }]), library, { isInLibrary })).rejects.toThrow(/déjà dans la bibliothèque/);
+    await expect(importArchive(writeZip('jeu.zip', [{ name: 'RJ02222222/Game.exe', data: 'x' }]), library, { isInLibrary })).rejects.toThrow(/déjà dans la bibliothèque/);
+    expect(fs.existsSync(path.join(library, 'RJ01234567'))).toBe(false);
+    expect(fs.existsSync(path.join(library, 'RJ02222222'))).toBe(false);
+  });
+
   it("refuse une archive qui écrirait hors du dossier (../), sans rien importer", async () => {
     const zip = writeZip('slip.zip', [
       { name: 'RJ02222222/ok.txt', data: 'ok' },

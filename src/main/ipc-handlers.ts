@@ -18,6 +18,7 @@ import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { detectPlatforms } from './game-platforms';
 import { findExe, findMacApp } from './executables';
 import { checkLibraryHealth } from './library-health';
+import { libraryRoots, locateGame, rootOf, sanitizeExtraFolders, scanLibraryRoots } from './library-folders';
 import { rpgMakerDebugLaunch } from './engine-debug';
 import { LibraryMoveError, moveLibrary, planLibraryMove } from './library-move';
 import { DEFAULT_SUPER_PANIC, SuperPanic, sanitizeSuperPanicSettings } from './super-panic';
@@ -83,6 +84,7 @@ const GAME_ID_REGEX = /^[A-Z]{2}\d{6,9}$/;
 // avant leur ouverture)
 const settingsStore = new Store('settings.db', {
   destinationFolder: '',
+  extraLibraryFolders: [],
   refreshRate: 5,
   language: 'en_US',
   blurAdultContent: true,
@@ -217,11 +219,25 @@ export function getImgCacheDir(): string {
   return path.join(app.getPath('userData'), 'img_cache');
 }
 
+/** Dossiers de bibliothèque (principal d'abord, voir library-folders.ts). */
+async function getLibraryRoots(): Promise<string[]> {
+  return libraryRoots(await getSettings());
+}
+
+/** Le jeu est dans un des dossiers de bibliothèque. */
+async function isGameInLibrary(gameId: string): Promise<boolean> {
+  return GAME_ID_REGEX.test(gameId) && locateGame(await getLibraryRoots(), gameId) !== null;
+}
+
+/**
+ * Dossier d'un jeu : dans le premier dossier de bibliothèque qui le contient ;
+ * absent partout, celui qu'il aurait dans le dossier principal.
+ */
 async function getGameDir(gameId: string): Promise<string> {
   assertGameId(gameId);
   const settings = await settingsStore.getAll() as unknown as AppSettings;
   if (!settings.destinationFolder) throw new Error(tm('Dossier de jeux non configuré'));
-  return path.join(settings.destinationFolder, gameId);
+  return locateGame(libraryRoots(settings), gameId) ?? path.join(settings.destinationFolder, gameId);
 }
 
 /**
@@ -1622,6 +1638,7 @@ export function setupIpcHandlers(
   // --- Échange de jeux en réseau local ---
   const share = new LanShare({
     getDestinationFolder: async () => (await getSettings()).destinationFolder,
+    gameExists: isGameInLibrary,
     getImgCacheDir,
     getCacheEntry: async gameId => await cacheStore.get(gameId) as GameMetadata | undefined,
     insertCacheEntry: (gameId, entry) => cacheStore.insert(gameId, entry),
@@ -1683,6 +1700,7 @@ export function setupIpcHandlers(
     newSettings = { ...newSettings, customThemes: sanitizeCustomThemes(previous.customThemes) };
     // Programmes lancés par DLSGM : un nouveau chemin seulement s'il vient d'une boîte de dialogue.
     newSettings = guardExecutablePaths(newSettings, previous, pickedPaths);
+    newSettings = { ...newSettings, extraLibraryFolders: sanitizeExtraFolders(newSettings.destinationFolder, newSettings.extraLibraryFolders) };
     await settingsStore.setAll({ ...newSettings, ...proxy } as unknown as Record<string, unknown>);
     // Langue de l'interface changée : chaque fenêtre la relit à son chargement.
     setMainLanguage(newSettings.uiLanguage);
@@ -1761,12 +1779,12 @@ export function setupIpcHandlers(
   // ce Mac », icônes de la page du jeu) : d'après ses fichiers, un jeu à la fois.
   handle('detect-game-platforms', async (event: IpcMainInvokeEvent, gameIds: unknown) => {
     if (!Array.isArray(gameIds)) return {};
-    const { destinationFolder } = await getSettings();
+    const roots = await getLibraryRoots();
     const result: Record<string, OsPlatform[]> = {};
-    if (!destinationFolder) return result;
     for (const gameId of gameIds) {
       if (typeof gameId !== 'string' || !GAME_ID_REGEX.test(gameId)) continue;
-      result[gameId] = await detectPlatforms(path.join(destinationFolder, gameId));
+      const dir = locateGame(roots, gameId);
+      if (dir) result[gameId] = await detectPlatforms(dir);
     }
     return result;
   });
@@ -1792,8 +1810,15 @@ export function setupIpcHandlers(
     if (lanShare?.status().running) return tm("Ferme d'abord la réception réseau (onglet Partage).");
     return null;
   };
+  /** Le dossier principal ne peut pas aller dans (ou autour d') un autre dossier de bibliothèque. */
+  const overlapsExtraFolder = async (target: string): Promise<boolean> => {
+    const [, ...extras] = await getLibraryRoots();
+    const to = path.resolve(target);
+    return extras.some(extra => isInside(extra, to) || isInside(to, extra));
+  };
   handle('plan-library-move', async (event: IpcMainInvokeEvent, target: unknown) => {
     if (typeof target !== 'string' || !target) return { ok: false, error: tm('Dossier de destination introuvable.') };
+    if (await overlapsExtraFolder(target)) return { ok: false, error: tm('Ce dossier est (ou contient) un autre dossier de la bibliothèque.') };
     const { destinationFolder } = await getSettings();
     if (!destinationFolder) return { ok: false, error: tm('Dossier de jeux non configuré') };
     try {
@@ -1806,6 +1831,7 @@ export function setupIpcHandlers(
     if (typeof target !== 'string' || !target) return { ok: false, error: tm('Dossier de destination introuvable.') };
     const busy = libraryBusy();
     if (busy) return { ok: false, error: busy };
+    if (await overlapsExtraFolder(target)) return { ok: false, error: tm('Ce dossier est (ou contient) un autre dossier de la bibliothèque.') };
     const { destinationFolder } = await getSettings();
     if (!destinationFolder) return { ok: false, error: tm('Dossier de jeux non configuré') };
     libraryMoving = true;
@@ -1825,6 +1851,39 @@ export function setupIpcHandlers(
     }
   });
 
+  // Déplacement d'un jeu vers un autre dossier de bibliothèque (même mécanique : rien n'est perdu).
+  handle('get-game-location', async (event: IpcMainInvokeEvent, gameId: string) => {
+    assertGameId(gameId);
+    const roots = await getLibraryRoots();
+    const dir = locateGame(roots, gameId);
+    return { root: dir ? rootOf(roots, dir) : null, roots };
+  });
+  handle('move-game-to-folder', async (event: IpcMainInvokeEvent, gameId: string, root: unknown) => {
+    assertGameId(gameId);
+    const roots = await getLibraryRoots();
+    const target = typeof root === 'string' ? roots.find(r => path.relative(r, path.resolve(root)) === '') : undefined;
+    if (!target) return { ok: false, error: tm('Dossier de destination introuvable.') };
+    const dir = locateGame(roots, gameId);
+    const from = dir ? rootOf(roots, dir) : null;
+    if (!dir || !from) return { ok: false, error: tm('Dossier du jeu introuvable') };
+    if (from === target) return { ok: false, error: tm('Le jeu est déjà dans ce dossier.') };
+    if (libraryMoving) return { ok: false, error: tm('Un déplacement est déjà en cours.') };
+    if (runningGames.has(gameId)) return { ok: false, error: tm("Ferme d'abord le jeu en cours.") };
+    libraryMoving = true;
+    try {
+      const result = await moveLibrary(from, target, {
+        only: [gameId],
+        onProgress: progress => event.sender.send('library-move-progress', progress)
+      });
+      return { ok: true, result };
+    } catch (error) {
+      console.error('Déplacement du jeu :', error);
+      return { ok: false, error: libraryMoveMessage(error) };
+    } finally {
+      libraryMoving = false;
+    }
+  });
+
   // Fenêtre de travail du super bouton panique : un fichier ou une application choisis par l'utilisateur.
   handle('choose-super-panic-target', async () => {
     const result = await showOpenDialog({ properties: ['openFile'] });
@@ -1834,17 +1893,10 @@ export function setupIpcHandlers(
   // --- Opérations Système ---
   // Renvoie null (et non []) si le dossier n'existe pas, pour que l'appelant
   // distingue "dossier introuvable" de "dossier vide".
-  handle('list-game-folders', async (event: IpcMainInvokeEvent, folderPath: string) => {
-    if (!folderPath || !fs.existsSync(folderPath)) return null;
-
-    try {
-      const entries = fs.readdirSync(folderPath, { withFileTypes: true });
-      // Seuls les dossiers nommés d'après un ID DLSite (ex: RJ123456) sont des jeux
-      return entries.filter(entry => entry.isDirectory() && GAME_ID_REGEX.test(entry.name)).map(entry => entry.name);
-    } catch (error) {
-      console.error('Erreur lors de la lecture du dossier de jeux:', error);
-      return [];
-    }
+  handle('list-game-folders', async () => {
+    const roots = (await getLibraryRoots()).filter(root => fs.existsSync(root));
+    // Seuls les dossiers nommés d'après un ID DLsite (ex: RJ123456) sont des jeux, dans tous les dossiers de bibliothèque.
+    return roots.length === 0 ? null : [...scanLibraryRoots(roots).games.keys()];
   });
 
   // Canal dédié plutôt qu'un `open-path` générique : shell.openPath sur un
@@ -2038,7 +2090,8 @@ export function setupIpcHandlers(
   const importOne = async (file: string, destinationFolder: string, password?: string): Promise<ArchiveImportResult> => {
     try {
       // Saisi, puis devinés d'après les noms et les fichiers texte, puis ceux du gestionnaire.
-      const { gameId, version, dlc } = await importArchive(file, destinationFolder, { password, passwords: await archivePasswords() });
+      const roots = await getLibraryRoots();
+      const { gameId, version, dlc } = await importArchive(file, destinationFolder, { password, passwords: await archivePasswords(), isInLibrary: id => locateGame(roots, id) !== null });
       const importId = crypto.randomUUID();
       importedArchives.set(importId, archiveVolumes(file));
       return { file: path.basename(file), gameId, importId, version, dlc };
@@ -2109,25 +2162,33 @@ export function setupIpcHandlers(
 
   // --- Assistant de renommage des dossiers ---
   handle('find-misnamed-folders', async (): Promise<MisnamedFolder[]> => {
-    const { destinationFolder } = await getSettings();
-    if (!destinationFolder || !fs.existsSync(destinationFolder)) return [];
-    return findMisnamedFolders(destinationFolder);
+    const roots = (await getLibraryRoots()).filter(root => fs.existsSync(root));
+    const games = scanLibraryRoots(roots).games;
+    // Conflit aussi avec un jeu d'un autre dossier : le renommage créerait un doublon.
+    return roots.flatMap(root => findMisnamedFolders(root, [...games.keys()].filter(id => games.get(id) !== root)));
   });
 
   handle('rename-misnamed-folders', async (event: IpcMainInvokeEvent, folders: string[]): Promise<FolderRenameResult[]> => {
-    const { destinationFolder } = await getSettings();
-    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
+    const roots = (await getLibraryRoots()).filter(root => fs.existsSync(root));
+    if (roots.length === 0) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
     if (!Array.isArray(folders) || folders.some(f => typeof f !== 'string')) throw new Error(tm('Liste de dossiers invalide.'));
-    // Seuls des noms proposés par findMisnamedFolders sont renommés (revérifiés dans renameMisnamedFolders).
-    return renameMisnamedFolders(destinationFolder, folders);
+    const games = scanLibraryRoots(roots).games;
+    const results: FolderRenameResult[] = [];
+    // Chemins complets : seul un dossier directement dans un dossier de bibliothèque est pris, et
+    // seuls des noms proposés par findMisnamedFolders sont renommés (revérifiés dans renameMisnamedFolders).
+    for (const root of roots) {
+      const names = folders.filter(f => path.relative(root, path.dirname(path.resolve(f))) === '').map(f => path.basename(f));
+      if (names.length > 0) results.push(...renameMisnamedFolders(root, names, [...games.keys()].filter(id => games.get(id) !== root)));
+    }
+    return results;
   });
 
   // --- Bilan de santé de la bibliothèque (constats seulement) ---
   handle('check-library-health', async () => {
-    const { destinationFolder } = await getSettings();
-    if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
+    const roots = await getLibraryRoots();
+    if (roots.length === 0) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
     return checkLibraryHealth({
-      libraryDir: destinationFolder,
+      libraryRoots: roots,
       cache: await cacheStore.getAll() as Record<string, GameMetadata>,
       imgCacheDir: getImgCacheDir(),
       platform: process.platform
@@ -2513,6 +2574,7 @@ export function setupIpcHandlers(
   const wishlist = new Wishlist({
     store: wishlistStore,
     getDestinationFolder: async () => (await getSettings()).destinationFolder,
+    isInLibrary: isGameInLibrary,
     fetchMetadata: async gameId => (await fetchWork(gameId, { translations: false })).metadata,
 
     downloadImage: download,
@@ -2548,12 +2610,11 @@ export function setupIpcHandlers(
 
   /** Cercles des jeux présents dans la bibliothèque (identifiant, section DLsite, nom). */
   const libraryCircles = async () => {
-    const { destinationFolder } = await getSettings();
-    if (!destinationFolder) return [];
+    const present = scanLibraryRoots(await getLibraryRoots()).games;
     const cache = await cacheStore.getAll() as Record<string, GameMetadata>;
     const circles = new Map<string, { makerId: string; site: string; name: string }>();
     for (const [gameId, entry] of Object.entries(cache)) {
-      if (!entry?.maker_id || circles.has(entry.maker_id) || !fs.existsSync(path.join(destinationFolder, gameId))) continue;
+      if (!entry?.maker_id || circles.has(entry.maker_id) || !present.has(gameId)) continue;
       circles.set(entry.maker_id, { makerId: entry.maker_id, site: entry.platform || 'maniax', name: entry.circle || entry.brand || entry.maker_id });
     }
     return [...circles.values()];

@@ -1,6 +1,5 @@
 import { fetchGameMetadata, retryMissingImages, retryThroughVpn } from './dataFetcher.js';
 import { loadSettings } from './settings.js';
-import { getGamesFolderPath } from './osHandler.js';
 import { loadCache } from './cacheManager.js';
 
 /**
@@ -43,10 +42,10 @@ async function runWithConcurrencyLimit<T>(items: T[], limit: number, worker: (it
  * les images incomplètes.
  */
 export async function scanGames(): Promise<ScanResult> {
-  const gamesFolderPath = await getGamesFolderPath();
   // Liste les dossiers correspondant au format DLSite (null = dossier introuvable).
   // Aucune purge : les fiches des jeux absents sont conservées (voir dataFetcher.ts).
-  const gameFolders = gamesFolderPath ? await window.electronAPI.listGameFolders(gamesFolderPath) : null;
+  // Tous les dossiers de bibliothèque (null : aucun n'existe).
+  const gameFolders = await window.electronAPI.listGameFolders();
   if (!gameFolders) {
     console.error("Le dossier des jeux n'existe pas");
     return { status: 'no-folder' };

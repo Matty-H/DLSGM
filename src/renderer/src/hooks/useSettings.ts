@@ -24,6 +24,8 @@ export interface AppSettings {
   autoBackupSaves: boolean;
   closeToTray: boolean;
   workspaceFolder: string;
+  /** Autres dossiers de bibliothèque (le principal est destinationFolder). */
+  extraLibraryFolders?: string[];
   piaRetry: boolean;
   piaRegion: string;
   macroRecorder: MacroRecorderSettings;

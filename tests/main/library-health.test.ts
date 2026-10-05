@@ -23,7 +23,7 @@ const entry = (patch: Partial<GameMetadata> = {}): GameMetadata =>
   ({ work_name: 'Titre', category: 'RPG', work_image: '//img/cover.jpg', sample_images: [], imagesComplete: true, ...patch }) as GameMetadata;
 
 const check = (cache: Record<string, GameMetadata>, platform: NodeJS.Platform = 'win32') =>
-  checkLibraryHealth({ libraryDir: library, cache, imgCacheDir: imgCache, platform });
+  checkLibraryHealth({ libraryRoots: [library], cache, imgCacheDir: imgCache, platform });
 
 describe('checkLibraryHealth', () => {
   it('reports nothing for a healthy library', () => {
@@ -31,7 +31,7 @@ describe('checkLibraryHealth', () => {
     writeTree(imgCache, { 'RJ01000001/work_image.jpg': 'x' });
     const report = check({ RJ01000001: entry() });
     expect(report.gameCount).toBe(1);
-    expect([report.noExecutable, report.fetchFailed, report.missingImages, report.misnamed, report.orphans, report.brokenPatches].flat()).toEqual([]);
+    expect([report.noExecutable, report.fetchFailed, report.missingImages, report.misnamed, report.orphans, report.brokenPatches, report.duplicates, report.missingRoots].flat()).toEqual([]);
   });
 
   it('flags games without an executable, but not audio works or manga', () => {
@@ -97,5 +97,24 @@ describe('checkLibraryHealth', () => {
       { gameId: 'RJ01000001', patchId: '1', name: 'Traduction', missingFiles: ['tl/a.txt'], missingBackups: [], isLast: false },
       { gameId: 'RJ01000001', patchId: '2', name: 'Fix', missingFiles: ['fix.dll'], missingBackups: [], isLast: true }
     ]);
+  });
+
+  it('looks at every library folder, reports duplicates and unplugged folders', () => {
+    const second = path.join(root, 'second');
+    writeTree(library, { 'RJ01000001/Game.exe': 'x' });
+    writeTree(second, { 'RJ01000001/Game.exe': 'x', 'RJ01000002/data.bin': 'x', '[RJ01000001] copie/Game.exe': 'x' });
+    writeTree(imgCache, { 'RJ01000001/work_image.jpg': 'x', 'RJ01000002/work_image.jpg': 'x' });
+    const report = checkLibraryHealth({
+      libraryRoots: [library, second, path.join(root, 'unplugged')],
+      cache: { RJ01000001: entry(), RJ01000002: entry() },
+      imgCacheDir: imgCache,
+      platform: 'win32'
+    });
+    expect(report.gameCount).toBe(2);
+    expect(report.noExecutable.map(i => i.gameId)).toEqual(['RJ01000002']);
+    expect(report.duplicates).toEqual([{ gameId: 'RJ01000001', roots: [library, second] }]);
+    expect(report.missingRoots).toEqual([path.join(root, 'unplugged')]);
+    expect(report.misnamed.map(m => [m.root, m.conflict])).toEqual([[second, 'exists']]);
+    expect(report.orphans).toEqual([]);
   });
 });

@@ -78,6 +78,8 @@ export function transferKey(value: string): string {
 
 export interface LanShareDeps {
   getDestinationFolder(): Promise<string>;
+  /** Le jeu existe déjà dans un des dossiers de bibliothèque (absent : seul le dossier principal compte). */
+  gameExists?(gameId: string): Promise<boolean>;
   getImgCacheDir(): string;
   getCacheEntry(gameId: string): Promise<GameMetadata | undefined>;
   /** Crée la fiche si elle n'existe pas ; false si une fiche existait déjà. */
@@ -444,7 +446,7 @@ export class LanShare {
 
     const destinationFolder = await this.deps.getDestinationFolder();
     if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new HttpError(503, tm('Dossier de jeux du receveur introuvable.'));
-    if (fs.existsSync(path.join(destinationFolder, gameId))) throw new HttpError(409, tm('{id} est déjà présent sur ce PC.', { id: gameId }));
+    if (fs.existsSync(path.join(destinationFolder, gameId)) || (await this.deps.gameExists?.(gameId))) throw new HttpError(409, tm('{id} est déjà présent sur ce PC.', { id: gameId }));
 
     const files = new Map<string, IncomingFile>();
     const lowerCaseKeys = new Set<string>();
@@ -583,7 +585,7 @@ export class LanShare {
 
     try {
       const finalDir = path.join(t.destinationFolder, t.gameId);
-      if (fs.existsSync(finalDir)) throw new HttpError(409, tm('{id} est apparu sur ce PC entre-temps.', { id: t.gameId }));
+      if (fs.existsSync(finalDir) || (await this.deps.gameExists?.(t.gameId))) throw new HttpError(409, tm('{id} est apparu sur ce PC entre-temps.', { id: t.gameId }));
 
       const stagedGame = path.join(t.stagingDir, 'game');
       for (const segments of t.dirs) await fs.promises.mkdir(path.join(stagedGame, ...segments), { recursive: true });

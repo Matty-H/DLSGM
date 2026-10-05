@@ -10,6 +10,7 @@ import IpChecker from '../IpChecker/IpChecker';
 import ArchivePasswords from '../ArchivePasswords/ArchivePasswords';
 import SuperPanicSettings from '../SuperPanicSettings/SuperPanicSettings';
 import LibraryMove from '../LibraryMove/LibraryMove';
+import { addExtraFolder } from '../../lib/libraryFolders.js';
 import { DEFAULT_SUPER_PANIC_SETTINGS } from '../../lib/superPanic.js';
 import type { GenreNames, GenreTranslations } from '../../lib/genreNames.js';
 import { getSandboxieStatus, type SandboxieStatus } from '../../lib/gameTools.js';
@@ -280,6 +281,8 @@ export default function SettingsScreen({
   const [piaRetry, setPiaRetry] = useState(settings.piaRetry);
   const [piaRegion, setPiaRegion] = useState(settings.piaRegion);
   const [workspaceFolder, setWorkspaceFolder] = useState(settings.workspaceFolder ?? '');
+  const [extraFolders, setExtraFolders] = useState<string[]>(settings.extraLibraryFolders ?? []);
+  const [extraFolderError, setExtraFolderError] = useState<string | null>(null);
   const [defaultWorkspaceRoot, setDefaultWorkspaceRoot] = useState('');
   const [sandboxieStatus, setSandboxieStatus] = useState<SandboxieStatus | null>(null);
   const [isResettingImages, setIsResettingImages] = useState(false);
@@ -323,6 +326,7 @@ export default function SettingsScreen({
     setPiaRetry(settings.piaRetry);
     setPiaRegion(settings.piaRegion);
     setWorkspaceFolder(settings.workspaceFolder ?? '');
+    setExtraFolders(settings.extraLibraryFolders ?? []);
   }, [settings]);
 
   // LEProc présent et LE installé dans le dossier choisi.
@@ -397,6 +401,7 @@ export default function SettingsScreen({
     piaRetry !== settings.piaRetry ||
     piaRegion !== settings.piaRegion ||
     workspaceFolder !== (settings.workspaceFolder ?? '') ||
+    JSON.stringify(extraFolders) !== JSON.stringify(settings.extraLibraryFolders ?? []) ||
     JSON.stringify(collections) !== JSON.stringify(settings.collections ?? []) ||
     JSON.stringify(homeShelves) !== JSON.stringify(settings.homeShelves ?? {}) ||
     clickerDirty ||
@@ -450,7 +455,8 @@ export default function SettingsScreen({
       checkUpdatesOnStartup,
       piaRetry,
       piaRegion,
-      workspaceFolder
+      workspaceFolder,
+      extraLibraryFolders: extraFolders
     });
   };
 
@@ -514,7 +520,7 @@ export default function SettingsScreen({
       <div data-scroll-root className="panel max-h-full min-h-0 flex-1 self-start overflow-y-auto px-6 py-2">
         {section === 'library' && (
           <>
-            <SettingRow label={t('Dossier de bibliothèque')} description={destinationFolder || t('Aucun dossier sélectionné')}>
+            <SettingRow label={t('Dossier principal de la bibliothèque')} description={destinationFolder || t('Aucun dossier sélectionné')}>
               <LibraryMove
                 currentFolder={settings.destinationFolder}
                 disabledReason={isDirty ? t("Enregistre d'abord les paramètres modifiés") : null}
@@ -523,6 +529,49 @@ export default function SettingsScreen({
               <button type="button" onClick={handleBrowse} className="btn">
                 <FolderOpen size={16} strokeWidth={2.25} />
                 {t('Parcourir')}
+              </button>
+            </SettingRow>
+
+            <SettingRow
+              label={t('Autres dossiers de bibliothèque')}
+              description={
+                <>
+                  {t("Un dossier par disque, par exemple : leurs jeux s'affichent dans la même bibliothèque. Les imports d'archives et les jeux reçus en réseau vont dans le dossier principal ci-dessus ; « Déplacer vers… » sur la page d'un jeu le change de dossier.")}
+                  {extraFolders.length > 0 && (
+                    <span className="mt-2 flex flex-col gap-1">
+                      {extraFolders.map(folder => (
+                        <span key={folder} className="flex items-center gap-2 text-text-secondary">
+                          <span className="min-w-0 flex-1 truncate" title={folder}>{folder}</span>
+                          <button
+                            type="button"
+                            onClick={() => setExtraFolders(prev => prev.filter(f => f !== folder))}
+                            className="btn btn-ghost py-0.5 text-[12px]"
+                            title={t('Retirer de la bibliothèque (rien n’est supprimé sur le disque)')}
+                          >
+                            {t('Retirer')}
+                          </button>
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                  {extraFolderError && <span className="mt-1 block text-danger">{extraFolderError}</span>}
+                </>
+              }
+            >
+              <button
+                type="button"
+                onClick={async () => {
+                  setExtraFolderError(null);
+                  const folder = await window.electronAPI.openFolderDialog();
+                  if (!folder) return;
+                  const next = addExtraFolder(destinationFolder, extraFolders, folder);
+                  if (next) setExtraFolders(next);
+                  else setExtraFolderError(t('Ce dossier est déjà dans la bibliothèque, ou dans / autour d’un de ses dossiers.'));
+                }}
+                className="btn"
+              >
+                <FolderOpen size={16} strokeWidth={2.25} />
+                {t('Ajouter')}
               </button>
             </SettingRow>
 

@@ -27,7 +27,9 @@ const electronAPI: ElectronAPI = {
   openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
 
   // Opérations système
-  listGameFolders: (folderPath) => ipcRenderer.invoke('list-game-folders', folderPath),
+  listGameFolders: () => ipcRenderer.invoke('list-game-folders'),
+  getGameLocation: (gameId) => ipcRenderer.invoke('get-game-location', gameId),
+  moveGameToFolder: (gameId, root) => ipcRenderer.invoke('move-game-to-folder', gameId, root),
   detectGamePlatforms: (gameIds) => ipcRenderer.invoke('detect-game-platforms', gameIds),
   chooseSuperPanicTarget: () => ipcRenderer.invoke('choose-super-panic-target'),
   planLibraryMove: (target) => ipcRenderer.invoke('plan-library-move', target),

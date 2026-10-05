@@ -75,8 +75,12 @@ async function freeSpace(dir: string): Promise<number | null> {
   }
 }
 
-/** Vérifie le déplacement et le décrit (lève une `LibraryMoveError` s'il est impossible). */
-export async function planLibraryMove(source: string, target: string): Promise<LibraryMovePlan> {
+/**
+ * Vérifie le déplacement et le décrit (lève une `LibraryMoveError` s'il est
+ * impossible). `only` : seulement ces entrées (déplacement d'un jeu vers un
+ * autre dossier de bibliothèque), sinon tout le contenu.
+ */
+export async function planLibraryMove(source: string, target: string, only?: string[]): Promise<LibraryMovePlan> {
   const from = path.resolve(source);
   const to = path.resolve(target);
   if (path.relative(from, to) === '') throw new LibraryMoveError('same-folder');
@@ -84,7 +88,9 @@ export async function planLibraryMove(source: string, target: string): Promise<L
   if (!(await isDirectory(from))) throw new LibraryMoveError('source-missing');
   if (!(await isDirectory(to))) throw new LibraryMoveError('target-missing');
 
-  const entries = (await fs.promises.readdir(from)).filter(name => !SKIPPED.has(name) && !name.startsWith(STAGING_PREFIX)).sort();
+  const entries = (await fs.promises.readdir(from))
+    .filter(name => !SKIPPED.has(name) && !name.startsWith(STAGING_PREFIX) && (!only || only.includes(name)))
+    .sort();
   if (entries.length === 0) throw new LibraryMoveError('nothing-to-move');
   // Jamais d'écrasement : un nom déjà présent dans la cible bloque tout (comparaison sans casse, comme NTFS/APFS).
   const existing = new Set((await fs.promises.readdir(to)).map(name => name.toLowerCase()));
@@ -145,11 +151,11 @@ async function renameAll(from: string, to: string, entries: string[], onDone: (n
 export async function moveLibrary(
   source: string,
   target: string,
-  options: { onProgress?: (progress: LibraryMoveProgress) => void; forceCopy?: boolean } = {}
+  options: { onProgress?: (progress: LibraryMoveProgress) => void; forceCopy?: boolean; only?: string[] } = {}
 ): Promise<LibraryMoveResult> {
   const from = path.resolve(source);
   const to = path.resolve(target);
-  const plan = await planLibraryMove(from, to);
+  const plan = await planLibraryMove(from, to, options.only);
   const { entries } = plan;
 
   if (plan.sameVolume && !options.forceCopy) {

@@ -256,6 +256,8 @@ export interface ImportOptions {
   passwords?: string[];
   /** Extraction 7-Zip (par défaut dans un processus utilitaire ; directe en test). */
   extract7z?: Extract7z;
+  /** Le jeu existe déjà dans un autre dossier de bibliothèque : jamais importé une seconde fois. */
+  isInLibrary?: (gameId: string) => boolean;
 }
 
 /**
@@ -268,7 +270,7 @@ export async function importArchive(archivePath: string, destinationFolder: stri
   const extract7z = options.extract7z ?? extractWith7z;
   const archive = firstVolume(archivePath);
   const idFromArchive = gameIdFromName(path.basename(archive));
-  if (idFromArchive && fs.existsSync(path.join(destinationFolder, idFromArchive))) {
+  if (idFromArchive && (fs.existsSync(path.join(destinationFolder, idFromArchive)) || options.isInLibrary?.(idFromArchive))) {
     throw new Error(tm("{id} est déjà dans la bibliothèque : rien n'a été extrait.", { id: idFromArchive }));
   }
 
@@ -311,7 +313,7 @@ export async function importArchive(archivePath: string, destinationFolder: stri
       throw new Error(tm("ID DLsite introuvable (ni dans le nom de l'archive, ni dans son contenu) : renomme l'archive avec l'ID, ex: RJ01234567.zip."));
     }
     const target = path.join(destinationFolder, gameId);
-    if (fs.existsSync(target)) throw new Error(tm("{id} est déjà dans la bibliothèque : rien n'a été importé.", { id: gameId }));
+    if (fs.existsSync(target) || options.isInLibrary?.(gameId)) throw new Error(tm("{id} est déjà dans la bibliothèque : rien n'a été importé.", { id: gameId }));
     await fs.promises.rename(root, target);
     const release = mergeReleaseNames(names);
     try {

@@ -97,12 +97,19 @@ describe('assistant de renommage', () => {
     mkdir('.dlsgm-import/RJ05555555 v1');
     fs.writeFileSync(path.join(library, 'RJ06666666 v1.zip'), '');
     expect(findMisnamedFolders(library)).toEqual([
-      { folder: '[RJ01234567] Titre v1.2', gameId: 'RJ01234567', version: '1.2', dlc: false },
-      { folder: 'RJ02222222 (DLC)', gameId: 'RJ02222222', version: null, dlc: true, conflict: 'duplicate' },
-      { folder: 'RJ02222222_fixed', gameId: 'RJ02222222', version: null, dlc: false, conflict: 'duplicate' },
-      { folder: 'RJ03333333 v2', gameId: 'RJ03333333', version: '2', dlc: false, conflict: 'exists' },
-      { folder: 'rj04444444', gameId: 'RJ04444444', version: null, dlc: false }
+      { folder: '[RJ01234567] Titre v1.2', root: library, gameId: 'RJ01234567', version: '1.2', dlc: false },
+      { folder: 'RJ02222222 (DLC)', root: library, gameId: 'RJ02222222', version: null, dlc: true, conflict: 'duplicate' },
+      { folder: 'RJ02222222_fixed', root: library, gameId: 'RJ02222222', version: null, dlc: false, conflict: 'duplicate' },
+      { folder: 'RJ03333333 v2', root: library, gameId: 'RJ03333333', version: '2', dlc: false, conflict: 'exists' },
+      { folder: 'rj04444444', root: library, gameId: 'RJ04444444', version: null, dlc: false }
     ]);
+  });
+
+  it('signale un conflit avec un jeu d’un autre dossier de bibliothèque, et ne le renomme pas', () => {
+    mkdir('[RJ01234567] Titre v1.2');
+    expect(findMisnamedFolders(library, ['RJ01234567'])[0].conflict).toBe('exists');
+    expect(renameMisnamedFolders(library, ['[RJ01234567] Titre v1.2'], ['RJ01234567'])[0].gameId).toBeUndefined();
+    expect(fs.existsSync(path.join(library, 'RJ01234567'))).toBe(false);
   });
 
   it('renomme seulement ce qui est demandé et sans conflit, sans jamais écraser, et garde l’ancien nom', () => {

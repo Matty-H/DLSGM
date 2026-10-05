@@ -36,7 +36,10 @@ export interface LibraryMoveResult {
  */
 
 export interface AppSettings {
+  /** Dossier principal de la bibliothèque (imports d'archives, réceptions réseau). */
   destinationFolder: string;
+  /** Autres dossiers de bibliothèque (voir src/main/library-folders.ts) ; absent avant leur ajout : aucun. */
+  extraLibraryFolders?: string[];
   refreshRate: number;
   language: string;
   /** Floute les jaquettes R18 dans la bibliothèque jusqu'au clic (par jeu, pour la session). */
@@ -772,6 +775,8 @@ export interface InstallInfo {
 /** Dossier du dossier de jeux qui contient un ID sans porter exactement ce nom (voir folder-rename.ts). */
 export interface MisnamedFolder {
   folder: string;
+  /** Dossier de bibliothèque qui le contient. */
+  root: string;
   gameId: string;
   version: string | null;
   dlc: boolean;
@@ -792,6 +797,10 @@ export interface LibraryHealthReport {
   misnamed: MisnamedFolder[];
   /** Fiches gardées dont le dossier a disparu (invisibles dans la bibliothèque). */
   orphans: { gameId: string; name: string; failed: boolean }[];
+  /** Même ID dans plusieurs dossiers de bibliothèque (le premier l'emporte). */
+  duplicates: { gameId: string; roots: string[] }[];
+  /** Dossiers de bibliothèque introuvables (disque débranché). */
+  missingRoots: string[];
   /** Patchs installés dont des fichiers ajoutés ou des copies d'origine ont disparu. */
   brokenPatches: { gameId: string; patchId: string; name: string; missingFiles: string[]; missingBackups: string[]; isLast: boolean }[];
 }
@@ -1107,7 +1116,11 @@ export interface ElectronAPI {
 
   // Opérations système
   /** `null` si le dossier n'existe pas (distinct d'un dossier vide). */
-  listGameFolders(folderPath: string): Promise<string[] | null>;
+  listGameFolders(): Promise<string[] | null>;
+  /** Dossier de bibliothèque d'un jeu, et tous les dossiers (pour « Déplacer vers… »). */
+  getGameLocation(gameId: string): Promise<{ root: string | null; roots: string[] }>;
+  /** Déplace un jeu vers un autre dossier de bibliothèque (progression : `onLibraryMoveProgress`). */
+  moveGameToFolder(gameId: string, root: string): Promise<{ ok: true; result: LibraryMoveResult } | { ok: false; error: string }>;
   /** Plateformes dont une version est présente dans le dossier de chaque jeu (fichiers .exe, .app/.dmg, .apk). */
   detectGamePlatforms(gameIds: string[]): Promise<Record<string, OsPlatform[]>>;
   /** Déplacement de la bibliothèque vers `target` : vérification et description (src/main/library-move.ts). */
@@ -1184,7 +1197,7 @@ export interface ElectronAPI {
 
   /** Dossiers qui contiennent un ID DLsite sans être nommés exactement d'après lui. */
   findMisnamedFolders(): Promise<MisnamedFolder[]>;
-  /** Renomme ces dossiers d'après leur ID (jamais par-dessus un dossier existant). */
+  /** Renomme ces dossiers (chemins complets : `root` + `folder`) d'après leur ID (jamais par-dessus un dossier existant). */
   renameMisnamedFolders(folders: string[]): Promise<FolderRenameResult[]>;
   /** Bilan de santé de la bibliothèque (constats seulement). */
   checkLibraryHealth(): Promise<LibraryHealthReport>;

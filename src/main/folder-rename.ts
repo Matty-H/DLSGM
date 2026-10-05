@@ -15,15 +15,16 @@ import { tm } from './i18n';
 
 const GAME_ID_REGEX = /^[A-Z]{2}\d{6,9}$/;
 
-export function findMisnamedFolders(destinationFolder: string): MisnamedFolder[] {
+/** `otherIds` : jeux des autres dossiers de bibliothèque (un renommage vers l'un d'eux ferait un doublon). */
+export function findMisnamedFolders(destinationFolder: string, otherIds: Iterable<string> = []): MisnamedFolder[] {
   const entries = fs.readdirSync(destinationFolder, { withFileTypes: true });
-  const existing = new Set(entries.filter(e => e.isDirectory() && GAME_ID_REGEX.test(e.name)).map(e => e.name));
+  const existing = new Set([...entries.filter(e => e.isDirectory() && GAME_ID_REGEX.test(e.name)).map(e => e.name), ...otherIds]);
   const candidates: MisnamedFolder[] = [];
   for (const entry of entries) {
     // Dossiers techniques de DLSGM (.dlsgm-import, .dlsgm-incoming) et cachés : jamais proposés.
     if (!entry.isDirectory() || entry.name.startsWith('.') || GAME_ID_REGEX.test(entry.name)) continue;
     const { gameId, version, dlc } = parseReleaseName(entry.name);
-    if (gameId) candidates.push({ folder: entry.name, gameId, version, dlc });
+    if (gameId) candidates.push({ folder: entry.name, root: destinationFolder, gameId, version, dlc });
   }
   const counts = new Map<string, number>();
   for (const c of candidates) counts.set(c.gameId, (counts.get(c.gameId) ?? 0) + 1);
@@ -40,8 +41,8 @@ export function findMisnamedFolders(destinationFolder: string): MisnamedFolder[]
  * périmée). Un dossier ne différant de son ID que par la casse passe par un
  * nom temporaire (Windows ne distingue pas `rj…` de `RJ…`).
  */
-export function renameMisnamedFolders(destinationFolder: string, folders: string[]): FolderRenameResult[] {
-  const candidates = new Map(findMisnamedFolders(destinationFolder).map(c => [c.folder, c]));
+export function renameMisnamedFolders(destinationFolder: string, folders: string[], otherIds: Iterable<string> = []): FolderRenameResult[] {
+  const candidates = new Map(findMisnamedFolders(destinationFolder, otherIds).map(c => [c.folder, c]));
   const results: FolderRenameResult[] = [];
   const done = new Set<string>();
   for (const folder of folders) {
