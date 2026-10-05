@@ -46,4 +46,18 @@ describe('Store', () => {
     expect(await reopened.getAll()).toEqual({ RJ1: { a: 1 } });
   });
 
+  // L'assistant du premier lancement (`onboardingPending`) repose là-dessus :
+  // une installation existante ne doit jamais recevoir la valeur par défaut.
+  it("n'écrit les valeurs par défaut que dans un store vide", async () => {
+    const fresh = new Store('settings.db', { onboardingPending: true, refreshRate: 5 });
+    expect(await fresh.getAll()).toEqual({ onboardingPending: true, refreshRate: 5 });
+
+    removeTempDir(electron.userData);
+    electron.userData = makeTempDir();
+    const old = new Store('settings.db', {});
+    await old.set('refreshRate', 10);
+    const upgraded = new Store('settings.db', { onboardingPending: true, refreshRate: 5 });
+    expect(await upgraded.getAll()).toEqual({ refreshRate: 10 });
+  });
+
 });

@@ -20,6 +20,7 @@ import { useDiskUsage } from './hooks/useDiskUsage';
 import FolderRenameAssistant from './components/FolderRenameAssistant/FolderRenameAssistant';
 import { useFolderRename } from './hooks/useFolderRename';
 import PanicOverlay from './components/PanicOverlay/PanicOverlay';
+import Onboarding from './components/Onboarding/Onboarding';
 import FooterHints, { type FooterHint } from './components/FooterHints/FooterHints';
 import { useSettings } from './hooks/useSettings';
 import { useFilters } from './hooks/useFilters';
@@ -611,6 +612,8 @@ export default function App() {
           onDismiss={archiveImport.dismissCleanup}
         />
       )}
+
+      {settings?.onboardingPending === true && !panicActive && <Onboarding settings={settings} onSave={handleSaveSettings} />}
 
       <PanicOverlay active={panicActive} />
     </div>

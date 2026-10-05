@@ -37,6 +37,8 @@ export interface AppSettings {
   theme?: string;
   /** Palettes perso : lues et enregistrées par le sélecteur de thème (`save-custom-themes`). */
   customThemes?: CustomTheme[];
+  /** Assistant du premier lancement (voir shared/ipc-types.ts) ; absent des valeurs par défaut du renderer. */
+  onboardingPending?: boolean;
   selectedSort: string;
 
 

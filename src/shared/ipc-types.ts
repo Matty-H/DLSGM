@@ -95,6 +95,12 @@ export interface AppSettings {
   theme?: string;
   /** Palettes créées par l'utilisateur (src/shared/themes.ts), enregistrées par `save-custom-themes`. Absent avant les palettes perso : aucune. */
   customThemes?: CustomTheme[];
+  /**
+   * Assistant du premier lancement à afficher (langue, dossier, thème). Écrit
+   * à `true` seulement dans un settings.db neuf (valeurs par défaut du store) :
+   * absent pour une installation existante, `false` une fois l'assistant fini.
+   */
+  onboardingPending?: boolean;
 }
 
 /** Version de l'application et mode d'installation (src/main/updater.ts). */

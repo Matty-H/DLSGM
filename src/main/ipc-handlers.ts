@@ -100,7 +100,10 @@ const settingsStore = new Store('settings.db', {
   checkUpdatesOnStartup: true,
   uiLanguage: 'system',
   theme: DEFAULT_THEME,
-  customThemes: []
+  customThemes: [],
+  // Valeurs par défaut écrites seulement dans un store vide : une installation
+  // existante n'a pas cette clé et ne voit jamais l'assistant.
+  onboardingPending: true
 });
 
 // VPN PIA pour refaire les fetchs à restriction régionale.
