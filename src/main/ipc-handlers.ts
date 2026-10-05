@@ -36,6 +36,7 @@ import { OcrViewWindow } from './ocr-view';
 import { translateTexts } from './translator';
 import { DictionaryStore } from './dictionary-store';
 import { Wishlist } from './wishlist';
+import { CHECK_INTERVAL_MS, FollowedCircles } from './followed-circles';
 import { describeWorkspace, workspaceRoot } from './workspace';
 import { snapshotDatabase } from './db-backup';
 import { checkIp } from './ip-check';
@@ -112,6 +113,7 @@ const settingsStore = new Store('settings.db', {
   uiLanguage: 'system',
   theme: DEFAULT_THEME,
   customThemes: [],
+  followLibraryCircles: false,
   // Valeurs par défaut écrites seulement dans un store vide : une installation
   // existante n'a pas cette clé et ne voit jamais l'assistant.
   onboardingPending: true
@@ -135,6 +137,9 @@ const pickedPaths = new PickedPaths();
 
 // Liste de souhaits : store séparé, jamais mêlé au cache des jeux.
 const wishlistStore = new Store('wishlist.db', {});
+
+// Cercles suivis : store séparé (un document par identifiant de cercle).
+const followedCirclesStore = new Store('followed-circles.db', {});
 
 // Mots de passe d'archives mémorisés (clé `passwords`), essayés à chaque import.
 const archivePasswordStore = new Store('archive-passwords.db', { passwords: [] });
@@ -2528,5 +2533,59 @@ export function setupIpcHandlers(
     if (!(await wishlistStore.get(gameId))) throw new Error(tm("{id} n'est pas dans la liste de souhaits.", { id: gameId }));
     return wishlist.refresh(gameId);
   });
+
+  // --- Cercles suivis : annonces et nouveautés (vérification espacée, une fois par jour) ---
+  const followedCircles = new FollowedCircles({
+    store: followedCirclesStore,
+    fetchHtml: async url => {
+      const response = await dlsiteFetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.text();
+    }
+  });
+  // Vérification en cours : un nouvel appel attend la même au lieu de rendre la main tout de suite.
+  let circlesCheck: Promise<void> | null = null;
+
+  /** Cercles des jeux présents dans la bibliothèque (identifiant, section DLsite, nom). */
+  const libraryCircles = async () => {
+    const { destinationFolder } = await getSettings();
+    if (!destinationFolder) return [];
+    const cache = await cacheStore.getAll() as Record<string, GameMetadata>;
+    const circles = new Map<string, { makerId: string; site: string; name: string }>();
+    for (const [gameId, entry] of Object.entries(cache)) {
+      if (!entry?.maker_id || circles.has(entry.maker_id) || !fs.existsSync(path.join(destinationFolder, gameId))) continue;
+      circles.set(entry.maker_id, { makerId: entry.maker_id, site: entry.platform || 'maniax', name: entry.circle || entry.brand || entry.maker_id });
+    }
+    return [...circles.values()];
+  };
+
+  const checkCircles = (olderThanMs: number): Promise<void> => {
+    circlesCheck ??= (async () => {
+      try {
+        if ((await getSettings()).followLibraryCircles) await followedCircles.syncLibraryCircles(await libraryCircles());
+        await followedCircles.check({ olderThanMs, onProgress: (done, total) => getWindow()?.webContents.send('followed-circles-changed', { done, total }) });
+      } finally {
+        circlesCheck = null;
+        getWindow()?.webContents.send('followed-circles-changed', null);
+      }
+    })();
+    return circlesCheck;
+  };
+
+  // Une minute après le démarrage, puis toutes les heures : seuls les cercles vérifiés il y a plus d'un jour le sont.
+  const autoCheckCircles = () => checkCircles(CHECK_INTERVAL_MS).catch(error => console.error('Vérification des cercles suivis :', error));
+  setTimeout(autoCheckCircles, 60_000).unref?.();
+  setInterval(autoCheckCircles, 60 * 60_000).unref?.();
+
+  handle('get-followed-circles', async () => ({ circles: await followedCircles.list(), feed: await followedCircles.feed(), checking: circlesCheck !== null }));
+  handle('follow-circle', async (event: IpcMainInvokeEvent, makerId: string, site: string, name: string) => {
+    if (typeof makerId !== 'string' || typeof site !== 'string' || typeof name !== 'string') throw new Error(tm('Identifiant de cercle invalide.'));
+    await followedCircles.follow(makerId, site, name);
+    checkCircles(CHECK_INTERVAL_MS).catch(() => undefined);
+  });
+  handle('unfollow-circle', async (event: IpcMainInvokeEvent, makerId: string) => {
+    if (typeof makerId === 'string') await followedCircles.unfollow(makerId);
+  });
+  handle('check-followed-circles', () => checkCircles(0));
 }
 

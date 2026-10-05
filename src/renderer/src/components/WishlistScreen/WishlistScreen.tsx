@@ -14,11 +14,17 @@ import {
 } from '../../lib/wishlist.js';
 import { t, uiLocale } from '../../lib/i18n.js';
 import { isAdultBlurred } from '../../lib/adultContent.js';
+import FollowedCircles from '../FollowedCircles/FollowedCircles';
+import type { LibraryCircle } from '../../lib/followedCircles.js';
 
 export interface WishlistScreenProps {
   /** Dossiers de jeux présents : quand ils changent, la liste est relue (jeux arrivés retirés). */
   gameFolders: string[];
   blurAdultContent: boolean;
+  /** Cercles suivis : ceux de la bibliothèque, et le suivi automatique (paramètre `followLibraryCircles`). */
+  libraryCircles: LibraryCircle[];
+  followLibraryCircles: boolean;
+  onFollowLibraryCirclesChange: (value: boolean) => void;
 }
 
 const formatDate = (iso: string | null) =>
@@ -29,7 +35,7 @@ const formatDate = (iso: string | null) =>
  * leur couverture et leur fiche. Un jeu en sort à la main, ou tout seul dès
  * que son dossier apparaît dans la bibliothèque.
  */
-export default function WishlistScreen({ gameFolders, blurAdultContent }: WishlistScreenProps) {
+export default function WishlistScreen({ gameFolders, blurAdultContent, libraryCircles, followLibraryCircles, onFollowLibraryCirclesChange }: WishlistScreenProps) {
   const [items, setItems] = useState<WishlistItem[] | null>(null);
   const [input, setInput] = useState('');
   const [adding, setAdding] = useState(false);
@@ -191,6 +197,15 @@ export default function WishlistScreen({ gameFolders, blurAdultContent }: Wishli
           );
         })}
       </div>
+
+      <FollowedCircles
+        libraryCircles={libraryCircles}
+        gameFolders={gameFolders}
+        wishlistIds={new Set(items?.map(item => item.id) ?? [])}
+        onWishlistChanged={reload}
+        followLibraryCircles={followLibraryCircles}
+        onFollowLibraryCirclesChange={onFollowLibraryCirclesChange}
+      />
     </div>
   );
 }

@@ -39,6 +39,7 @@ import { addCollection, buildShelves, collectionFilterOptions, normalizeCollecti
 import { collectCanonicalGenres, makeGenreNames } from './lib/genreNames.js';
 import { useGenreTranslations } from './hooks/useGenreTranslations';
 import { getPiaStatus } from './lib/vpn.js';
+import { collectLibraryCircles } from './lib/followedCircles.js';
 import { openGameFolder } from './lib/osHandler.js';
 import { PAD_LABELS } from './lib/gamepadLayout.js';
 import { t } from './lib/i18n.js';
@@ -165,6 +166,7 @@ export default function App() {
     () => library.gameFolders.filter(id => library.cache[id]).map(id => ({ id, data: library.cache[id] })),
     [library.gameFolders, library.cache]
   );
+  const libraryCircles = useMemo(() => collectLibraryCircles(presentGames), [presentGames]);
   const homeShelves = settings?.homeShelves;
   const shelves = useMemo(
     () => buildShelves(presentGames, collections, { genreNames, prefs: homeShelves }),
@@ -551,7 +553,18 @@ export default function App() {
       )}
 
       {activeTab === 'wishlist' && (
-        <WishlistScreen gameFolders={library.gameFolders} blurAdultContent={settings?.blurAdultContent ?? true} />
+        <WishlistScreen
+          gameFolders={library.gameFolders}
+          blurAdultContent={settings?.blurAdultContent ?? true}
+          libraryCircles={libraryCircles}
+          followLibraryCircles={settings?.followLibraryCircles ?? false}
+          onFollowLibraryCirclesChange={async value => {
+            if (!settings) return;
+            await saveSettings({ ...settings, followLibraryCircles: value });
+            // Activé : les cercles de la bibliothèque sont ajoutés et vérifiés tout de suite.
+            if (value) window.electronAPI.checkFollowedCircles().catch(() => undefined);
+          }}
+        />
       )}
 
       {activeTab === 'stats' && (

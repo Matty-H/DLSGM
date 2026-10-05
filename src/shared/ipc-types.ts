@@ -71,6 +71,8 @@ export interface AppSettings {
   homeShelves: Record<string, HomeShelfPrefs>;
   /** Bibliothèque : masquer les jeux marqués finis (case « Masquer les finis »). */
   hideCompleted: boolean;
+  /** Suivre automatiquement les cercles des jeux de la bibliothèque (nouveautés, onglet Souhaits). */
+  followLibraryCircles?: boolean;
   /** Bibliothèque (Mac) : seulement les jeux dont une version Mac est dans le dossier. */
   playableOnly?: boolean;
   /** Auto-clicker (Paramètres › Auto-clicker, et l'overlay en jeu). */
@@ -683,6 +685,37 @@ export interface SaveBackup {
 /** Dictionnaire des tags : genre japonais (clé, langue de référence) → traduction anglaise. */
 export type GenreTranslations = Record<string, { en: string; manual: boolean }>;
 
+/** Cercle suivi (src/main/followed-circles.ts). */
+export interface FollowedCircle {
+  /** Identifiant DLsite (RG… cercle, BG… marque). */
+  makerId: string;
+  name: string;
+  /** Section DLsite (maniax, home, pro…). */
+  site: string;
+  /** Suivi automatiquement (cercle de la bibliothèque). */
+  auto: boolean;
+  lastCheck: string | null;
+  error: string | null;
+  workCount: number;
+}
+
+/** Œuvre d'un cercle suivi : annonce, ou sortie apparue après le début du suivi. */
+export interface CircleWork {
+  id: string;
+  title: string;
+  kind: 'sale' | 'announce';
+  category: string | null;
+  /** Date prévue d'une annonce, telle qu'affichée par DLsite (« 2027年06月下旬 発売予定 »). */
+  expected: string | null;
+  /** Première fois vue par DLSGM. */
+  firstSeen: string;
+  /** Apparue après la première vérification du cercle. */
+  isNew: boolean;
+  makerId: string;
+  circle: string;
+  site: string;
+}
+
 /** Jeu de la liste de souhaits
  (voir src/main/wishlist.ts). Champs null tant que la fiche n'a pas pu être récupérée. */
 export interface WishlistItem {
@@ -1122,6 +1155,13 @@ export interface ElectronAPI {
   removeFromWishlist(gameId: string): Promise<boolean>;
   /** Nouvelle tentative de récupération de la fiche. */
   refreshWishlistItem(gameId: string): Promise<void>;
+  /** Cercles suivis et leurs annonces / nouveautés (voir src/main/followed-circles.ts). */
+  getFollowedCircles(): Promise<{ circles: FollowedCircle[]; feed: CircleWork[]; checking: boolean }>;
+  followCircle(makerId: string, site: string, name: string): Promise<void>;
+  unfollowCircle(makerId: string): Promise<void>;
+  /** Vérifie maintenant tous les cercles suivis (un à la fois, espacés). */
+  checkFollowedCircles(): Promise<void>;
+  onFollowedCirclesChanged(callback: (progress: { done: number; total: number } | null) => void): () => void;
 
   // Import d'archives (voir src/main/archive-import.ts)
 

@@ -16,6 +16,8 @@ export interface AppSettings {
   homeShelves: Record<string, HomeShelfPrefs>;
   hideCompleted: boolean;
   playableOnly?: boolean;
+  /** Suivre automatiquement les cercles de la bibliothèque (onglet Souhaits). */
+  followLibraryCircles?: boolean;
   autoClicker: AutoClickerSettings;
   pixelTrigger: PixelTriggerSettings;
   overlayEnabled: boolean;

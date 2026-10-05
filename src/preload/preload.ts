@@ -62,6 +62,15 @@ const electronAPI: ElectronAPI = {
   addToWishlist: (text) => ipcRenderer.invoke('add-to-wishlist', text),
   removeFromWishlist: (gameId) => ipcRenderer.invoke('remove-from-wishlist', gameId),
   refreshWishlistItem: (gameId) => ipcRenderer.invoke('refresh-wishlist-item', gameId),
+  getFollowedCircles: () => ipcRenderer.invoke('get-followed-circles'),
+  followCircle: (makerId, site, name) => ipcRenderer.invoke('follow-circle', makerId, site, name),
+  unfollowCircle: (makerId) => ipcRenderer.invoke('unfollow-circle', makerId),
+  checkFollowedCircles: () => ipcRenderer.invoke('check-followed-circles'),
+  onFollowedCirclesChanged: (callback) => {
+    const listener = (_event: unknown, progress: Parameters<typeof callback>[0]) => callback(progress);
+    ipcRenderer.on('followed-circles-changed', listener);
+    return () => ipcRenderer.removeListener('followed-circles-changed', listener);
+  },
 
   // Import d'archives
 
