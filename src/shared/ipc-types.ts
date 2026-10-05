@@ -1,6 +1,32 @@
 import type { ActiveTheme, CustomTheme } from './themes';
 import type { OsPlatform } from './platforms';
 
+/** Déplacement de la bibliothèque (src/main/library-move.ts). */
+export interface LibraryMovePlan {
+  /** Entrées déplacées (noms à la racine de la bibliothèque). */
+  entries: string[];
+  /** Dont les dossiers de jeux (nommés d'après un ID). */
+  gameCount: number;
+  /** Taille totale (octets). */
+  bytes: number;
+  /** Même disque : simples renommages, rien à copier. */
+  sameVolume: boolean;
+  /** Espace libre du disque cible (null si inconnu). */
+  freeBytes: number | null;
+}
+export interface LibraryMoveProgress {
+  done: number;
+  total: number;
+  /** `bytes` pour une copie, `entries` pour des renommages. */
+  unit: 'bytes' | 'entries';
+}
+export interface LibraryMoveResult {
+  moved: string[];
+  /** Originaux non supprimés après la copie (restés à l'ancien endroit). */
+  leftovers: string[];
+  copied: boolean;
+}
+
 /**
  * Contrat de types partagé pour la surface IPC entre main (ipc-handlers.ts),
  * preload (preload.ts) et renderer (window.electronAPI). Fichier type-only :
@@ -995,6 +1021,11 @@ export interface ElectronAPI {
   listGameFolders(folderPath: string): Promise<string[] | null>;
   /** Plateformes dont une version est présente dans le dossier de chaque jeu (fichiers .exe, .app/.dmg, .apk). */
   detectGamePlatforms(gameIds: string[]): Promise<Record<string, OsPlatform[]>>;
+  /** Déplacement de la bibliothèque vers `target` : vérification et description (src/main/library-move.ts). */
+  planLibraryMove(target: string): Promise<{ ok: true; plan: LibraryMovePlan; busy: string | null } | { ok: false; error: string }>;
+  /** Déplace la bibliothèque, puis change `destinationFolder` (seulement en cas de succès). */
+  moveLibrary(target: string): Promise<{ ok: true; result: LibraryMoveResult } | { ok: false; error: string }>;
+  onLibraryMoveProgress(callback: (progress: LibraryMoveProgress) => void): () => void;
   /** Sélecteur de fichier pour la fenêtre de travail du super bouton panique (null : annulé). */
   chooseSuperPanicTarget(): Promise<string | null>;
   openGameFolder(gameId: string): Promise<boolean>;

@@ -30,6 +30,13 @@ const electronAPI: ElectronAPI = {
   listGameFolders: (folderPath) => ipcRenderer.invoke('list-game-folders', folderPath),
   detectGamePlatforms: (gameIds) => ipcRenderer.invoke('detect-game-platforms', gameIds),
   chooseSuperPanicTarget: () => ipcRenderer.invoke('choose-super-panic-target'),
+  planLibraryMove: (target) => ipcRenderer.invoke('plan-library-move', target),
+  moveLibrary: (target) => ipcRenderer.invoke('move-library', target),
+  onLibraryMoveProgress: (callback) => {
+    const listener = (_event: unknown, progress: Parameters<typeof callback>[0]) => callback(progress);
+    ipcRenderer.on('library-move-progress', listener);
+    return () => ipcRenderer.removeListener('library-move-progress', listener);
+  },
   openGameFolder: (gameId) => ipcRenderer.invoke('open-game-folder', gameId),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   launchGame: (gameId) => ipcRenderer.invoke('launch-game', gameId),

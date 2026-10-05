@@ -583,6 +583,7 @@ export default function App() {
 
       {activeTab === 'settings' && settings && (
         <SettingsScreen settings={settings} onSave={handleSaveSettings} allGenres={rawGenres} onMetadataUpdated={library.reloadCache}
+          onLibraryMoved={library.rescan}
           genreTranslations={genreTranslations.translations}
           onSetGenreTranslation={genreTranslations.setTranslation}
           games={presentGames}

@@ -16,6 +16,7 @@ import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup 
 import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
 import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { detectPlatforms } from './game-platforms';
+import { LibraryMoveError, moveLibrary, planLibraryMove } from './library-move';
 import { DEFAULT_SUPER_PANIC, SuperPanic, sanitizeSuperPanicSettings } from './super-panic';
 import { readInstallInfo } from './release-names';
 import { TextractorSession, findTextractorCli } from './textractor';
@@ -1748,6 +1749,60 @@ export function setupIpcHandlers(
       result[gameId] = await detectPlatforms(path.join(destinationFolder, gameId));
     }
     return result;
+  });
+
+  // --- Déplacement de la bibliothèque (src/main/library-move.ts) ---
+  let libraryMoving = false;
+  const libraryMoveMessage = (error: unknown): string => {
+    if (!(error instanceof LibraryMoveError)) return error instanceof Error ? error.message : String(error);
+    switch (error.code) {
+      case 'same-folder': return tm("C'est déjà le dossier de la bibliothèque.");
+      case 'target-inside-source': return tm("Le nouveau dossier ne peut pas être à l'intérieur de la bibliothèque actuelle.");
+      case 'source-missing': return tm('Dossier de la bibliothèque introuvable.');
+      case 'target-missing': return tm('Dossier de destination introuvable.');
+      case 'nothing-to-move': return tm('La bibliothèque est vide : rien à déplacer.');
+      case 'conflicts': return tm('Le dossier de destination contient déjà : {names}. Rien ne sera écrasé : choisis un dossier vide.', { names: error.detail.slice(0, 5).join(', ') + (error.detail.length > 5 ? '…' : '') });
+      case 'no-space': return tm("Pas assez d'espace libre sur le disque de destination.");
+    }
+  };
+  /** Raison de refuser un déplacement maintenant (jeu lancé, réception réseau ouverte), sinon null. */
+  const libraryBusy = (): string | null => {
+    if (libraryMoving) return tm('Un déplacement est déjà en cours.');
+    if (runningGameDirs.size > 0) return tm("Ferme d'abord le jeu en cours.");
+    if (lanShare?.status().running) return tm("Ferme d'abord la réception réseau (onglet Partage).");
+    return null;
+  };
+  ipcMain.handle('plan-library-move', async (event: IpcMainInvokeEvent, target: unknown) => {
+    if (typeof target !== 'string' || !target) return { ok: false, error: tm('Dossier de destination introuvable.') };
+    const { destinationFolder } = await getSettings();
+    if (!destinationFolder) return { ok: false, error: tm('Dossier de jeux non configuré') };
+    try {
+      return { ok: true, plan: await planLibraryMove(destinationFolder, target), busy: libraryBusy() };
+    } catch (error) {
+      return { ok: false, error: libraryMoveMessage(error) };
+    }
+  });
+  ipcMain.handle('move-library', async (event: IpcMainInvokeEvent, target: unknown) => {
+    if (typeof target !== 'string' || !target) return { ok: false, error: tm('Dossier de destination introuvable.') };
+    const busy = libraryBusy();
+    if (busy) return { ok: false, error: busy };
+    const { destinationFolder } = await getSettings();
+    if (!destinationFolder) return { ok: false, error: tm('Dossier de jeux non configuré') };
+    libraryMoving = true;
+    try {
+      const result = await moveLibrary(destinationFolder, target, {
+        onProgress: progress => event.sender.send('library-move-progress', progress)
+      });
+      // Seulement après un déplacement réussi : la bibliothèque est entière au nouvel endroit.
+      await settingsStore.set('destinationFolder', path.resolve(target));
+      notifySettingsChanged?.();
+      return { ok: true, result };
+    } catch (error) {
+      console.error('Déplacement de la bibliothèque :', error);
+      return { ok: false, error: libraryMoveMessage(error) };
+    } finally {
+      libraryMoving = false;
+    }
   });
 
   // Fenêtre de travail du super bouton panique : un fichier ou une application choisis par l'utilisateur.

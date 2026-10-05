@@ -9,6 +9,7 @@ import WipBadge from '../WipBadge/WipBadge';
 import IpChecker from '../IpChecker/IpChecker';
 import ArchivePasswords from '../ArchivePasswords/ArchivePasswords';
 import SuperPanicSettings from '../SuperPanicSettings/SuperPanicSettings';
+import LibraryMove from '../LibraryMove/LibraryMove';
 import { DEFAULT_SUPER_PANIC_SETTINGS } from '../../lib/superPanic.js';
 import type { GenreNames, GenreTranslations } from '../../lib/genreNames.js';
 import { getSandboxieStatus, type SandboxieStatus } from '../../lib/gameTools.js';
@@ -42,6 +43,8 @@ export interface SettingsScreenProps {
   onSetGenreTranslation: (japanese: string, english: string | null) => Promise<void>;
   /** Après une mise à jour groupée des fiches : relire le cache. */
   onMetadataUpdated: () => void;
+  /** Bibliothèque déplacée (main a changé `destinationFolder`) : à rescanner. */
+  onLibraryMoved: () => void;
   /** Jeux présents (choix des jeux d'une collection, valeurs proposées pour ses règles). */
   games: GameListItem[];
   genreNames: GenreNames;
@@ -229,6 +232,7 @@ export default function SettingsScreen({
   onSave,
   allGenres,
   onMetadataUpdated,
+  onLibraryMoved,
   genreTranslations,
   onSetGenreTranslation,
   games,
@@ -511,6 +515,11 @@ export default function SettingsScreen({
         {section === 'library' && (
           <>
             <SettingRow label={t('Dossier de bibliothèque')} description={destinationFolder || t('Aucun dossier sélectionné')}>
+              <LibraryMove
+                currentFolder={settings.destinationFolder}
+                disabledReason={isDirty ? t("Enregistre d'abord les paramètres modifiés") : null}
+                onMoved={onLibraryMoved}
+              />
               <button type="button" onClick={handleBrowse} className="btn">
                 <FolderOpen size={16} strokeWidth={2.25} />
                 {t('Parcourir')}

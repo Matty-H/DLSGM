@@ -63,7 +63,7 @@ export function useSettings() {
     // un enregistrement ici remettrait les anciennes valeurs.
     const off = window.electronAPI.onSettingsChanged(() => {
       loadSettings().then((loaded: AppSettings) => {
-        if (!cancelled) setSettings(prev => (prev ? { ...prev, autoClicker: loaded.autoClicker, pixelTrigger: loaded.pixelTrigger, checkUpdatesOnStartup: loaded.checkUpdatesOnStartup } : loaded));
+        if (!cancelled) setSettings(prev => (prev ? { ...prev, autoClicker: loaded.autoClicker, pixelTrigger: loaded.pixelTrigger, checkUpdatesOnStartup: loaded.checkUpdatesOnStartup, destinationFolder: loaded.destinationFolder } : loaded));
       });
     });
     return () => {
