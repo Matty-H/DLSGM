@@ -41,12 +41,26 @@ function Clock() {
   );
 }
 
+// Fenêtre sans barre de titre native (titleBarStyle 'hiddenInset', macOS
+// seulement) : les feux tricolores (fermer/réduire/plein écran) restent
+// affichés par le système en haut à gauche, par-dessus notre propre contenu.
+// Sans cette marge, le logo s'affiche juste à côté d'eux (ligne du haut,
+// qu'ils occupent sur toute sa hauteur) : on descend tout le bandeau au lieu
+// de décaler le logo sur le côté.
+const MACOS_TRAFFIC_LIGHTS_TOP_PADDING = 30;
+
 export default function TopNav({ activeTab, onTabChange, isFullscreen, onToggleFullscreen, isReceiving }: TopNavProps) {
+  // En plein écran natif macOS, les feux tricolores disparaissent avec la
+  // barre de titre : plus besoin de leur laisser de la place.
+  const isMac = window.electronAPI.platform === 'darwin' && !isFullscreen;
   return (
     // Responsive : sous 1180 px, seuls l'onglet actif et les icônes gardent
     // leur place (libellés des autres onglets en infobulle) ; la liste défile
     // horizontalement en dernier recours au lieu de déborder de la fenêtre.
-    <header className="flex flex-shrink-0 items-center gap-2 px-4 pb-2 pt-4 sm:px-6">
+    <header
+      className="flex flex-shrink-0 items-center gap-2 px-4 pb-2 pt-4 sm:px-6"
+      style={isMac ? { paddingTop: MACOS_TRAFFIC_LIGHTS_TOP_PADDING } : undefined}
+    >
       <div className="mr-2 flex flex-shrink-0 items-center lg:mr-6">
         <Logo variant="square" height={28} className="md:hidden" />
         <Logo variant="horizontal" height={24} className="hidden md:block" />

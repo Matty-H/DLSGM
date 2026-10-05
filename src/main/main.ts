@@ -13,6 +13,26 @@ import { initTheme, onThemeIcon } from './theme';
 
 let mainWindow: BrowserWindow | null = null;
 
+// Une seule instance : sans ça, deux process pourraient ouvrir les mêmes
+// fichiers NeDB en même temps (store.ts : jamais deux Datastore sur un seul
+// fichier — écriture atomique par rename, qui échoue en ENOENT si l'autre
+// process réécrit le fichier entre-temps). `app.quit()` avant que l'app soit
+// prête ne stoppe pas l'exécution du script : holdStores() et le callback de
+// whenReady() plus bas restent gardés par `gotLock` pour ne pas toucher aux
+// stores dans le process perdant.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.quit();
+
+app.on('second-instance', () => {
+  // Une deuxième ouverture (double-clic, ou le relancement de secours après
+  // mise à jour sur Mac — voir updater.ts) : on ramène l'instance existante
+  // au lieu d'en ouvrir une autre.
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+});
+
 /**
  * Crée la fenêtre principale de l'application.
  */
@@ -104,7 +124,7 @@ function createWindow(): void {
 }
 
 // Les stores n'ouvrent leurs fichiers qu'après les migrations (voir plus bas).
-const releaseStores = holdStores();
+const releaseStores = gotLock ? holdStores() : () => undefined;
 
 // Enregistrement du protocole atom pour charger les images locales
 protocol.registerSchemesAsPrivileged([
@@ -113,6 +133,9 @@ protocol.registerSchemesAsPrivileged([
 
 // Initialisation de l'application
 app.whenReady().then(async () => {
+  // Deuxième instance déjà renvoyée vers la première (second-instance) et en
+  // cours de fermeture : ne rien initialiser (migrations, fenêtre, stores).
+  if (!gotLock) return;
   // Données laissées par une ancienne version converties au format actuel,
   // avant toute lecture (src/main/migrations).
   await runMigrations({

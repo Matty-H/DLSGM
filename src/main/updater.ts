@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { app, dialog, net, shell, type BrowserWindow, type MessageBoxOptions } from 'electron';
@@ -194,6 +194,26 @@ export async function finishPendingInstall(deps: PendingInstallDeps = {}): Promi
 }
 
 /**
+ * Filet de sécurité macOS uniquement : contrairement à Windows,
+ * `MacUpdater.quitAndInstall()` (electron-updater) ignore les deux arguments
+ * qu'on lui passe et laisse le relancement entièrement au Squirrel.Mac natif
+ * d'Electron — qui exige une app signée avec un certificat Developer ID pour
+ * relancer de façon fiable après le remplacement (hors de portée sans compte
+ * Apple Developer payant ; échec silencieux sinon, l'app reste fermée).
+ * Un process détaché relance donc DLSGM après un court délai, que Squirrel
+ * ait réussi à le faire ou non : si une instance tourne déjà (relancement
+ * natif réussi, ou DLSGM pas vraiment fermé), le verrou mono-instance
+ * (main.ts) fait que cette tentative se referme aussitôt en focalisant
+ * l'instance existante, sans doublon. Le chemin est passé en argument séparé
+ * au shell ($1), jamais interpolé dans la commande.
+ */
+function scheduleMacRelaunchFallback(): void {
+  // .../DLSGM.app/Contents/MacOS/DLSGM -> .../DLSGM.app
+  const bundlePath = path.resolve(process.execPath, '..', '..', '..');
+  spawn('/bin/sh', ['-c', 'sleep 8 && exec open "$1"', '_', bundlePath], { detached: true, stdio: 'ignore' }).unref();
+}
+
+/**
  * Télécharge la mise à jour (barre de progression dans l'interface), puis
  * demande : maintenant, ou au redémarrage (à la fermeture de DLSGM).
  */
@@ -222,8 +242,12 @@ async function downloadAndOfferInstall(getWindow: () => BrowserWindow | null, ve
   // Installation silencieuse (/S) puis relance : sans ces arguments,
   // electron-updater ouvre l'assistant de l'installeur NSIS, comme une
   // première installation. « Au redémarrage » installe aussi en silence, à
-  // la fermeture (autoInstallOnAppQuit).
-  if (choice === 0) autoUpdater.quitAndInstall(true, true);
+  // la fermeture (autoInstallOnAppQuit). Sur mac, ces arguments sont ignorés
+  // (voir scheduleMacRelaunchFallback) : le filet de sécurité est nécessaire.
+  if (choice === 0) {
+    if (process.platform === 'darwin') scheduleMacRelaunchFallback();
+    autoUpdater.quitAndInstall(true, true);
+  }
 }
 
 export interface CheckOptions {

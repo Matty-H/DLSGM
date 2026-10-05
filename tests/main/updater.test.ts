@@ -18,10 +18,15 @@ const updater = vi.hoisted(() => ({
     removeListener: vi.fn()
   } as Record<string, unknown>
 }));
+const childProcess = vi.hoisted(() => ({
+  execFile: vi.fn(),
+  spawn: vi.fn(() => ({ unref: vi.fn() }))
+}));
 
 vi.mock('electron', () => electron);
 vi.mock('electron-updater', () => updater);
 vi.mock('electron-log', () => ({ default: { transports: { file: {} }, error: vi.fn(), warn: vi.fn() } }));
+vi.mock('child_process', () => childProcess);
 
 import { checkForUpdates, compareVersions, finishPendingInstall, isPortable, RELEASES_PAGE } from '../../src/main/updater';
 
@@ -109,6 +114,41 @@ describe('checkForUpdates — version installée', () => {
     await checkForUpdates({ manual: true, getWindow });
     // En silence, puis relance : sinon l'assistant de l'installeur s'ouvre.
     expect(au.quitAndInstall).toHaveBeenCalledWith(true, true);
+  });
+
+  it('sur mac, programme un relancement de secours détaché (quitAndInstall ignore ses arguments côté Squirrel.Mac)', async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+    try {
+      au.downloadUpdate.mockResolvedValue([]);
+      answer(0);
+      await checkForUpdates({ manual: true, getWindow });
+      expect(childProcess.spawn).toHaveBeenCalledOnce();
+      const [command, args, options] = childProcess.spawn.mock.calls[0] as unknown as [string, string[], { detached?: boolean; stdio?: string }];
+      expect(command).toBe('/bin/sh');
+      // Le chemin (process.execPath, ici celui de Node) passe en argument
+      // séparé ($1) : le script -c lui-même ne contient jamais de chemin interpolé.
+      expect(args[0]).toBe('-c');
+      expect(args[1]).not.toContain(process.execPath);
+      expect(args[2]).toBe('_');
+      expect(args[3]).toEqual(expect.stringContaining(path.sep));
+      expect(options).toMatchObject({ detached: true, stdio: 'ignore' });
+    } finally {
+      Object.defineProperty(process, 'platform', platform);
+    }
+  });
+
+  it("hors mac, n'essaie pas de relancer soi-même (electron-updater gère déjà le relancement)", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    try {
+      au.downloadUpdate.mockResolvedValue([]);
+      answer(0);
+      await checkForUpdates({ manual: true, getWindow });
+      expect(childProcess.spawn).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process, 'platform', platform);
+    }
   });
 
   it("garde un échec de téléchargement pour le journal au démarrage, l'affiche en manuel", async () => {
