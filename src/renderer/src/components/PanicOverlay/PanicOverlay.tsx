@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getUiLanguage, t } from '../../lib/i18n.js';
 
 export interface PanicOverlayProps {
@@ -25,9 +25,11 @@ export default function PanicOverlay({ active }: PanicOverlayProps) {
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [iframeVisible, setIframeVisible] = useState(false);
   const [iframeSrc, setIframeSrc] = useState('about:blank');
+  const wasActive = useRef(false);
 
   useEffect(() => {
     if (active) {
+      wasActive.current = true;
       document.title = panicPage().title;
       setOverlayVisible(true);
 
@@ -39,6 +41,9 @@ export default function PanicOverlay({ active }: PanicOverlayProps) {
       return () => clearTimeout(timer);
     }
 
+    // Au montage (jamais activé) : rien à fermer — sinon l'écran de chargement
+    // blanc s'afficherait 500 ms à chaque lancement.
+    if (!wasActive.current) return;
     setOverlayVisible(true);
     const timer = setTimeout(() => {
       setIframeSrc('about:blank');
