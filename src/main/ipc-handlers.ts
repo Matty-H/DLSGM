@@ -42,6 +42,7 @@ import { describeWorkspace, workspaceRoot } from './workspace';
 import { snapshotDatabase } from './db-backup';
 import { checkIp } from './ip-check';
 import { Pia } from './pia';
+import { hashSecret, matchesSecret, readLockConfig, secretProblem, unlockTarget, UnlockThrottle, writeLockConfig, type LockConfig, type LockKind } from './app-lock';
 import { DEFAULT_LAN_PORT, LanShare } from './lan-share';
 import { AutoClicker, DEFAULT_AUTO_CLICKER, sanitizeClickerSettings } from './auto-clicker';
 import { GameOverlay, OVERLAY_HOTKEY } from './overlay';
@@ -1201,6 +1202,126 @@ function on(channel: string, listener: (event: IpcMainEvent, ...args: any[]) => 
   });
 }
 
+// --- Verrouillage au démarrage (src/main/app-lock.ts) ---
+
+/** Vrai dossier de données (où vit app-lock.json) et profil ouvert à ce démarrage. */
+const lockSession: { realUserData: string; mode: 'real' | 'decoy' } = { realUserData: '', mode: 'real' };
+// Partagé par l'écran de verrouillage et la vérification du code actuel dans les Paramètres.
+const unlockThrottle = new UnlockThrottle();
+
+export function setLockSession(realUserData: string, mode: 'real' | 'decoy'): void {
+  lockSession.realUserData = realUserData;
+  lockSession.mode = mode;
+}
+
+function lockDir(): string {
+  return lockSession.realUserData || app.getPath('userData');
+}
+
+/**
+ * Canaux de l'écran de verrouillage (route `#lock`), enregistrés avant tout
+ * le reste : les stores sont encore fermés, rien d'autre ne répond.
+ * `onUnlocked` reçoit le profil à ouvrir.
+ */
+export function setupLockScreenHandlers(isAppUrl: (url: string) => boolean, config: LockConfig, onUnlocked: (target: 'real' | 'decoy') => void): void {
+  isAppPage = isAppUrl;
+  let unlocked = false;
+  handle('get-lock-screen', () => ({ kind: config.kind, uiLanguage: config.uiLanguage ?? 'system', systemLanguages: systemLanguages() }));
+  handle('unlock-app', async (_event: IpcMainInvokeEvent, value: unknown) => {
+    if (unlocked) return { ok: true };
+    const wait = unlockThrottle.remaining();
+    if (wait > 0) return { ok: false, retryInMs: wait };
+    const target = await unlockTarget(config, value);
+    if (!target) {
+      unlockThrottle.fail();
+      return { ok: false, retryInMs: unlockThrottle.remaining() };
+    }
+    unlockThrottle.succeed();
+    unlocked = true;
+    onUnlocked(target);
+    return { ok: true };
+  });
+}
+
+/**
+ * Premier passage dans le profil leurre : pas d'assistant de premier
+ * lancement (il trahirait un profil neuf), même langue et même thème que
+ * le vrai profil (une palette perso n'existe pas dans le leurre : thème par défaut).
+ */
+export async function seedDecoyProfile(config: LockConfig): Promise<void> {
+  await settingsStore.set('onboardingPending', false);
+  if (config.uiLanguage) await settingsStore.set('uiLanguage', config.uiLanguage);
+  if (config.theme && normalizeThemeSetting(config.theme) === config.theme) await settingsStore.set('theme', config.theme);
+}
+
+/** Langue et thème recopiés dans app-lock.json — seulement depuis le vrai profil. */
+async function lockAppearance(existing: LockConfig | null): Promise<Pick<LockConfig, 'uiLanguage' | 'theme'>> {
+  if (lockSession.mode !== 'real') return { uiLanguage: existing?.uiLanguage, theme: existing?.theme };
+  const { uiLanguage, theme } = await getSettings();
+  return { uiLanguage: typeof uiLanguage === 'string' ? uiLanguage : undefined, theme: typeof theme === 'string' ? theme : undefined };
+}
+
+function assertValidSecret(kind: LockKind, value: unknown): asserts value is string {
+  const problem = secretProblem(kind, value);
+  if (problem === 'pin') throw new Error(tm('Le code PIN doit faire de 4 à 12 chiffres.'));
+  if (problem === 'password') throw new Error(tm('Le mot de passe doit faire de 4 à 128 caractères, sur une ligne.'));
+}
+
+/** Toute modification du verrouillage demande le vrai code actuel (le leurre est refusé comme un code faux). */
+async function assertCurrentSecret(config: LockConfig, current: unknown): Promise<void> {
+  const wait = unlockThrottle.remaining();
+  if (wait > 0) throw new Error(tm('Trop d’essais : réessaie dans {seconds} s.', { seconds: Math.ceil(wait / 1000) }));
+  if (typeof current !== 'string' || !(await matchesSecret(current, config.secret))) {
+    unlockThrottle.fail();
+    throw new Error(tm('Code actuel incorrect.'));
+  }
+  unlockThrottle.succeed();
+}
+
+function setupAppLockHandlers(): void {
+  // Depuis le profil leurre, le leurre n'existe pas : rien ne le montre.
+  handle('get-app-lock', () => {
+    const config = readLockConfig(lockDir());
+    return { enabled: config !== null, kind: config?.kind ?? 'pin', decoy: !!config?.decoy && lockSession.mode === 'real' };
+  });
+
+  handle('set-app-lock', async (_event: IpcMainInvokeEvent, request: { current?: unknown; kind?: unknown; secret?: unknown }) => {
+    const kind: LockKind = request?.kind === 'password' ? 'password' : 'pin';
+    const secret = request?.secret;
+    assertValidSecret(kind, secret);
+    const existing = readLockConfig(lockDir());
+    if (existing) await assertCurrentSecret(existing, request.current);
+    // Le leurre suit le format du vrai code (l'écran de verrouillage n'en montre qu'un) : changer de format le retire.
+    const decoy = existing?.decoy && existing.kind === kind ? existing.decoy : undefined;
+    if (decoy && (await matchesSecret(secret, decoy))) throw new Error(tm('Ce code est déjà celui du leurre.'));
+    writeLockConfig(lockDir(), { kind, secret: await hashSecret(secret), ...(decoy ? { decoy } : {}), ...(await lockAppearance(existing)) });
+    return { decoyRemoved: !!existing?.decoy && !decoy };
+  });
+
+  handle('disable-app-lock', async (_event: IpcMainInvokeEvent, current: unknown) => {
+    const existing = readLockConfig(lockDir());
+    if (!existing) return;
+    await assertCurrentSecret(existing, current);
+    // Le profil leurre reste sur le disque : DLSGM ne supprime pas de données.
+    writeLockConfig(lockDir(), null);
+  });
+
+  handle('set-app-lock-decoy', async (_event: IpcMainInvokeEvent, request: { current?: unknown; decoy?: unknown }) => {
+    const existing = readLockConfig(lockDir());
+    if (!existing) throw new Error(tm("Active d'abord le verrouillage."));
+    await assertCurrentSecret(existing, request?.current);
+    const { decoy: _previous, ...rest } = existing;
+    if (request?.decoy === null) {
+      writeLockConfig(lockDir(), rest);
+      return;
+    }
+    const decoy = request?.decoy;
+    assertValidSecret(existing.kind, decoy);
+    if (await matchesSecret(decoy, existing.secret)) throw new Error(tm('Le leurre doit être différent du vrai code.'));
+    writeLockConfig(lockDir(), { ...rest, decoy: await hashSecret(decoy) });
+  });
+}
+
 /**
  * Enregistre les handlers IPC. À n'appeler qu'une fois : sur macOS la fenêtre
  * peut être recréée (événement `activate`), d'où `getWindow` plutôt qu'une
@@ -1212,6 +1333,7 @@ export function setupIpcHandlers(
   pages: PageLoader
 ): void {
   isAppPage = pages.isAppUrl;
+  setupAppLockHandlers();
   const clicker = new AutoClicker({
     scriptDir: app.getPath('userData'),
     logPath: path.join(app.getPath('userData'), 'auto-clicker.log'),
@@ -1705,6 +1827,15 @@ export function setupIpcHandlers(
     newSettings = guardExecutablePaths(newSettings, previous, pickedPaths);
     newSettings = { ...newSettings, extraLibraryFolders: sanitizeExtraFolders(newSettings.destinationFolder, newSettings.extraLibraryFolders) };
     await settingsStore.setAll({ ...newSettings, ...proxy } as unknown as Record<string, unknown>);
+    // Écran de verrouillage dans la langue (et leurre neuf dans le thème) choisis ici.
+    const lock = lockSession.mode === 'real' ? readLockConfig(lockDir()) : null;
+    if (lock && (lock.uiLanguage !== newSettings.uiLanguage || lock.theme !== newSettings.theme)) {
+      try {
+        writeLockConfig(lockDir(), { ...lock, uiLanguage: newSettings.uiLanguage, theme: newSettings.theme });
+      } catch (error) {
+        console.error('Mise à jour de app-lock.json impossible :', error);
+      }
+    }
     // Langue de l'interface changée : chaque fenêtre la relit à son chargement.
     setMainLanguage(newSettings.uiLanguage);
     applyThemeSetting(newSettings.theme, newSettings.customThemes);

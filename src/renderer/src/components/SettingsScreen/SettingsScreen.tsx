@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Power, Camera, Stethoscope, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
+import { Power, Camera, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
-import PiaSettings from '../PiaSettings/PiaSettings';
 import WipBadge from '../WipBadge/WipBadge';
 import IpChecker from '../IpChecker/IpChecker';
 import ArchivePasswords from '../ArchivePasswords/ArchivePasswords';
 import SuperPanicSettings from '../SuperPanicSettings/SuperPanicSettings';
+import AppLockSettings from '../AppLockSettings/AppLockSettings';
 import LibraryMove from '../LibraryMove/LibraryMove';
 import LibraryHealth from '../LibraryHealth/LibraryHealth';
 import { addExtraFolder } from '../../lib/libraryFolders.js';
@@ -183,20 +183,24 @@ function nearestPreset(minutes: number): number {
   , REFRESH_PRESETS[0].value);
 }
 
-export type SettingsSection = 'library' | 'health' | 'network' | 'display' | 'launch' | 'clicker' | 'collections' | 'genres' | 'storage' | 'updates';
+// `health` : pas une section du menu, mais le bilan de santé dans Stockage (retour depuis la page d'un jeu ouverte par le bilan).
+export type SettingsSection = 'library' | 'health' | 'network' | 'display' | 'launch' | 'clicker' | 'collections' | 'storage' | 'updates';
 
 const SECTIONS: { id: SettingsSection; label: string; Icon: LucideIcon }[] = [
   { id: 'library', label: msg('Bibliothèque'), Icon: Library },
-  { id: 'health', label: msg('Santé de la bibliothèque'), Icon: Stethoscope },
   { id: 'network', label: msg('Réseau & VPN'), Icon: Globe },
   { id: 'display', label: msg('Affichage'), Icon: Eye },
   { id: 'launch', label: msg('Lancement'), Icon: Gamepad2 },
   { id: 'clicker', label: msg('Outils en jeu'), Icon: MousePointerClick },
-  { id: 'collections', label: msg('Collections'), Icon: Layers },
-  { id: 'genres', label: msg('Traduction des tags'), Icon: Languages },
+  { id: 'collections', label: msg('Collections et tags'), Icon: Layers },
   { id: 'storage', label: msg('Stockage'), Icon: HardDrive },
   { id: 'updates', label: msg('Mises à jour'), Icon: RefreshCw }
 ];
+
+/** Section du menu qui affiche `target` (le bilan de santé est dans Stockage). */
+function menuSection(target: SettingsSection): SettingsSection {
+  return target === 'health' ? 'storage' : target;
+}
 
 /** Ligne de réglage SteamOS : libellé et description à gauche, contrôle à droite. */
 function SettingRow({ label, description, children }: { label: ReactNode; description?: ReactNode; children?: ReactNode }) {
@@ -287,15 +291,14 @@ export default function SettingsScreen({
   const [closeToTray, setCloseToTray] = useState(settings.closeToTray);
   const [superPanic, setSuperPanic] = useState(settings.superPanic ?? DEFAULT_SUPER_PANIC_SETTINGS);
   const [checkUpdatesOnStartup, setCheckUpdatesOnStartup] = useState(settings.checkUpdatesOnStartup !== false);
-  const [piaRetry, setPiaRetry] = useState(settings.piaRetry);
-  const [piaRegion, setPiaRegion] = useState(settings.piaRegion);
   const [workspaceFolder, setWorkspaceFolder] = useState(settings.workspaceFolder ?? '');
   const [extraFolders, setExtraFolders] = useState<string[]>(settings.extraLibraryFolders ?? []);
   const [extraFolderError, setExtraFolderError] = useState<string | null>(null);
   const [defaultWorkspaceRoot, setDefaultWorkspaceRoot] = useState('');
   const [sandboxieStatus, setSandboxieStatus] = useState<SandboxieStatus | null>(null);
   const [isResettingImages, setIsResettingImages] = useState(false);
-  const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [section, setSection] = useState<SettingsSection>(menuSection(initialSection));
+  const healthRef = useRef<HTMLElement>(null);
   // Version affichée sous « Enregistrer ».
   const [appInfo, setAppInfo] = useState<AppUpdateInfo | null>(null);
   useEffect(() => {
@@ -303,7 +306,8 @@ export default function SettingsScreen({
   }, []);
 
   useEffect(() => {
-    setSection(initialSection);
+    setSection(menuSection(initialSection));
+    if (initialSection === 'health') requestAnimationFrame(() => healthRef.current?.scrollIntoView({ block: 'start' }));
   }, [initialSection, initialCollectionId]);
 
   useEffect(() => {
@@ -332,8 +336,6 @@ export default function SettingsScreen({
     setCloseToTray(settings.closeToTray);
     setSuperPanic(settings.superPanic ?? DEFAULT_SUPER_PANIC_SETTINGS);
     setCheckUpdatesOnStartup(settings.checkUpdatesOnStartup !== false);
-    setPiaRetry(settings.piaRetry);
-    setPiaRegion(settings.piaRegion);
     setWorkspaceFolder(settings.workspaceFolder ?? '');
     setExtraFolders(settings.extraLibraryFolders ?? []);
   }, [settings]);
@@ -407,8 +409,6 @@ export default function SettingsScreen({
     closeToTray !== settings.closeToTray ||
     JSON.stringify(superPanic) !== JSON.stringify(settings.superPanic ?? DEFAULT_SUPER_PANIC_SETTINGS) ||
     checkUpdatesOnStartup !== (settings.checkUpdatesOnStartup !== false) ||
-    piaRetry !== settings.piaRetry ||
-    piaRegion !== settings.piaRegion ||
     workspaceFolder !== (settings.workspaceFolder ?? '') ||
     JSON.stringify(extraFolders) !== JSON.stringify(settings.extraLibraryFolders ?? []) ||
     JSON.stringify(collections) !== JSON.stringify(settings.collections ?? []) ||
@@ -462,8 +462,6 @@ export default function SettingsScreen({
       closeToTray,
       superPanic,
       checkUpdatesOnStartup,
-      piaRetry,
-      piaRegion,
       workspaceFolder,
       extraLibraryFolders: extraFolders
     });
@@ -647,20 +645,11 @@ export default function SettingsScreen({
           </>
         )}
 
-        {section === 'health' && (
-          <LibraryHealth
-            nameOf={gameId => (games.find(game => game.id === gameId)?.data.work_name as string | undefined) || gameId}
-            onOpenGame={onOpenGame}
-            onChooseExecutable={onChooseExecutable}
-            onChanged={onLibraryChanged}
-          />
-        )}
-
         {section === 'network' && (
           <>
             <div className="mt-4 rounded-md bg-bg-deep px-4 py-3 text-[13px] leading-relaxed text-text-secondary">
               <span className="font-semibold text-text">{t('Section en cours de développement.')}</span>{' '}
-              {t('Une prochaine version se branchera de façon plus fiable à un VPN (SOCKS5, OpenVPN ou WireGuard). En attendant, pour les œuvres réservées au Japon : allume ton VPN sur le Japon (ex: PIA, région jp-tokyo) avant de lancer un scan ou « Mettre à jour toutes les fiches », en laissant le proxy vide.')}
+              {t('Une prochaine version se branchera de façon plus fiable à un VPN (SOCKS5, OpenVPN ou WireGuard). En attendant, pour les œuvres réservées au Japon : allume ton VPN sur le Japon avant de lancer un scan ou « Mettre à jour toutes les fiches », en laissant le proxy vide.')}
             </div>
             <IpChecker />
             <button
@@ -670,7 +659,7 @@ export default function SettingsScreen({
               className="btn btn-ghost my-2 self-start"
             >
               {showWipNetwork ? <ChevronDown size={16} strokeWidth={2.25} /> : <ChevronRight size={16} strokeWidth={2.25} />}
-              {t('Proxy et PIA')} <WipBadge />
+              {t('Proxy')} <WipBadge />
             </button>
             {showWipNetwork && (
               <>
@@ -716,15 +705,6 @@ export default function SettingsScreen({
                     {proxyTest === 'running' ? t('Test…') : t('Tester')}
                   </button>
                 </SettingRow>
-
-                <PiaSettings
-                  enabled={piaRetry}
-                  region={piaRegion}
-                  onEnabledChange={setPiaRetry}
-                  onRegionChange={setPiaRegion}
-                  regionDirty={piaRegion !== settings.piaRegion}
-                  onRetried={onMetadataUpdated}
-                />
               </>
             )}
           </>
@@ -794,6 +774,7 @@ export default function SettingsScreen({
                 takenHotkeys={[autoClicker.hotkey, pixelTrigger.hotkey, macroRecorder.recordHotkey, macroRecorder.playHotkey, ocrTranslate.hotkey, screenshot.hotkey]}
               />
             )}
+            <AppLockSettings />
           </>
         )}
 
@@ -1024,9 +1005,10 @@ export default function SettingsScreen({
             initialExpandedId={initialCollectionId}
           />
         )}
-
-        {section === 'genres' && (
-          <GenreTranslationsEditor translations={genreTranslations} libraryGenres={allGenres} onSetTranslation={onSetGenreTranslation} />
+        {section === 'collections' && (
+          <div className="mt-6 border-t border-divider">
+            <GenreTranslationsEditor translations={genreTranslations} libraryGenres={allGenres} onSetTranslation={onSetGenreTranslation} />
+          </div>
         )}
 
         {section === 'storage' && (
@@ -1040,6 +1022,14 @@ export default function SettingsScreen({
               {isResettingImages ? t('Réinitialisation en cours…') : t('Réinitialiser')}
             </button>
           </SettingRow>
+          <section ref={healthRef} className="mt-6 scroll-mt-4">
+            <LibraryHealth
+              nameOf={gameId => (games.find(game => game.id === gameId)?.data.work_name as string | undefined) || gameId}
+              onOpenGame={onOpenGame}
+              onChooseExecutable={onChooseExecutable}
+              onChanged={onLibraryChanged}
+            />
+          </section>
           </>
         )}
 

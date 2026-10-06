@@ -33,11 +33,20 @@ export interface MigrationContext {
 
 export interface Migration {
   id: string;
+  /**
+   * Touche des données hors du dossier de données (Documents…), partagées
+   * par tous les profils : ne tourne que pour le vrai profil, jamais pour
+   * le profil leurre (app-lock.ts), dont les réglages ne la concernent pas.
+   */
+  sharedData?: boolean;
   run(context: MigrationContext): Promise<void>;
 }
 
 /** Dans l'ordre d'exécution (une migration peut compter sur les précédentes). */
 export const MIGRATIONS: readonly Migration[] = [jsonStoresToNedb, workspaceTravauxToWork, backupLabelsToEnglish, genreAliasGroups];
+
+/** Migrations du profil leurre : seulement ce qui vit dans son propre dossier. */
+export const PROFILE_MIGRATIONS: readonly Migration[] = MIGRATIONS.filter(migration => !migration.sharedData);
 
 /**
  * Exécute les migrations dans l'ordre. Un échec est journalisé et n'empêche

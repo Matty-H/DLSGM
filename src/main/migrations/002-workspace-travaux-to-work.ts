@@ -17,6 +17,8 @@ import { openDataFile } from './nedb';
  */
 export const workspaceTravauxToWork: Migration = {
   id: '002-workspace-travaux-to-work',
+  // Documents/DLSGM : le profil leurre le renommerait malgré un dossier choisi dans le vrai profil.
+  sharedData: true,
   async run({ userData, documents, log }) {
     const base = path.join(documents, 'DLSGM');
     const legacy = path.join(base, 'Travaux');

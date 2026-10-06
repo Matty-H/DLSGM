@@ -5,6 +5,7 @@ import { listTree, makeTempDir, removeTempDir, writeTree } from '../../helpers';
 import { workspaceTravauxToWork } from '../../../src/main/migrations/002-workspace-travaux-to-work';
 import { openDataFile } from '../../../src/main/migrations/nedb';
 import { migrationContext } from './context';
+import { MIGRATIONS, PROFILE_MIGRATIONS, runMigrations } from '../../../src/main/migrations';
 
 let root: string;
 let base: string;
@@ -48,5 +49,16 @@ describe('002 — dossier Travaux renommé en Work', () => {
     await workspaceTravauxToWork.run(migrationContext(root));
     expect(fs.existsSync(path.join(legacy, 'RJ01000001', 'notes.md'))).toBe(true);
     expect(fs.existsSync(path.join(base, 'Work'))).toBe(false);
+  });
+
+  // Le profil leurre (app-lock.ts) a ses propres réglages, sans le dossier
+  // de travaux choisi dans le vrai profil : il ne doit pas toucher à Documents.
+  it("ne tourne pas pour le profil leurre, les autres migrations si", async () => {
+    writeTree(path.join(base, 'Travaux'), { 'RJ01000001/notes.md': 'abc' });
+    const context = { ...migrationContext(root), userData: path.join(root, 'userData', 'alt-profile') };
+    fs.mkdirSync(context.userData, { recursive: true });
+    expect(await runMigrations(context, PROFILE_MIGRATIONS)).toEqual([]);
+    expect(fs.existsSync(path.join(base, 'Travaux', 'RJ01000001', 'notes.md'))).toBe(true);
+    expect(PROFILE_MIGRATIONS.map(m => m.id)).toEqual(MIGRATIONS.filter(m => m.id !== workspaceTravauxToWork.id).map(m => m.id));
   });
 });

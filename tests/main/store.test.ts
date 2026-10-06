@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeTempDir, removeTempDir } from '../helpers';
 
@@ -58,6 +60,22 @@ describe('Store', () => {
     await old.set('refreshRate', 10);
     const upgraded = new Store('settings.db', { onboardingPending: true, refreshRate: 5 });
     expect(await upgraded.getAll()).toEqual({ refreshRate: 10 });
+  });
+
+  // Profil leurre (app-lock.ts) : les stores sont construits à l'import, main
+  // choisit le dossier de données ensuite ; le fichier doit suivre ce choix.
+  it("ouvre son fichier dans le dossier de données du moment de l'ouverture, pas de la construction", async () => {
+    const first = electron.userData;
+    const store = new Store('cache.db', {});
+    const decoy = makeTempDir();
+    electron.userData = decoy;
+    try {
+      await store.set('RJ1', { work_name: 'A' });
+      expect(fs.existsSync(path.join(decoy, 'cache.db'))).toBe(true);
+      expect(fs.existsSync(path.join(first, 'cache.db'))).toBe(false);
+    } finally {
+      removeTempDir(first);
+    }
   });
 
 });

@@ -3,16 +3,19 @@ import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
 import { setMainLanguage } from './i18n';
-import { runMigrations } from './migrations';
+import { PROFILE_MIGRATIONS, runMigrations } from './migrations';
 import { holdStores } from './store';
 import { finishPendingInstall } from './updater';
-import { setupIpcHandlers, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic, captureFilePath, runStartupUpdateCheck } from './ipc-handlers';
+import { setupIpcHandlers, setupLockScreenHandlers, setLockSession, seedDecoyProfile, getImgCacheDir, getSettings, isInside, shutdownLanShare, shutdownVpn, isVpnActive, shutdownInGameTools, togglePanic, captureFilePath, runStartupUpdateCheck } from './ipc-handlers';
 import { applyDlsiteProxy } from './dlsite-net';
 import { hideInsteadOfClose, setTrayEnabled, setTrayIcon } from './tray';
 import { initTheme, onThemeIcon } from './theme';
 import { isAppUrl } from './ipc-guard';
+import { DECOY_PROFILE_DIR, readLockConfig, type LockConfig } from './app-lock';
 
 let mainWindow: BrowserWindow | null = null;
+// Écran de verrouillage (app-lock.ts), tant que l'app n'est pas déverrouillée.
+let lockWindow: BrowserWindow | null = null;
 
 // Une seule instance : sans ça, deux process pourraient ouvrir les mêmes
 // fichiers NeDB en même temps (store.ts : jamais deux Datastore sur un seul
@@ -28,6 +31,10 @@ app.on('second-instance', () => {
   // Une deuxième ouverture (double-clic, ou le relancement de secours après
   // mise à jour sur Mac — voir updater.ts) : on ramène l'instance existante
   // au lieu d'en ouvrir une autre.
+  if (lockWindow?.isVisible()) {
+    lockWindow.focus();
+    return;
+  }
   if (!mainWindow) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
   if (!mainWindow.isVisible()) mainWindow.show();
@@ -139,7 +146,42 @@ function createWindow(): void {
   // mainWindow.webContents.openDevTools();
 }
 
-// Les stores n'ouvrent leurs fichiers qu'après les migrations (voir plus bas).
+/**
+ * Écran de verrouillage : résout avec le profil à ouvrir, ou null si la
+ * fenêtre est fermée sans déverrouiller. Déverrouillée, la fenêtre est
+ * seulement cachée (détruite une fois la fenêtre principale créée) : la
+ * fermer avant laisserait l'app sans fenêtre, donc la quitterait.
+ */
+function showLockScreen(config: LockConfig): Promise<'real' | 'decoy' | null> {
+  return new Promise(resolve => {
+    const window = new BrowserWindow({
+      width: 420,
+      height: 620,
+      resizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      show: false,
+      title: 'DLSGM',
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: PRELOAD_PATH },
+      backgroundColor: '#0e141b'
+    });
+    lockWindow = window;
+    setupLockScreenHandlers(url => isAppUrl(url, RENDERER_INDEX, DEV_SERVER_URL), config, target => {
+      window.hide();
+      resolve(target);
+    });
+    window.webContents.on('will-navigate', event => event.preventDefault());
+    window.once('ready-to-show', () => window.show());
+    window.on('closed', () => {
+      if (lockWindow === window) lockWindow = null;
+      resolve(null);
+    });
+    loadRenderer(window, 'lock');
+  });
+}
+
+// Les stores n'ouvrent leurs fichiers qu'après les migrations et le
+// déverrouillage (voir plus bas) : c'est là qu'on sait quel profil ouvrir.
 const releaseStores = gotLock ? holdStores() : () => undefined;
 
 // Enregistrement du protocole atom pour charger les images locales
@@ -154,16 +196,42 @@ app.whenReady().then(async () => {
   if (!gotLock) return;
   // Données laissées par une ancienne version converties au format actuel,
   // avant toute lecture (src/main/migrations).
-  await runMigrations({
-    userData: app.getPath('userData'),
-    documents: app.getPath('documents'),
-    log: (message, error) => (error ? console.error(message, error) : console.log(message))
-  }).finally(releaseStores);
+  const realUserData = app.getPath('userData');
+  const documents = app.getPath('documents');
+  const log = (message: string, error?: unknown) => (error ? console.error(message, error) : console.log(message));
+  await runMigrations({ userData: realUserData, documents, log });
   // Pas de barre de menu "File, Edit, View, Window, Help" sous Windows/Linux :
   // l'app n'en a pas l'usage (copier/coller et F11 fonctionnent sans). Sur
   // macOS le menu reste : Cmd+C/V/Q en dépendent, et il n'apparaît pas dans
   // la fenêtre de toute façon.
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
+
+  // Verrouillage (app-lock.ts) : code demandé avant d'ouvrir le moindre
+  // store. Le leurre bascule tout le dossier de données vers le profil
+  // leurre : chaque store, cache d'images, sauvegarde… y vit à part.
+  const lock = readLockConfig(realUserData);
+  let decoyIsNew = false;
+  if (lock) {
+    setMainLanguage(lock.uiLanguage);
+    // Mise à jour en cours d'installation : inutile de demander le code avant de redémarrer.
+    if (app.isPackaged && (await finishPendingInstall().catch(() => false))) return;
+    const target = await showLockScreen(lock);
+    if (!target) {
+      app.quit();
+      return;
+    }
+    if (target === 'decoy') {
+      const decoyDir = path.join(realUserData, DECOY_PROFILE_DIR);
+      decoyIsNew = !fs.existsSync(path.join(decoyDir, 'settings.db'));
+      fs.mkdirSync(decoyDir, { recursive: true });
+      app.setPath('userData', decoyDir);
+      await runMigrations({ userData: decoyDir, documents, log }, PROFILE_MIGRATIONS);
+    }
+    setLockSession(realUserData, target);
+  } else {
+    setLockSession(realUserData, 'real');
+  }
+  releaseStores();
   // atom://img/<ID>/<fichier> -> <userData>/img_cache/<ID>/<fichier>. Le
   // protocole ne sert que le cache d'images : tout chemin qui en sort
   // (../, chemin absolu) est refusé, au lieu d'exposer tout le disque.
@@ -191,6 +259,7 @@ app.whenReady().then(async () => {
     loadPage: loadRenderer,
     isAppUrl: url => isAppUrl(url, RENDERER_INDEX, DEV_SERVER_URL)
   });
+  if (lock && decoyIsNew) await seedDecoyProfile(lock).catch(error => console.error('Préparation du profil leurre impossible :', error));
   // Proxy DLsite avant tout fetch (le premier scan part dès le chargement).
   await getSettings()
     .then(async settings => {
@@ -204,6 +273,8 @@ app.whenReady().then(async () => {
   // fermeture) : on attend la fin et on redémarre sur la nouvelle version.
   if (app.isPackaged && (await finishPendingInstall().catch(() => false))) return;
   createWindow();
+  lockWindow?.destroy();
+  lockWindow = null;
 
   // Vérification des mises à jour (build packagée uniquement — en dev, il
   // n'y a pas d'installation existante à mettre à jour ; le bouton des

@@ -39,7 +39,11 @@ export function holdStores(): () => void {
  * des données.
  */
 class Store {
-  private db: Datastore<StoredDoc>;
+  private fileName: string;
+  // Créé à l'ouverture (après `holdStores`), pas dans le constructeur : les
+  // stores sont construits à l'import, avant que main.ts ne sache quel
+  // profil ouvrir (profil leurre du verrouillage, app-lock.ts).
+  private db!: Datastore<StoredDoc>;
   private defaults: Record<string, unknown>;
   private ready: Promise<void> | null = null;
   // File d'attente des écritures : chaque opération lecture-modification-
@@ -52,7 +56,7 @@ class Store {
    * @param defaults Valeurs par défaut (clé -> valeur) si le store est vide.
    */
   constructor(fileName: string, defaults: Record<string, unknown>) {
-    this.db = new Datastore<StoredDoc>({ filename: path.join(app.getPath('userData'), fileName), autoload: false });
+    this.fileName = fileName;
     this.defaults = defaults;
   }
 
@@ -63,6 +67,7 @@ class Store {
   }
 
   private async _init(): Promise<void> {
+    this.db = new Datastore<StoredDoc>({ filename: path.join(app.getPath('userData'), this.fileName), autoload: false });
     await this.db.loadDatabaseAsync();
     if ((await this.db.countAsync({})) === 0 && Object.keys(this.defaults).length > 0) {
       await this._writeAll(this.defaults);

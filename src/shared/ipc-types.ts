@@ -420,6 +420,29 @@ export interface IpCheckResult {
 }
 
 /** État de Private Internet Access (voir src/main/pia.ts). */
+/** Verrouillage au démarrage (src/main/app-lock.ts) : code PIN (chiffres) ou mot de passe. */
+export type AppLockKind = 'pin' | 'password';
+
+export interface AppLockStatus {
+  enabled: boolean;
+  kind: AppLockKind;
+  /** Un leurre est défini (toujours false depuis le profil leurre). */
+  decoy: boolean;
+}
+
+/** Ce que l'écran de verrouillage sait avant l'ouverture des réglages. */
+export interface LockScreenInfo {
+  kind: AppLockKind;
+  uiLanguage: string;
+  systemLanguages: string[];
+}
+
+export interface UnlockResult {
+  ok: boolean;
+  /** Attente avant le prochain essai (trop d'échecs). */
+  retryInMs?: number;
+}
+
 export interface PiaStatus {
   /** piactl trouvé sur ce PC. */
   available: boolean;
@@ -1093,6 +1116,18 @@ export interface ElectronAPI {
   getSystemLanguages(): Promise<string[]>;
   /** Quitte l'application (même avec `closeToTray`). */
   quitApp(): void;
+
+  // Verrouillage au démarrage (src/main/app-lock.ts). Toute modification demande le code actuel.
+  /** Écran de verrouillage (route #lock) uniquement. */
+  getLockScreen(): Promise<LockScreenInfo>;
+  /** Écran de verrouillage : vrai code ou leurre, main ouvre le profil correspondant. */
+  unlockApp(code: string): Promise<UnlockResult>;
+  getAppLock(): Promise<AppLockStatus>;
+  /** Active le verrouillage ou change le code ; changer de format retire le leurre (`decoyRemoved`). */
+  setAppLock(request: { current?: string; kind: AppLockKind; secret: string }): Promise<{ decoyRemoved: boolean }>;
+  disableAppLock(current: string): Promise<void>;
+  /** Définit (ou retire, `null`) le mot de passe leurre. */
+  setAppLockDecoy(request: { current: string; decoy: string | null }): Promise<void>;
   /** Thème résolu par main (le même pour toutes les fenêtres). */
   getActiveTheme(): Promise<ActiveTheme>;
   /** Enregistre la liste des palettes perso (vérifiée par main), renvoie la liste retenue. */
