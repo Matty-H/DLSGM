@@ -4,7 +4,7 @@ import FetchFailedView from '../FetchFailedView/FetchFailedView';
 import ManualEditForm from '../ManualEditForm/ManualEditForm';
 import GameInfoDetails from './GameInfoDetails';
 import type { OsPlatform } from '../../../../shared/platforms';
-import { fetchGameMetadata, refetchGameMetadata, retryThroughVpn } from '../../lib/dataFetcher.js';
+import { fetchGameMetadata, refetchGameMetadata } from '../../lib/dataFetcher.js';
 import type { GenreNames } from '../../lib/genreNames.js';
 import type { CreatorFilter } from '../../lib/filterManager.js';
 import type { GameCollection } from '../../lib/collections.js';
@@ -35,8 +35,6 @@ export interface GameInfoPanelProps {
   genreNames: GenreNames;
   /** Genres existants dans la bibliothèque (sélection dans l'édition manuelle). */
   allGenres: string[];
-  /** PIA installé : bouton « Réessayer via le VPN » sur une fiche en échec. */
-  vpnAvailable: boolean;
   collections: GameCollection[];
   onCreateCollection: (name: string) => string | null;
   /** Flou des images R18 (Paramètres › Affichage) et jeux déjà révélés dans la session. */
@@ -76,7 +74,6 @@ export default function GameInfoPanel({
   allGenres,
   collections,
   onCreateCollection,
-  vpnAvailable,
   blurAdultContent,
   revealedGames,
   onReveal
@@ -142,14 +139,6 @@ export default function GameInfoPanel({
                   .then(onAfterRetryFetch);
                 onClose();
               }}
-              onRetryVpn={
-                vpnAvailable
-                  ? async () => {
-                      await retryThroughVpn({ failedEntries: [gameId] });
-                      onAfterRetryFetch();
-                    }
-                  : undefined
-              }
               onManualEdit={() => setIsEditing(true)}
               onOpenFolder={() => onOpenFolder(gameId)}
             />

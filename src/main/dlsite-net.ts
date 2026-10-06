@@ -89,7 +89,7 @@ export async function dlsiteFetch(url: string, init?: RequestInit): Promise<Resp
     if ((error as Error).name === 'AbortError') throw error;
     if (message.includes('ERR_NETWORK_ACCESS_DENIED')) {
       throw new Error(
-        tm("Accès réseau refusé à DLSGM par Windows ({error}) : pare-feu, ou VPN qui bloque l'application (ex: split tunneling de PIA en « Only VPN » avec le VPN déconnecté — désactive le split tunneling).", { error: message })
+        tm("Accès réseau refusé à DLSGM par Windows ({error}) : pare-feu, ou VPN qui bloque l'application.", { error: message })
       );
     }
     if (/ERR_(SOCKS|PROXY|TUNNEL)/.test(message)) {

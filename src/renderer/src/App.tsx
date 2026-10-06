@@ -38,7 +38,6 @@ import { matchesFilters, compareGames, type CreatorFilter } from './lib/filterMa
 import { addCollection, buildShelves, collectionFilterOptions, normalizeCollectionFilter, type Shelf } from './lib/collections.js';
 import { collectCanonicalGenres, makeGenreNames } from './lib/genreNames.js';
 import { useGenreTranslations } from './hooks/useGenreTranslations';
-import { getPiaStatus } from './lib/vpn.js';
 import { collectLibraryCircles } from './lib/followedCircles.js';
 import { openGameFolder } from './lib/osHandler.js';
 import { PAD_LABELS } from './lib/gamepadLayout.js';
@@ -70,11 +69,6 @@ export default function App() {
   const playableOnly = playableFilterAvailable && (settings?.playableOnly ?? false);
   // Dossiers mal nommés (« [RJ…] Titre v1.2 ») : revus à chaque scan, renommés sur confirmation.
   const folderRename = useFolderRename(`${library.status}:${library.gameFolders.join('|')}`, library.rescan);
-  // PIA installé : proposé sur les fiches en échec (restriction régionale).
-  const [vpnAvailable, setVpnAvailable] = useState(false);
-  useEffect(() => {
-    getPiaStatus().then(status => setVpnAvailable(status.available)).catch(() => undefined);
-  }, []);
   const importStatus = archiveImport.running
     ? archiveImport.progress
       ? t('Import {index}/{total}…', { index: archiveImport.progress.index, total: archiveImport.progress.total })
@@ -532,7 +526,6 @@ export default function App() {
             allGenres={rawGenres}
             collections={collections}
             onCreateCollection={handleCreateCollection}
-            vpnAvailable={vpnAvailable}
             blurAdultContent={settings?.blurAdultContent ?? true}
             revealedGames={revealedGames}
             onReveal={handleReveal}

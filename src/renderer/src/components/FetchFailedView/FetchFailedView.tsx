@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { FolderOpen, Globe, Pencil, RotateCcw, TriangleAlert } from 'lucide-react';
+import { FolderOpen, Pencil, RotateCcw, TriangleAlert } from 'lucide-react';
 import { t } from '../../lib/i18n.js';
 
 export interface FetchFailedViewProps {
@@ -8,28 +7,11 @@ export interface FetchFailedViewProps {
   onRetry: () => void;
   onManualEdit: () => void;
   onOpenFolder: () => void;
-  /** Nouvelle tentative à travers le VPN japonais (PIA) ; absent si PIA n'est pas installé. */
-  onRetryVpn?: () => Promise<void>;
 }
 
-export default function FetchFailedView({ gameId, error, onRetry, onManualEdit, onOpenFolder, onRetryVpn }: FetchFailedViewProps) {
-  const [vpnBusy, setVpnBusy] = useState(false);
-  const [vpnError, setVpnError] = useState<string | null>(null);
+export default function FetchFailedView({ gameId, error, onRetry, onManualEdit, onOpenFolder }: FetchFailedViewProps) {
   // DLsite répond vide (et non 404) pour une œuvre restreinte hors du Japon.
   const looksRegionLocked = /product-info/i.test(error ?? '');
-
-  const retryVpn = async () => {
-    if (!onRetryVpn) return;
-    setVpnBusy(true);
-    setVpnError(null);
-    try {
-      await onRetryVpn();
-    } catch (err) {
-      setVpnError((err as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
-    } finally {
-      setVpnBusy(false);
-    }
-  };
 
   return (
     <div className="panel p-6">
@@ -53,12 +35,6 @@ export default function FetchFailedView({ gameId, error, onRetry, onManualEdit, 
           <RotateCcw size={15} strokeWidth={2.25} />
           {t('Réessayer')}
         </button>
-        {onRetryVpn && (
-          <button type="button" onClick={retryVpn} disabled={vpnBusy} className={`btn ${looksRegionLocked ? 'btn-primary' : ''}`}>
-            <Globe size={15} strokeWidth={2.25} />
-            {vpnBusy ? t('Connexion au VPN…') : t('Réessayer via le VPN (Japon)')}
-          </button>
-        )}
         <button type="button" onClick={onManualEdit} className="btn">
           <Pencil size={15} strokeWidth={2.25} />
           {t('Modifier manuellement')}
@@ -68,7 +44,6 @@ export default function FetchFailedView({ gameId, error, onRetry, onManualEdit, 
           {t('Ouvrir le dossier')}
         </button>
       </div>
-      {vpnError && <p className="mb-0 mt-3 text-[13px] text-danger">{vpnError}</p>}
     </div>
   );
 }

@@ -1,7 +1,5 @@
 import { loadCache, replaceCacheEntry, updateCacheEntry } from './cacheManager.js';
 import type { GameCacheEntry } from './cacheManager.js';
-import { loadSettings } from './settings.js';
-import { withVpn } from './vpn.js';
 
 /**
  * Gère la récupération des données des jeux et le téléchargement des images.
@@ -21,10 +19,9 @@ const ipcMessage = (error: unknown) => (error as Error).message.replace(/^Error 
 
 /**
  * Récupère les métadonnées d'un jeu via un fetch Node direct vers DLsite.
- * Renvoie true si la fiche a été récupérée. `throughVpn` : tentative faite
- * à travers le VPN (un échec y est noté, pour ne pas la refaire à chaque scan).
+ * Renvoie true si la fiche a été récupérée.
  */
-export async function fetchGameMetadata(gameId: string, options: { throughVpn?: boolean } = {}): Promise<boolean> {
+export async function fetchGameMetadata(gameId: string): Promise<boolean> {
   try {
     console.log(`Récupération des métadonnées pour ${gameId}...`);
     const data = await window.electronAPI.fetchGameMetadata(gameId) as GameCacheEntry;
@@ -64,8 +61,7 @@ export async function fetchGameMetadata(gameId: string, options: { throughVpn?: 
       work_name: gameId,
       error: ipcMessage(error),
       fetchFailed: true,
-      lastFetchAttempt: new Date().toISOString(),
-      ...(options.throughVpn ? { failedThroughVpn: true } : {})
+      lastFetchAttempt: new Date().toISOString()
     } as GameCacheEntry);
     return false;
   }
@@ -79,35 +75,6 @@ export async function fetchGameMetadata(gameId: string, options: { throughVpn?: 
 export async function updateEntryMetadata(gameId: string): Promise<boolean> {
   const { work_image: _cover, sample_images: _samples, ...metadata } = await window.electronAPI.fetchGameMetadata(gameId);
   return updateCacheEntry(gameId, metadata);
-}
-
-export interface VpnRetryResult {
-  fixed: string[];
-  stillFailing: string[];
-}
-
-/**
- * Refait à travers le VPN (restriction régionale) : les fiches jamais
- * récupérées (`failedEntries`, fetch complet) et les fiches valides dont la
- * mise à jour a échoué (`staleEntries`, fusion). Une seule session VPN pour
- * l'ensemble, en série (le VPN est partagé par toute la machine).
- */
-export async function retryThroughVpn({ failedEntries = [], staleEntries = [] }: { failedEntries?: string[]; staleEntries?: string[] }): Promise<VpnRetryResult> {
-  const result: VpnRetryResult = { fixed: [], stillFailing: [] };
-  if (failedEntries.length === 0 && staleEntries.length === 0) return result;
-  await withVpn(async () => {
-    for (const gameId of failedEntries) {
-      (await fetchGameMetadata(gameId, { throughVpn: true }) ? result.fixed : result.stillFailing).push(gameId);
-    }
-    for (const gameId of staleEntries) {
-      try {
-        (await updateEntryMetadata(gameId) ? result.fixed : result.stillFailing).push(gameId);
-      } catch {
-        result.stillFailing.push(gameId);
-      }
-    }
-  });
-  return result;
 }
 
 /**
@@ -158,10 +125,6 @@ export interface BulkUpdateResult {
   /** Fiches modifiées à la main ou en échec de fetch : non touchées. */
   skipped: string[];
   cancelled: boolean;
-  /** Mises à jour réussies seulement à travers le VPN (restriction régionale). */
-  viaVpn?: string[];
-  /** Le VPN n'a pas pu être utilisé (PIA fermé...). */
-  vpnError?: string;
 }
 
 
@@ -216,19 +179,6 @@ export async function updateAllMetadata(
   };
   await Promise.all(Array.from({ length: Math.min(BULK_CONCURRENCY, ids.length) }, worker));
 
-  // Échecs refaits à travers le VPN japonais si l'option est active
-  // (œuvres à restriction régionale). Un échec du VPN lui-même est signalé
-  // sans annuler les mises à jour déjà faites.
-  if (!result.cancelled && result.failed.length > 0 && (await loadSettings()).piaRetry) {
-    try {
-      const { fixed } = await retryThroughVpn({ staleEntries: result.failed.map(f => f.gameId) });
-      result.updated.push(...fixed);
-      result.viaVpn = fixed;
-      result.failed = result.failed.filter(f => !fixed.includes(f.gameId));
-    } catch (error) {
-      result.vpnError = ipcMessage(error);
-    }
-  }
   return result;
 }
 
@@ -275,28 +225,4 @@ export async function resetAndRedownloadImages(): Promise<void> {
   }
 
   console.log('--- FIN DU RESET DES IMAGES ---');
-}
-
-/**
- * Bouton « Réessayer maintenant via le VPN » : toutes les fiches en échec
- * (même celles déjà tentées via le VPN) et les jeux de la liste de souhaits
- * dont la fiche est introuvable, dans une seule session VPN.
- */
-export async function retryAllFailuresThroughVpn(): Promise<VpnRetryResult & { wishlistFixed: string[] }> {
-  const cache = await loadCache();
-  const failedEntries = Object.keys(cache).filter(gameId => cache[gameId].fetchFailed);
-  const wishlistErrors = (await window.electronAPI.getWishlist()).filter(item => item.error).map(item => item.id);
-  const wishlistFixed: string[] = [];
-  const result = await withVpn(async () => {
-    const library = await retryThroughVpn({ failedEntries });
-    for (const gameId of wishlistErrors) {
-      await window.electronAPI.refreshWishlistItem(gameId);
-    }
-    return library;
-  });
-  const afterWishlist = await window.electronAPI.getWishlist();
-  for (const gameId of wishlistErrors) {
-    if (afterWishlist.some(item => item.id === gameId && !item.error)) wishlistFixed.push(gameId);
-  }
-  return { ...result, wishlistFixed };
 }
