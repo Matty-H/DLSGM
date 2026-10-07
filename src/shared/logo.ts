@@ -53,3 +53,51 @@ export function logoSvg(shape: LogoShape, colors: { dls: string; gm: string; bac
   const paths = (list: string[], fill: string) => `<g fill="${fill}">${list.map(d => `<path d="${d}"/>`).join('')}</g>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box.join(' ')}"${dimensions}>${background}${paths(shape.gm, colors.gm)}${paths(shape.dls, colors.dls)}</svg>`;
 }
+
+/**
+ * Tailles rasterisées pour l'icône de l'application. Windows choisit dans le
+ * .ico la taille exacte voulue par l'écran (16 px à 100 %, 20 à 125 %, 24 à
+ * 150 %... barre des tâches, Alt+Tab, Explorateur) : chacune est dessinée à
+ * sa taille plutôt que réduite. macOS : 16 à 1024 px (.icns, Retina compris).
+ */
+export const WINDOWS_ICON_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256];
+export const MAC_ICON_SIZES = [16, 32, 64, 128, 256, 512, 1024];
+
+/**
+ * Gabarit Apple des icônes d'application (macOS 11 et suivants) : sur 1024 px,
+ * une plaque de 824 px centrée aux coins de 185 px. Une icône pleine page
+ * paraîtrait plus grosse que toutes les autres dans le Dock.
+ */
+const MAC_ICON_CANVAS = 1024;
+const MAC_ICON_PLATE = 824;
+const MAC_ICON_RADIUS = 185.4;
+
+/**
+ * Icône carrée de l'application (SVG autonome, `size` px) : fond aux coins
+ * arrondis selon `cornerRadius` (fraction du côté, 0 = carré), ou gabarit
+ * macOS si `mac` (coins imposés, marge transparente).
+ */
+export function appIconSvg(colors: { background: string; dls: string; gm: string }, options: { size: number; cornerRadius?: number; mac?: boolean }): string {
+  const side = LOGO_SQUARE.viewBox[2];
+  const total = options.mac ? side * MAC_ICON_CANVAS / MAC_ICON_PLATE : side;
+  const margin = (total - side) / 2;
+  const radius = options.mac ? side * MAC_ICON_RADIUS / MAC_ICON_PLATE : side * (options.cornerRadius ?? 0);
+  const viewBox = [-margin, -margin, total, total].map(value => Number(value.toFixed(4))).join(' ');
+  const corners = radius > 0 ? ` rx="${Number(radius.toFixed(4))}"` : '';
+  const paths = (list: string[], fill: string) => `<g fill="${fill}">${list.map(d => `<path d="${d}"/>`).join('')}</g>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${options.size}" height="${options.size}">`
+    + `<rect width="${side}" height="${side}"${corners} fill="${colors.background}"/>`
+    + `${paths(LOGO_SQUARE.gm, colors.gm)}${paths(LOGO_SQUARE.dls, colors.dls)}</svg>`;
+}
+
+/**
+ * Icône dessinée à l'exécution aux couleurs du thème, selon l'OS : Windows,
+ * toutes les tailles du .ico (fenêtre, barre des tâches, zone de
+ * notification) ; macOS, le Dock (1024 px au gabarit Apple, macOS réduit
+ * proprement) ; ailleurs, l'icône de fenêtre en 256 px.
+ */
+export function appIconLayout(platform: string): { sizes: number[]; mac: boolean } {
+  if (platform === 'win32') return { sizes: WINDOWS_ICON_SIZES, mac: false };
+  if (platform === 'darwin') return { sizes: [1024], mac: true };
+  return { sizes: [256], mac: false };
+}

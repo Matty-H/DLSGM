@@ -65,9 +65,13 @@ function trayImage(source: NativeImage): NativeImage {
   return image;
 }
 
-/** Nouvelle icône du thème : appliquée tout de suite si l'icône est affichée. */
+/**
+ * Nouvelle icône du thème : appliquée tout de suite si l'icône est affichée.
+ * Windows : telle quelle — c'est le .ico multi-tailles (src/main/theme.ts),
+ * où Windows prend la taille exacte de l'écran ; la réduire perdrait le .ico.
+ */
 export function setTrayIcon(image: NativeImage): void {
-  themeIcon = trayImage(image);
+  themeIcon = process.platform === 'win32' ? image : trayImage(image);
   tray?.setImage(themeIcon);
 }
 

@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sent: unknown[][] = [];
 vi.mock('electron', () => ({
+  app: {},
   BrowserWindow: {
     getAllWindows: () => [{ isDestroyed: () => false, webContents: { send: (...args: unknown[]) => sent.push(args) } }]
   },
-  nativeImage: { createFromDataURL: () => ({ isEmpty: () => false }) }
+  nativeImage: {
+    createFromPath: (file: string) => ({ isEmpty: () => false, file }),
+    createFromBuffer: (buffer: Buffer) => ({ isEmpty: () => false, buffer })
+  }
 }));
 
 import {
@@ -13,7 +17,11 @@ import {
   contrastRatio, customToTheme, generateTurboTheme, isHexColor, newCustomThemeId, normalizeThemeSetting, onAccentColor, resolveTheme, sanitizeCustomThemes,
   type CustomTheme
 } from '../../src/shared/themes';
-import { applyThemeSetting, getActiveTheme, iconFromDataUrl, initTheme, rerollTheme } from '../../src/main/theme';
+import fs from 'fs';
+import path from 'path';
+import { applyThemeSetting, buildThemeIcon, getActiveTheme, iconPngsFromDataUrls, initTheme, rerollTheme } from '../../src/main/theme';
+import { appIconLayout, appIconSvg, WINDOWS_ICON_SIZES } from '../../src/shared/logo';
+import { makeTempDir, pngHeader, removeTempDir } from '../helpers';
 
 /** Générateur pseudo-aléatoire déterministe (Park-Miller). */
 function seeded(seed: number): () => number {
@@ -115,12 +123,65 @@ describe('thème actif (main)', () => {
     expect(sent).toHaveLength(1);
   });
 
-  it('n’accepte comme icône qu’un PNG en data URL de taille raisonnable', () => {
-    expect(iconFromDataUrl('data:image/png;base64,iVBORw0KGgo=')).not.toBeNull();
-    expect(iconFromDataUrl('data:image/svg+xml;base64,PHN2Zz4=')).toBeNull();
-    expect(iconFromDataUrl('file:///C:/Windows/notepad.exe')).toBeNull();
-    expect(iconFromDataUrl(42)).toBeNull();
-    expect(iconFromDataUrl('data:image/png;base64,' + 'A'.repeat(2_000_001))).toBeNull();
+  it('n’accepte comme icône que des PNG en data URL, aux tailles attendues, dans l’ordre', () => {
+    const url = (png: Buffer) => 'data:image/png;base64,' + png.toString('base64');
+    const sizes = [16, 32];
+    expect(iconPngsFromDataUrls([url(pngHeader(16)), url(pngHeader(32))], sizes)).toHaveLength(2);
+    expect(iconPngsFromDataUrls([url(pngHeader(32)), url(pngHeader(16))], sizes)).toBeNull();
+    expect(iconPngsFromDataUrls([url(pngHeader(16))], sizes)).toBeNull();
+    expect(iconPngsFromDataUrls([url(pngHeader(16)), url(pngHeader(32, 16))], sizes)).toBeNull();
+    expect(iconPngsFromDataUrls([url(pngHeader(16)), 'data:image/svg+xml;base64,PHN2Zz4='], sizes)).toBeNull();
+    expect(iconPngsFromDataUrls([url(pngHeader(16)), 'file:///C:/Windows/notepad.exe'], sizes)).toBeNull();
+    expect(iconPngsFromDataUrls([url(pngHeader(16)), 'data:image/png;base64,' + 'A'.repeat(2_000_001)], sizes)).toBeNull();
+    expect(iconPngsFromDataUrls('data:image/png;base64,iVBORw0KGgo=', sizes)).toBeNull();
+    expect(iconPngsFromDataUrls(42, sizes)).toBeNull();
+  });
+
+  it('Windows : icône ouverte depuis un .ico multi-tailles (taille exacte par écran) ; ailleurs, le plus grand PNG', () => {
+    const dir = makeTempDir();
+    try {
+      const pngs = WINDOWS_ICON_SIZES.map(size => pngHeader(size));
+      const image = buildThemeIcon(pngs, 'win32', dir) as unknown as { file: string };
+      expect(image.file).toBe(path.join(dir, 'theme-icon.ico'));
+      expect(fs.readFileSync(image.file).readUInt16LE(4)).toBe(WINDOWS_ICON_SIZES.length);
+      expect(fs.readdirSync(dir)).toEqual(['theme-icon.ico']);
+
+      const mac = buildThemeIcon([pngHeader(512), pngHeader(1024)], 'darwin', dir) as unknown as { buffer: Buffer };
+      expect(mac.buffer.readUInt32BE(16)).toBe(1024);
+      // Écriture impossible (dossier absent) : repli sur le plus grand PNG plutôt que pas d’icône.
+      const fallback = buildThemeIcon(pngs, 'win32', path.join(dir, 'absent')) as unknown as { buffer: Buffer };
+      expect(fallback.buffer.readUInt32BE(16)).toBe(256);
+    } finally {
+      removeTempDir(dir);
+    }
+  });
+});
+
+describe('icône de l’application', () => {
+  const colors = { background: '#1a1033', dls: '#2de2e6', gm: '#ff3ea5' };
+
+  it('se dessine à la taille demandée, coins arrondis selon la palette', () => {
+    const svg = appIconSvg(colors, { size: 24 });
+    expect(svg).toContain('width="24" height="24"');
+    expect(svg).toContain('viewBox="0 0 62.44 62.44"');
+    expect(svg).not.toContain('rx=');
+    expect(appIconSvg(colors, { size: 24, cornerRadius: 0.2 })).toContain('rx="12.488"');
+  });
+
+  it('macOS : gabarit Apple, plaque de 824/1024 centrée, marge transparente', () => {
+    const svg = appIconSvg(colors, { size: 1024, mac: true });
+    const [x, , width] = svg.match(/viewBox="([^"]+)"/)![1].split(' ').map(Number);
+    expect(62.44 / width).toBeCloseTo(824 / 1024, 4);
+    expect(-x / width).toBeCloseTo(100 / 1024, 4);
+    const radius = Number(svg.match(/rx="([^"]+)"/)![1]);
+    expect(radius / 62.44).toBeCloseTo(185.4 / 824, 4);
+  });
+
+  it('tailles demandées au renderer selon l’OS', () => {
+    expect(appIconLayout('win32')).toEqual({ sizes: WINDOWS_ICON_SIZES, mac: false });
+    expect(WINDOWS_ICON_SIZES).toEqual(expect.arrayContaining([16, 20, 24, 32, 40, 48, 256]));
+    expect(appIconLayout('darwin')).toEqual({ sizes: [1024], mac: true });
+    expect(appIconLayout('linux').mac).toBe(false);
   });
 });
 

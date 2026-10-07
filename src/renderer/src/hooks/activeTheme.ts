@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_THEME, ICON_CORNER_RADIUS, resolveTheme, type ActiveTheme } from '../../../shared/themes';
-import { LOGO_SQUARE } from '../../../shared/logo';
+import { appIconLayout, appIconSvg } from '../../../shared/logo';
 
 /**
  * Thème actif dans cette fenêtre : résolu par main (src/main/theme.ts), posé
@@ -24,36 +24,43 @@ export function applyThemeColors(theme: ActiveTheme): void {
   style.setProperty('--theme-logo-gm', theme.logo.gm);
 }
 
-/** Icône carrée aux couleurs du thème, en PNG (fenêtre et zone de notification, via main). */
-export function drawThemeIcon(theme: ActiveTheme, size = 256): string {
+/** SVG rasterisé à sa taille exacte (net à chaque taille, jamais une grande image réduite), en PNG data URL. */
+async function rasterizeSvg(svg: string, size: number): Promise<string> {
+  const image = new Image(size, size);
+  image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  await image.decode();
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const context = canvas.getContext('2d');
-  if (!context) return '';
-  const [, , width] = LOGO_SQUARE.viewBox;
-  context.scale(size / width, size / width);
-  context.fillStyle = theme.icon.bg;
-  if (theme.icon.rounded) {
-    // Coins transparents : l'icône garde ses coins arrondis dans la barre des tâches.
-    context.beginPath();
-    context.roundRect(0, 0, width, width, width * ICON_CORNER_RADIUS);
-    context.fill();
-  } else {
-    context.fillRect(0, 0, width, width);
-  }
-  context.fillStyle = theme.icon.gm;
-  for (const d of LOGO_SQUARE.gm) context.fill(new Path2D(d));
-  context.fillStyle = theme.icon.dls;
-  for (const d of LOGO_SQUARE.dls) context.fill(new Path2D(d));
+  if (!context) throw new Error('Canvas 2D indisponible');
+  context.drawImage(image, 0, 0, size, size);
   return canvas.toDataURL('image/png');
 }
+
+/**
+ * Icône aux couleurs du thème, une PNG par taille voulue par l'OS
+ * (`appIconLayout`) : .ico de la fenêtre et de la zone de notification sous
+ * Windows, Dock sous macOS (assemblés par main). Coins transparents si
+ * `rounded` : l'icône garde ses coins arrondis dans la barre des tâches.
+ */
+export function drawThemeIcons(theme: ActiveTheme): Promise<string[]> {
+  const { sizes, mac } = appIconLayout(window.electronAPI.platform);
+  const colors = { background: theme.icon.bg, dls: theme.icon.dls, gm: theme.icon.gm };
+  const cornerRadius = theme.icon.rounded ? ICON_CORNER_RADIUS : 0;
+  return Promise.all(sizes.map(size => rasterizeSvg(appIconSvg(colors, { size, cornerRadius, mac }), size)));
+}
+
+// Changements de thème rapprochés : seule la dernière icône dessinée est envoyée.
+let iconRequest = 0;
 
 function setActive(theme: ActiveTheme, drawsAppIcon: boolean): void {
   current = theme;
   applyThemeColors(theme);
   if (drawsAppIcon) {
-    const icon = drawThemeIcon(theme);
-    if (icon) window.electronAPI.setAppIcon(icon);
+    const request = ++iconRequest;
+    drawThemeIcons(theme)
+      .then(icons => { if (request === iconRequest) window.electronAPI.setAppIcon(icons); })
+      .catch(error => console.error('Icône du thème impossible :', error));
   }
   for (const listener of listeners) listener(theme);
 }

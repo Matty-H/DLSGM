@@ -55,7 +55,8 @@ import { setMainLanguage, systemLanguages, tm } from './i18n';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
 import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, RpgSavePatch, SandboxieStatus } from '../shared/ipc-types';
 import type { OsPlatform } from '../shared/platforms';
-import { applyThemeIcon, applyThemeSetting, getActiveTheme, iconFromDataUrl, rerollTheme } from './theme';
+import { applyThemeIcon, applyThemeSetting, buildThemeIcon, getActiveTheme, iconPngsFromDataUrls, rerollTheme } from './theme';
+import { appIconLayout } from '../shared/logo';
 import { DEFAULT_THEME, normalizeThemeSetting, sanitizeCustomThemes } from '../shared/themes';
 
 // Durée totale d'un téléchargement d'image (un proxy peut être lent).
@@ -1808,11 +1809,12 @@ export function setupIpcHandlers(
     applyThemeSetting(theme, customThemes);
     return customThemes;
   });
-  on('set-app-icon', (event, dataUrl: unknown) => {
+  on('set-app-icon', (event, dataUrls: unknown) => {
     // Seule la fenêtre principale dessine l'icône (l'overlay et les témoins ont le même thème).
     const window = getWindow();
     if (!window || event.sender !== window.webContents) return;
-    const image = iconFromDataUrl(dataUrl);
+    const pngs = iconPngsFromDataUrls(dataUrls, appIconLayout(process.platform).sizes);
+    const image = pngs && buildThemeIcon(pngs, process.platform, app.getPath('userData'));
     if (image) applyThemeIcon(window, image);
   });
 

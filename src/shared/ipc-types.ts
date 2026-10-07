@@ -1134,8 +1134,8 @@ export interface ElectronAPI {
   saveCustomThemes(list: CustomTheme[]): Promise<CustomTheme[]>;
   /** Nouveau tirage du thème (modes aléatoire et turbo). */
   rerollTheme(): Promise<ActiveTheme>;
-  /** Icône aux couleurs du thème (PNG en data URL) pour la fenêtre et la zone de notification. */
-  setAppIcon(pngDataUrl: string): void;
+  /** Icône aux couleurs du thème pour la fenêtre, la zone de notification et le Dock : un PNG (data URL) par taille de `appIconLayout`. */
+  setAppIcon(pngDataUrls: string[]): void;
   onThemeChanged(callback: (theme: ActiveTheme) => void): () => void;
   saveSettings(settings: AppSettings): Promise<boolean>;
   updateLanguage(lang: string): void;

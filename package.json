@@ -45,6 +45,7 @@
       "releaseType": "release"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "portable"
@@ -56,6 +57,7 @@
       "artifactName": "${productName}-${version}-Windows-Installeur.${ext}"
     },
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg",
         "zip"

@@ -297,7 +297,7 @@ const electronAPI: ElectronAPI = {
   getActiveTheme: () => ipcRenderer.invoke('get-active-theme'),
   rerollTheme: () => ipcRenderer.invoke('reroll-theme'),
   saveCustomThemes: (list) => ipcRenderer.invoke('save-custom-themes', list),
-  setAppIcon: (pngDataUrl) => ipcRenderer.send('set-app-icon', pngDataUrl),
+  setAppIcon: (pngDataUrls) => ipcRenderer.send('set-app-icon', pngDataUrls),
   onThemeChanged: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, theme: ActiveTheme) => callback(theme);
     ipcRenderer.on('theme-changed', listener);

@@ -1,4 +1,7 @@
-import { BrowserWindow, nativeImage, type NativeImage } from 'electron';
+import { app, BrowserWindow, nativeImage, type NativeImage } from 'electron';
+import fs from 'fs';
+import path from 'path';
+import { encodeIco, pngDimensions } from './icon-files';
 import { resolveTheme, normalizeThemeSetting, sanitizeCustomThemes, type ActiveTheme, type CustomTheme } from '../shared/themes';
 
 /**
@@ -55,13 +58,47 @@ export function rerollTheme(): ActiveTheme {
   return active;
 }
 
+const PNG_DATA_URL = 'data:image/png;base64,';
+
 /**
  * Icône aux couleurs du thème, dessinée par le renderer (main ne sait pas
- * rasteriser un SVG) : PNG en data URL, vérifié avant usage.
+ * rasteriser un SVG) : un PNG (data URL) par taille de `sizes`
+ * (`appIconLayout`), dans cet ordre, chacun vérifié avant usage.
  */
-export function iconFromDataUrl(dataUrl: unknown): NativeImage | null {
-  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png;base64,') || dataUrl.length > 2_000_000) return null;
-  const image = nativeImage.createFromDataURL(dataUrl);
+export function iconPngsFromDataUrls(list: unknown, sizes: readonly number[]): Buffer[] | null {
+  if (!Array.isArray(list) || list.length !== sizes.length) return null;
+  const pngs: Buffer[] = [];
+  for (const [index, item] of list.entries()) {
+    if (typeof item !== 'string' || !item.startsWith(PNG_DATA_URL) || item.length > 2_000_000) return null;
+    const png = Buffer.from(item.slice(PNG_DATA_URL.length), 'base64');
+    const dimensions = pngDimensions(png);
+    if (!dimensions || dimensions.width !== sizes[index] || dimensions.height !== sizes[index]) return null;
+    pngs.push(png);
+  }
+  return pngs;
+}
+
+/**
+ * Windows : .ico multi-tailles écrit dans `iconDir`, ouvert par son chemin —
+ * Electron demande alors à Windows la taille exacte voulue (barre des tâches,
+ * Alt+Tab, zone de notification) au lieu de réduire un seul PNG, ce qui
+ * crénelait l'icône. Ailleurs (ou si l'écriture échoue) : le plus grand PNG.
+ */
+export function buildThemeIcon(pngs: Buffer[], platform: string, iconDir: string): NativeImage | null {
+  if (pngs.length === 0) return null;
+  if (platform === 'win32') {
+    try {
+      const file = path.join(iconDir, 'theme-icon.ico');
+      fs.writeFileSync(`${file}.tmp`, encodeIco(pngs));
+      fs.renameSync(`${file}.tmp`, file);
+      const image = nativeImage.createFromPath(file);
+      if (!image.isEmpty()) return image;
+    } catch (error) {
+      console.error('Icône .ico du thème impossible :', error);
+    }
+  }
+  const largest = pngs.reduce((a, b) => (pngDimensions(b)!.width > pngDimensions(a)!.width ? b : a));
+  const image = nativeImage.createFromBuffer(largest);
   return image.isEmpty() ? null : image;
 }
 
@@ -72,5 +109,7 @@ export function onThemeIcon(listener: (image: NativeImage) => void): void {
 
 export function applyThemeIcon(window: BrowserWindow | null, image: NativeImage): void {
   if (window && !window.isDestroyed()) window.setIcon(image);
+  // macOS : l'icône du Dock (celle du paquet .app, build/icon.icns, ne vaut que pour le thème par défaut).
+  if (process.platform === 'darwin') app.dock?.setIcon(image);
   iconListener?.(image);
 }
