@@ -2,9 +2,9 @@
 
 <img src="docs/logo/dlsgm-horizontal-neon.svg" alt="DLSGM" width="380">
 
-<h3>Your DLsite games, finally looking like a real library.</h3>
+<h3>Your DLsite games, finally gathered inside a real library.</h3>
 
-Drop your games in a folder. DLSGM finds them, fetches their covers and details, and lets you launch them in one click, with a mouse, a keyboard or a controller.
+One place to play them all. Drop your games in a folder: DLSGM finds them, fetches their covers and details, and lets you launch them in one click, with a mouse, a keyboard or a controller.
 
 <a href="https://github.com/Matty-H/DLSGM/releases/latest"><img src="docs/badges/download.svg" alt="Download DLSGM" height="56"></a>
 
@@ -31,16 +31,16 @@ Drop your games in a folder. DLSGM finds them, fetches their covers and details,
 <table>
   <tr>
     <td width="33%" valign="top">
-      <h3>📚 It fills itself</h3>
-      <p>Point DLSGM to your games folder: every title gets its cover, circle, tags and screenshots. Even if a work leaves DLsite, its page stays with you.</p>
+      <h3>📚 Automatic completion</h3>
+      <p>Every title gets its cover, circle, tags and screenshots from DLsite, in Japanese and English. Even if a work leaves DLsite, its page stays with you.</p>
     </td>
     <td width="33%" valign="top">
       <h3>🔎 Find it in seconds</h3>
-      <p>Search, filter by tag or circle, sort by play time or size. Build collections by hand, or let your own rules fill them.</p>
+      <p>Search, filter by tag, circle or creator, and sort by play time or size. Build collections by hand, or let your own rules fill them.</p>
     </td>
     <td width="33%" valign="top">
-      <h3>▶️ One click to play</h3>
-      <p>DLSGM counts your play time and backs up your saves every time you quit a game. Something went wrong? Go back to an earlier save.</p>
+      <h3>▶️ Play and save however you want</h3>
+      <p>Play in one click, exactly how you like it. Need launch arguments? Done. Looking for your saves? Done. Patch and translate? Done.</p>
     </td>
   </tr>
   <tr>
@@ -53,13 +53,15 @@ Drop your games in a folder. DLSGM finds them, fetches their covers and details,
       <p>On Windows: an overlay on top of the game (Shift+Tab), screenshots of the game window, and the meaning of every Japanese word on screen, with furigana, offline.</p>
     </td>
     <td width="33%" valign="top">
-      <h3>🤫 Discreet when needed</h3>
-      <p><b>Alt+Space</b> hides DLSGM instantly. Adult covers are blurred in the library. Everything stays on your computer: no account, no cloud.</p>
+      <h3>🤫 No panic, there's a panic button!</h3>
+      <p><b>Alt+Space</b> hides DLSGM instantly; on Windows, a second shortcut minimizes every window and mutes audio. Adult covers stay blurred in the library, and everything else stays on your computer: no account, no cloud.</p>
     </td>
   </tr>
 </table>
 
 ## Make it yours
+
+**14 built-in color palettes.** Pick one. If nothing fits, create your own palette.
 
 <table>
   <tr>
