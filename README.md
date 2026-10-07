@@ -4,7 +4,8 @@
 
 <h3>Your DLsite games, finally gathered inside a real library.</h3>
 
-One place to play them all. Drop your games in a folder: DLSGM finds them, fetches their covers and details, and lets you launch them in one click, with a mouse, a keyboard or a controller.
+One place to play them all. </br>
+Drop your games in a folder: DLSGM finds them, fetches their covers and details.
 
 <a href="https://github.com/Matty-H/DLSGM/releases/latest"><img src="docs/badges/download.svg" alt="Download DLSGM" height="56"></a>
 
@@ -35,19 +36,11 @@ One place to play them all. Drop your games in a folder: DLSGM finds them, fetch
       <p>Every title gets its cover, circle, tags and screenshots from DLsite, in Japanese and English. Even if a work leaves DLsite, its page stays with you.</p>
     </td>
     <td width="33%" valign="top">
-      <h3>🔎 Find it in seconds</h3>
-      <p>Search, filter by tag, circle or creator, and sort by play time or size. Build collections by hand, or let your own rules fill them.</p>
-    </td>
-    <td width="33%" valign="top">
       <h3>▶️ Play and save however you want</h3>
       <p>Play in one click, exactly how you like it. Need launch arguments? Done. Looking for your saves? Done. Patch and translate? Done.</p>
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="top">
-      <h3>📦 Drop an archive, play</h3>
-      <p><code>.zip</code>, <code>.rar</code> or <code>.7z</code>: DLSGM extracts it to the right place, keeps Japanese file names intact and tries the usual passwords.</p>
-    </td>
     <td width="33%" valign="top">
       <h3>🎮 Tools while you play</h3>
       <p>On Windows: an overlay on top of the game (Shift+Tab), screenshots of the game window, and the meaning of every Japanese word on screen, with furigana, offline.</p>
