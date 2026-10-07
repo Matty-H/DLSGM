@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Power, Camera, ChevronDown, ChevronRight, Clapperboard, Download, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
+import { Power, Camera, ChevronDown, ChevronRight, Clapperboard, Download, ExternalLink, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
 import GenreTranslationsEditor from '../GenreTranslationsEditor/GenreTranslationsEditor';
@@ -1047,6 +1047,15 @@ export default function SettingsScreen({
               checked={checkUpdatesOnStartup}
               onChange={e => setCheckUpdatesOnStartup(e.target.checked)}
             />
+          </SettingRow>
+          <SettingRow
+            label={t('DLSGM sur GitHub')}
+            description={t('Code source, notes de version et téléchargements de toutes les versions.')}
+          >
+            <button type="button" className="btn btn-ghost" onClick={() => window.electronAPI.openExternal('https://github.com/Matty-H/DLSGM')}>
+              <ExternalLink size={15} />
+              {t('Ouvrir sur GitHub')}
+            </button>
           </SettingRow>
           </>
         )}
