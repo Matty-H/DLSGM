@@ -1,6 +1,6 @@
 # Contributing to DLSGM
 
-Technical information to develop, test and release DLSGM. The user guide is in the [README](README.md).
+Technical information to develop and test DLSGM. The user guide is in the [README](README.md).
 
 ## How to contribute: prompt requests
 
@@ -15,6 +15,8 @@ Open a [pull request](https://github.com/Matty-H/DLSGM/pulls) or an [issue](http
 You are welcome to include code in your pull request — a fix, a prototype, a sketch of an approach. It is read as part of the description, to understand the problem and the idea, and may inspire the change that ends up in DLSGM; it is not merged directly.
 
 **Translations are the exception:** a language file is merged as is. See [TRANSLATING.md](TRANSLATING.md) — no programming needed.
+
+What follows is technical reference, not a required reading list: it's here to help you locate a problem precisely when you write a prompt request, or to let you attempt a fix yourself if you want to. None of it is expected of you.
 
 ## Requirements
 
@@ -62,26 +64,7 @@ Storage uses NeDB (one document per game or per setting). DLsite requests go thr
 
 ## Translations
 
-The interface is available in French, English and Japanese, and translators can add languages without touching code ([TRANSLATING.md](TRANSLATING.md)). The French text is the translation key; each language is one file, `locales/<code>.json`, with a `ui` section (renderer) and a `main` section (main process), discovered automatically:
-
-- **UI:** `t('Paramètres')` (`src/renderer/src/lib/i18n.ts`). Parameters use braces: `t('{n} œuvres', { n })`. The renderer bundles `locales/*.json` through Vite (`import.meta.glob`).
-- **Main process** (dialogs, notification area menu, error messages shown in the UI): `tm('…')` (`src/main/i18n.ts`), which reads `locales/` from disk (`build.files` packages it).
-- **Module-level labels** (evaluated before the language is known): declare them with `msg('…')` and display them with `tr(label)`.
-- **Sentences containing elements** (a key, a link): `<Trans text={t('… {hotkey} …')} values={{ hotkey: <kbd>…</kbd> }} />`.
-
-When you add or change a French text, add its English and Japanese translations to `locales/en.json` and `locales/ja.json` (`npm run i18n:template en` adds the missing keys, empty, and moves the unused ones to `"obsolete"`). `tests/renderer/i18n.test.ts` fails if English or Japanese misses a key, if any language file has a key the code doesn't use or different `{parameters}`, or if a file is invalid; it prints the completion of the partial languages. A missing text in a partial language falls back to English, then French.
-
-## Releasing a version
-
-The GitHub Actions CI (`.github/workflows/build.yml`) runs the tests, then builds Windows and macOS on every push to `main`. A `v*` tag also publishes a GitHub release with the installers, the auto-update files and a description made of a changelog (the subjects of the commits since the previous tag, so write them for users) followed by `.github/release-notes.md`.
-
-```bash
-# 1. Update "version" in package.json, then commit
-git tag vX.Y.Z           # must match the package.json version exactly
-git push origin main vX.Y.Z
-```
-
-Deleting a release does not delete its tag: delete the tag too (`git push origin --delete vX.Y.Z`), otherwise the auto-updater still sees it.
+Covered in full in [TRANSLATING.md](TRANSLATING.md): adding or completing a language takes one file, no code required. Go there rather than here.
 
 ## Data and privacy
 
