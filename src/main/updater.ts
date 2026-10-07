@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'child_process';
+import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { app, dialog, net, shell, type BrowserWindow, type MessageBoxOptions } from 'electron';
@@ -10,14 +10,20 @@ import { tm } from './i18n';
 /**
  * Mises à jour via GitHub Releases (config `publish` d'electron-builder).
  *
- * - Installeur NSIS (Windows) et zip (macOS) : une nouvelle version est
- *   téléchargée dès qu'elle est trouvée (barre de progression dans
- *   l'interface), puis l'utilisateur choisit : installer maintenant (l'app se
- *   ferme, s'installe en silence et se relance) ou au redémarrage
- *   (installation silencieuse quand il ferme DLSGM).
- * - Version portable (et build de dev) : electron-updater ne sait pas
- *   remplacer un .exe portable ; on interroge l'API GitHub et on se contente
- *   d'un pop-up qui renvoie vers la page de téléchargement.
+ * - Installeur NSIS (Windows) : une nouvelle version est téléchargée dès
+ *   qu'elle est trouvée (barre de progression dans l'interface), puis
+ *   l'utilisateur choisit : installer maintenant (l'app se ferme, s'installe
+ *   en silence et se relance) ou au redémarrage (installation silencieuse
+ *   quand il ferme DLSGM).
+ * - Version portable, macOS et build de dev : pas de mise à jour automatique.
+ *   macOS a le code pour (electron-updater sait appliquer un zip via
+ *   Squirrel.Mac/ShipIt), mais DLSGM n'est pas signé avec un certificat Apple
+ *   Developer ID payant, et ShipIt rejette alors systématiquement la mise à
+ *   jour téléchargée (« Code signature ... did not pass validation », observé
+ *   à chaque tentative, jamais un succès) : on ne tente donc jamais
+ *   `autoUpdater.checkForUpdates()`/`quitAndInstall()` sur mac. Comme pour la
+ *   version portable, on interroge juste l'API GitHub et on se contente d'un
+ *   pop-up qui renvoie vers la page de téléchargement.
  */
 
 export const RELEASES_PAGE = 'https://github.com/Matty-H/DLSGM/releases/latest';
@@ -33,7 +39,9 @@ export function getAppUpdateInfo(): AppUpdateInfo {
   return {
     version: app.getVersion(),
     portable,
-    selfUpdate: app.isPackaged && !portable && (process.platform === 'win32' || process.platform === 'darwin')
+    // Windows uniquement : voir la note en tête de fichier pour macOS.
+    selfUpdate: app.isPackaged && !portable && process.platform === 'win32',
+    packaged: app.isPackaged
   };
 }
 
@@ -79,7 +87,7 @@ async function showBox(getWindow: () => BrowserWindow | null, options: MessageBo
   return response;
 }
 
-/** Dernière version publiée, lue sur l'API GitHub (portable, dev). */
+/** Dernière version publiée, lue sur l'API GitHub (portable, macOS, dev). */
 async function latestReleaseVersion(): Promise<string> {
   const response = await net.fetch(LATEST_RELEASE_API, { headers: { Accept: 'application/vnd.github+json' } });
   if (!response.ok) throw new Error(tm('GitHub a répondu {status}.', { status: response.status }));
@@ -194,26 +202,6 @@ export async function finishPendingInstall(deps: PendingInstallDeps = {}): Promi
 }
 
 /**
- * Filet de sécurité macOS uniquement : contrairement à Windows,
- * `MacUpdater.quitAndInstall()` (electron-updater) ignore les deux arguments
- * qu'on lui passe et laisse le relancement entièrement au Squirrel.Mac natif
- * d'Electron — qui exige une app signée avec un certificat Developer ID pour
- * relancer de façon fiable après le remplacement (hors de portée sans compte
- * Apple Developer payant ; échec silencieux sinon, l'app reste fermée).
- * Un process détaché relance donc DLSGM après un court délai, que Squirrel
- * ait réussi à le faire ou non : si une instance tourne déjà (relancement
- * natif réussi, ou DLSGM pas vraiment fermé), le verrou mono-instance
- * (main.ts) fait que cette tentative se referme aussitôt en focalisant
- * l'instance existante, sans doublon. Le chemin est passé en argument séparé
- * au shell ($1), jamais interpolé dans la commande.
- */
-function scheduleMacRelaunchFallback(): void {
-  // .../DLSGM.app/Contents/MacOS/DLSGM -> .../DLSGM.app
-  const bundlePath = path.resolve(process.execPath, '..', '..', '..');
-  spawn('/bin/sh', ['-c', 'sleep 8 && exec open "$1"', '_', bundlePath], { detached: true, stdio: 'ignore' }).unref();
-}
-
-/**
  * Télécharge la mise à jour (barre de progression dans l'interface), puis
  * demande : maintenant, ou au redémarrage (à la fermeture de DLSGM).
  */
@@ -242,12 +230,9 @@ async function downloadAndOfferInstall(getWindow: () => BrowserWindow | null, ve
   // Installation silencieuse (/S) puis relance : sans ces arguments,
   // electron-updater ouvre l'assistant de l'installeur NSIS, comme une
   // première installation. « Au redémarrage » installe aussi en silence, à
-  // la fermeture (autoInstallOnAppQuit). Sur mac, ces arguments sont ignorés
-  // (voir scheduleMacRelaunchFallback) : le filet de sécurité est nécessaire.
-  if (choice === 0) {
-    if (process.platform === 'darwin') scheduleMacRelaunchFallback();
-    autoUpdater.quitAndInstall(true, true);
-  }
+  // la fermeture (autoInstallOnAppQuit). Toujours Windows ici : voir
+  // `getAppUpdateInfo` pour pourquoi macOS ne passe jamais par ce chemin.
+  if (choice === 0) autoUpdater.quitAndInstall(true, true);
 }
 
 export interface CheckOptions {
@@ -290,7 +275,7 @@ export async function checkForUpdates({ manual, getWindow }: CheckOptions): Prom
         type: 'info',
         title: tm('Mise à jour disponible'),
         message: tm('La version {version} de DLSGM est disponible.', { version: latest }),
-        detail: tm('Version utilisée : {version}. La version portable ne se met pas à jour seule : téléchargez la nouvelle version sur GitHub.', { version: current }),
+        detail: tm('Version utilisée : {version}. Mise à jour automatique indisponible : téléchargez la nouvelle version sur GitHub.', { version: current }),
         buttons: [tm('Ouvrir la page de téléchargement'), tm('Fermer')],
         defaultId: 0,
         cancelId: 1,

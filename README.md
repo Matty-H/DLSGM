@@ -132,7 +132,7 @@ Download the dictionary once in Settings › In-game tools; it then works offlin
 <details>
 <summary><b>How do I update DLSGM?</b></summary>
 <br>
-With the installer, DLSGM tells you when a new version is out and installs it if you agree. The check can be turned off or run by hand in Settings › Updates. The portable version tells you too, but you download the new version yourself.
+With the Windows installer, DLSGM tells you when a new version is out and installs it if you agree. The check can be turned off or run by hand in Settings › Updates. The portable version and macOS tell you too, but you download the new version yourself — on macOS, DLSGM isn't signed with a paid Apple certificate, so it can't install updates automatically.
 </details>
 
 <details>

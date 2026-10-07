@@ -88,7 +88,9 @@ function UpdateCheck() {
     ? t('Version portable : une nouvelle version est signalée par un pop-up, à télécharger soi-même sur GitHub.')
     : info.selfUpdate
       ? t('Version installée : une nouvelle version peut être téléchargée et installée depuis DLSGM.')
-      : t('Version de développement : une nouvelle version est seulement signalée.');
+      : info.packaged
+        ? t('Mise à jour automatique indisponible : une nouvelle version est seulement signalée, à télécharger soi-même sur GitHub.')
+        : t('Version de développement : une nouvelle version est seulement signalée.');
 
   return (
     <SettingRow

@@ -144,8 +144,10 @@ export interface AppUpdateInfo {
   version: string;
   /** Exécutable portable : pas de mise à jour automatique, seulement un pop-up. */
   portable: boolean;
-  /** electron-updater peut télécharger et installer (installeur Windows, macOS). */
+  /** electron-updater peut télécharger et installer (installeur Windows uniquement : voir updater.ts). */
   selfUpdate: boolean;
+  /** Build packagée (et non `selfUpdate`, ex. macOS) vs. build de dev : seulement un pop-up dans les deux cas, mais le message diffère. */
+  packaged: boolean;
 }
 
 /** Avancement du téléchargement d'une mise à jour (barre au-dessus de la barre des touches). */
