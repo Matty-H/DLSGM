@@ -1,6 +1,6 @@
 {
   "name": "dlsgm",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "main": "dist/main/main/main.js",
   "scripts": {
     "test": "vitest run",
