@@ -475,6 +475,29 @@ export interface CheatTable {
   modified: string;
 }
 
+/** Entrée d'une table Cheat Engine, telle qu'affichée sur la page du jeu (lecture seule). */
+export interface CheatTableEntry {
+  description: string;
+  /** Type de valeur tel que l'écrit Cheat Engine (`4 Bytes`, `Float`…) ; vide pour un groupe. */
+  type: string;
+  /** Adresse ou symbole, avec ses offsets de pointeur ; vide pour un script ou un groupe. */
+  address: string;
+  /** Dernière valeur enregistrée par Cheat Engine dans la table, s'il y en a une. */
+  value: string;
+  kind: 'value' | 'script' | 'group';
+  children: CheatTableEntry[];
+}
+
+export interface CheatTableContent {
+  entries: CheatTableEntry[];
+  /** Nombre total d'entrées, sous-entrées comprises (avant troncature). */
+  total: number;
+  /** Liste coupée (table énorme). */
+  truncated: boolean;
+  /** La table a un script Lua, que Cheat Engine propose d'exécuter à l'ouverture. */
+  hasLua: boolean;
+}
+
 export interface CheatTableImportResult {
   tables: CheatTable[];
   imported: string[];
@@ -1376,6 +1399,8 @@ export interface ElectronAPI {
   listCheatTables(gameId: string): Promise<CheatTable[]>;
   /** Choisit des tables .CT (boîte de dialogue de main) et les copie dans le dossier du jeu ; null si annulé. */
   importCheatTables(gameId: string): Promise<CheatTableImportResult | null>;
+  /** Entrées d'une table du jeu (lecture seule), ou null si elle est illisible. */
+  readCheatTable(gameId: string, name: string): Promise<CheatTableContent | null>;
   /** Ouvre Cheat Engine avec cette table (null : sans table). */
   openCheatTable(gameId: string, name: string | null): Promise<void>;
   /** Overlay : Cheat Engine attaché au jeu en cours, sur sa table (créée vide s'il n'en a pas). Renvoie le nom de la table. */

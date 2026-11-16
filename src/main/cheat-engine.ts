@@ -1,7 +1,9 @@
 import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import type { CheatTable } from '../shared/ipc-types';
+import * as cheerio from 'cheerio';
+import type { Element } from 'domhandler';
+import type { CheatTable, CheatTableContent, CheatTableEntry } from '../shared/ipc-types';
 
 /**
  * Cheat Engine (Windows) : DLSGM ne fait que l'ouvrir avec une table (.CT).
@@ -346,7 +348,7 @@ export function backupCheatTable(dir: string, name: string, content: string, now
  */
 export function prepareCheatSession(dir: string, name: string, sessionDir: string, options: Omit<CheatSessionOptions, 'tablePath'>): string {
   const tablePath = path.join(dir, name);
-  let xml = fs.readFileSync(tablePath, 'utf8').replace(/^﻿/, '');
+  let xml = fs.readFileSync(tablePath, 'utf8').replace(/^\uFEFF/, '');
   if (!isCompleteTable(xml)) {
     const backups = listTableBackups(dir, name);
     const latest = backups[backups.length - 1];
@@ -416,6 +418,70 @@ export function listGameProcessInfo(gameDir: string): Promise<GameProcess[]> {
       resolve(error ? [] : parseGameProcesses(stdout));
     });
   });
+}
+
+// --- Lecture d'une table : ses entrées, pour la page du jeu ---
+
+/** Entrées gardées pour l'affichage : au-delà, la liste est coupée (`total` dit combien il y en a). */
+export const MAX_SHOWN_ENTRIES = 500;
+const MAX_ENTRY_DEPTH = 12;
+
+/**
+ * Entrées d'une table (XML de Cheat Engine), en arbre. Lecture seule et sans
+ * rien exécuter : descriptions, types, adresses et offsets tels qu'écrits.
+ * Le bloc de session de DLSGM ne compte pas comme script Lua de la table.
+ */
+export function parseCheatTable(xml: string): CheatTableContent | null {
+  if (!isCompleteTable(xml)) return null;
+  const $ = cheerio.load(stripSessionScript(xml), { xmlMode: true });
+  const root = $('CheatTable').first();
+  if (root.length === 0) return null;
+  let total = 0;
+  let kept = 0;
+  const text = (entry: Element, tag: string) => $(entry).children(tag).first().text().trim();
+  const read = (parent: Element, depth: number): CheatTableEntry[] => {
+    const entries: CheatTableEntry[] = [];
+    for (const entry of $(parent).children('CheatEntries').children('CheatEntry').toArray()) {
+      total++;
+      const keep = kept < MAX_SHOWN_ENTRIES && depth < MAX_ENTRY_DEPTH;
+      if (keep) kept++;
+      const type = text(entry, 'VariableType');
+      const script = $(entry).children('AssemblerScript').length > 0;
+      const offsets = $(entry).children('Offsets').children('Offset').toArray().map(offset => $(offset).text().trim());
+      const address = text(entry, 'Address');
+      const node: CheatTableEntry = {
+        description: text(entry, 'Description').replace(/^"([\s\S]*)"$/, '$1').slice(0, 300),
+        type: script ? '' : type.slice(0, 40),
+        // Offsets écrits du dernier niveau au premier, comme dans Cheat Engine : [[base+o2]+o1].
+        address: script ? '' : [address, ...offsets.reverse()].filter(Boolean).join(' → ').slice(0, 300),
+        value: ($(entry).children('LastState').attr('Value') ?? '').slice(0, 100),
+        kind: script ? 'script' : address ? 'value' : 'group',
+        children: []
+      };
+      // Les sous-entrées sont toujours comptées, même quand l'entrée n'est plus gardée.
+      const children = read(entry, depth + 1);
+      if (keep) {
+        node.children = children;
+        entries.push(node);
+      }
+    }
+    return entries;
+  };
+  const entries = read(root.get(0)!, 0);
+  return { entries, total, truncated: total > kept, hasLua: root.children('LuaScript').text().trim().length > 0 };
+}
+
+/** Entrées d'une table du dossier, ou null (nom refusé, fichier absent, trop gros ou illisible). */
+export async function readCheatTable(dir: string, name: unknown): Promise<CheatTableContent | null> {
+  const file = cheatTablePath(dir, name);
+  if (!file) return null;
+  try {
+    const stat = await fs.promises.stat(file);
+    if (stat.size > MAX_CHEAT_TABLE_BYTES) return null;
+    return parseCheatTable((await fs.promises.readFile(file, 'utf8')).replace(/^\uFEFF/, ''));
+  } catch {
+    return null;
+  }
 }
 
 /** Chemin d'une table du dossier, ou null si le nom n'en est pas une ou si elle n'existe pas. */

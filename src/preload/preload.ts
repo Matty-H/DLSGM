@@ -184,6 +184,7 @@ const electronAPI: ElectronAPI = {
   listCheatTables: gameId => ipcRenderer.invoke('list-cheat-tables', gameId),
   importCheatTables: gameId => ipcRenderer.invoke('import-cheat-tables', gameId),
   openCheatTable: (gameId, name) => ipcRenderer.invoke('open-cheat-table', gameId, name),
+  readCheatTable: (gameId, name) => ipcRenderer.invoke('read-cheat-table', gameId, name),
   openGameCheatEngine: gameId => ipcRenderer.invoke('open-game-cheat-engine', gameId),
   deleteCheatTable: (gameId, name) => ipcRenderer.invoke('delete-cheat-table', gameId, name),
   openCheatTablesFolder: gameId => ipcRenderer.invoke('open-cheat-tables-folder', gameId),

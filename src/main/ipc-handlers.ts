@@ -29,7 +29,7 @@ import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
 import { listSaveSlots, readSave, writeSave } from './rpgmaker-saves';
 import { findLeProc, leInstalled, runWithLocaleEmulator } from './locale-emulator';
-import { CHEAT_TABLES_DIR, cheatTablePath, defaultCheatTable, findGamePid, importCheatTables, listCheatTables, listGameProcessInfo, prepareCheatSession, resolveCheatEngine } from './cheat-engine';
+import { CHEAT_TABLES_DIR, cheatTablePath, defaultCheatTable, findGamePid, importCheatTables, listCheatTables, listGameProcessInfo, readCheatTable, prepareCheatSession, resolveCheatEngine } from './cheat-engine';
 import { elevatedStartCommand, parseLaunchArguments } from './launch-args';
 import { DiskUsageScanner, diskInfo } from './disk-usage';
 import { DEFAULT_SCREENSHOT, ScreenCapturer, captureFileName, isCaptureName, listCaptures, sanitizeScreenshotSettings } from './screenshots';
@@ -54,7 +54,7 @@ import { TriggerZonesWindow } from './trigger-zones';
 import { checkForUpdates, getAppUpdateInfo } from './updater';
 import { setMainLanguage, systemLanguages, tm } from './i18n';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, CaptureInfo, CheatTable, CheatTableImportResult, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, RpgSavePatch, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, CaptureInfo, CheatTable, CheatTableContent, CheatTableImportResult, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, RpgSavePatch, SandboxieStatus } from '../shared/ipc-types';
 import type { OsPlatform } from '../shared/platforms';
 import { applyThemeIcon, applyThemeSetting, buildThemeIcon, getActiveTheme, iconPngsFromDataUrls, rerollTheme } from './theme';
 import { appIconLayout } from '../shared/logo';
@@ -1742,6 +1742,9 @@ export function setupIpcHandlers(
     const { imported, skipped } = await importCheatTables(dir, result.filePaths);
     return { tables: await listCheatTables(dir), imported, skipped };
   });
+  handle('read-cheat-table', async (event: IpcMainInvokeEvent, gameId: string, name: string): Promise<CheatTableContent | null> =>
+    readCheatTable(await gameCheatTablesDir(gameId), name)
+  );
   handle('open-cheat-table', async (event: IpcMainInvokeEvent, gameId: string, name: string | null) => {
     const dir = await gameCheatTablesDir(gameId);
     const executable = resolveCheatEngine((await getSettings()).cheatEnginePath ?? '');

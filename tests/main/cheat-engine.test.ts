@@ -16,9 +16,12 @@ import {
   isCheatTableName,
   isCompleteTable,
   listCheatTables,
+  MAX_SHOWN_ENTRIES,
+  parseCheatTable,
   parseGameProcesses,
   pickGameProcess,
   prepareCheatSession,
+  readCheatTable,
   resolveCheatEngine,
   sessionScript,
   stripSessionScript
@@ -242,5 +245,62 @@ describe('session Cheat Engine', () => {
     expect(pickGameProcess(list)).toBe(11);
     expect(pickGameProcess(list.filter(p => !p.hasWindow))).toBe(10);
     expect(pickGameProcess([])).toBe(0);
+  });
+});
+
+describe('parseCheatTable', () => {
+  const table = (body: string) => `<?xml version="1.0" encoding="utf-8"?>\n<CheatTable>\n${body}\n</CheatTable>\n`;
+  const entry = (inner: string) => `<CheatEntry>${inner}</CheatEntry>`;
+
+  it('lit l’arbre : groupes, scripts, valeurs avec pointeurs et dernière valeur', () => {
+    const hp = entry('<ID>3</ID><Description>"HP 体力"</Description><LastState Value="9999" RealAddress="1234"/><VariableType>4 Bytes</VariableType><Address>ptGSV</Address><Offsets><Offset>GlobalStateValue.HP</Offset><Offset>10</Offset></Offsets>');
+    const group = entry(`<ID>2</ID><Description>"Main"</Description><GroupHeader>1</GroupHeader><CheatEntries>${hp}</CheatEntries>`);
+    const script = entry(`<ID>1</ID><Description>"Player"</Description><VariableType>Auto Assembler Script</VariableType><AssemblerScript>[ENABLE]\nalloc(x,$1000) &lt; &amp;</AssemblerScript><CheatEntries>${group}</CheatEntries>`);
+    const gold = entry('<ID>4</ID><Description>"Gold"</Description><VariableType>Float</VariableType><Address>Game.exe+1A2B</Address>');
+    const xml = table(`<CheatEntries>${script}${gold}</CheatEntries>\n<LuaScript>print(1)</LuaScript>`);
+
+    const content = parseCheatTable(xml)!;
+
+    expect(content.total).toBe(4);
+    expect(content.truncated).toBe(false);
+    expect(content.hasLua).toBe(true);
+    expect(content.entries.map(e => [e.description, e.kind, e.type, e.address])).toEqual([
+      ['Player', 'script', '', ''],
+      ['Gold', 'value', 'Float', 'Game.exe+1A2B']
+    ]);
+    const main = content.entries[0].children[0];
+    expect([main.description, main.kind]).toEqual(['Main', 'group']);
+    expect(main.children[0]).toMatchObject({ description: 'HP 体力', kind: 'value', type: '4 Bytes', address: 'ptGSV → 10 → GlobalStateValue.HP', value: '9999' });
+  });
+
+  it('le bloc de session de DLSGM n’est pas un script Lua de la table', () => {
+    const plain = table('<CheatEntries/>');
+    expect(parseCheatTable(plain)).toEqual({ entries: [], total: 0, truncated: false, hasLua: false });
+    const session = buildSessionTable(plain, sessionScript({ pid: 1, processNames: [], tablePath: 'C:\\a.CT' }));
+    expect(parseCheatTable(session)!.hasLua).toBe(false);
+  });
+
+  it('une table coupée ou qui n’en est pas une : null', () => {
+    expect(parseCheatTable('<CheatTable><CheatEntries><CheatEntry>')).toBeNull();
+    expect(parseCheatTable('pas du xml')).toBeNull();
+    expect(parseCheatTable('')).toBeNull();
+  });
+
+  it('coupe l’affichage d’une table énorme mais compte tout', () => {
+    const many = Array.from({ length: MAX_SHOWN_ENTRIES + 25 }, (_, i) => entry(`<Description>"e${i}"</Description><VariableType>Byte</VariableType><Address>${i}</Address>`)).join('');
+    const content = parseCheatTable(table(`<CheatEntries>${many}</CheatEntries>`))!;
+    expect(content.total).toBe(MAX_SHOWN_ENTRIES + 25);
+    expect(content.entries.length).toBe(MAX_SHOWN_ENTRIES);
+    expect(content.truncated).toBe(true);
+  });
+
+  it('readCheatTable ne lit que les tables du dossier', async () => {
+    const dir = path.join(root, 'cheat-tables');
+    writeTree(root, { 'outside.CT': table('<CheatEntries/>') });
+    writeTree(dir, { 'a.CT': '\uFEFF' + table(`<CheatEntries>${entry('<Description>"x"</Description><Address>1</Address>')}</CheatEntries>`), 'bad.CT': 'cassée' });
+    expect((await readCheatTable(dir, 'a.CT'))!.total).toBe(1);
+    expect(await readCheatTable(dir, 'bad.CT')).toBeNull();
+    expect(await readCheatTable(dir, '../outside.CT')).toBeNull();
+    expect(await readCheatTable(dir, 'absente.CT')).toBeNull();
   });
 });
