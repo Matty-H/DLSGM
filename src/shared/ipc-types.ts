@@ -645,6 +645,8 @@ export interface OverlayState {
   ocr: { enabled: boolean; hotkey: string };
   /** Captures activées, et leur raccourci. */
   screenshot: ScreenshotSettings;
+  /** Cheat Engine trouvé (Windows) : bouton de l'overlay. */
+  cheatEngine: boolean;
 }
 
 /** Taille des jaquettes d'une étagère de l'accueil. */
@@ -1376,6 +1378,8 @@ export interface ElectronAPI {
   importCheatTables(gameId: string): Promise<CheatTableImportResult | null>;
   /** Ouvre Cheat Engine avec cette table (null : sans table). */
   openCheatTable(gameId: string, name: string | null): Promise<void>;
+  /** Overlay : Cheat Engine attaché au jeu en cours, sur sa table (créée vide s'il n'en a pas). Renvoie le nom de la table. */
+  openGameCheatEngine(gameId: string): Promise<string>;
   /** Met la table à la corbeille. */
   deleteCheatTable(gameId: string, name: string): Promise<CheatTable[]>;
   openCheatTablesFolder(gameId: string): Promise<void>;

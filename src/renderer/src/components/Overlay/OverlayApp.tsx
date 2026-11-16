@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Camera, Clapperboard, Clock, Languages, MousePointerClick, ScanEye, X } from 'lucide-react';
+import { Camera, Clapperboard, Clock, Cpu, Languages, MousePointerClick, ScanEye, X } from 'lucide-react';
 import { formatClock } from '../../lib/autoClicker.js';
 import { formatLastPlayed, formatPlayTime } from '../../lib/timeFormatter.js';
 import { ipcErrorMessage } from '../../lib/gameTools.js';
@@ -227,6 +227,28 @@ export default function OverlayApp() {
                     </button>
                   </div>
                   <CaptureGallery gameId={game.id} limit={6} inOverlay />
+                </div>
+              )}
+
+              {state.cheatEngine && (
+                <div className="flex flex-col gap-1.5 border-t border-divider pt-3">
+                  <div className="flex items-center gap-2 text-[13px] font-semibold">
+                    <Cpu size={14} strokeWidth={2.25} />
+                    <span className="flex-1">{t('Cheat Engine')}</span>
+                    <button
+                      type="button"
+                      className="btn py-1 text-[12px]"
+                      onClick={() => {
+                        setError(null);
+                        window.electronAPI.openGameCheatEngine(game.id).catch(err => setError(ipcErrorMessage(err)));
+                      }}
+                    >
+                      {t('Ouvrir Cheat Engine')}
+                    </button>
+                  </div>
+                  <span className="text-[12px] leading-relaxed text-text-muted">
+                    {t("S'attache à ce jeu et charge sa table. Ce que tu y ajoutes est enregistré tout seul dans la table du jeu, sans Ctrl+S. Réponds « Yes » quand Cheat Engine demande d'exécuter le script Lua.")}
+                  </span>
                 </div>
               )}
 

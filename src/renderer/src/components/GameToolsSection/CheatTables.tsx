@@ -118,6 +118,11 @@ export default function CheatTables({ gameId, autoTable, onAutoTableChange }: Ch
           {t('Dossier')}
         </button>
       </div>
+      {tables !== null && tables.length > 0 && (
+        <p className="mt-1 text-text-muted">
+          {t("Une table ouverte d'ici s'attache au jeu et s'enregistre toute seule à chaque changement (réponds « Yes » quand Cheat Engine demande d'exécuter le script Lua). Pendant une partie, l'overlay a le même bouton.")}
+        </p>
+      )}
       {message && <p className="mt-1 text-text-secondary">{message}</p>}
       {error && <p className="mt-1 text-danger">{error}</p>}
     </div>

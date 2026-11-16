@@ -29,7 +29,7 @@ import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
 import { listSaveSlots, readSave, writeSave } from './rpgmaker-saves';
 import { findLeProc, leInstalled, runWithLocaleEmulator } from './locale-emulator';
-import { CHEAT_TABLES_DIR, cheatTablePath, importCheatTables, listCheatTables, resolveCheatEngine } from './cheat-engine';
+import { CHEAT_TABLES_DIR, cheatTablePath, defaultCheatTable, findGamePid, importCheatTables, listCheatTables, listGameProcessInfo, prepareCheatSession, resolveCheatEngine } from './cheat-engine';
 import { elevatedStartCommand, parseLaunchArguments } from './launch-args';
 import { DiskUsageScanner, diskInfo } from './disk-usage';
 import { DEFAULT_SCREENSHOT, ScreenCapturer, captureFileName, isCaptureName, listCaptures, sanitizeScreenshotSettings } from './screenshots';
@@ -310,6 +310,49 @@ function startCheatEngine(executablePath: string, table: string | null): Promise
   });
 }
 
+/**
+ * Ouvre Cheat Engine sur une table du jeu, par une copie de session
+ * (src/main/cheat-engine.ts) : attaché au jeu — tout de suite s'il tourne,
+ * sinon dès que son exécutable apparaît — et la table du dossier de travaux
+ * est réécrite toute seule à chaque changement.
+ */
+async function openCheatSession(executable: string, gameId: string, name: string, gameStarted: boolean): Promise<void> {
+  const settings = await getSettings();
+  const gamePath = await getGameDir(gameId);
+  const gameExe = await resolveExecutable(gameId, gamePath).catch(() => null);
+  const pid = gameStarted ? await findGamePid(gamePath) : 0;
+  let session: string;
+  try {
+    session = prepareCheatSession(cheatTablesDir(settings, gameId), name, path.join(app.getPath('userData'), CHEAT_SESSIONS_DIR, gameId), {
+      pid,
+      processNames: gameExe ? [path.basename(gameExe)] : []
+    });
+  } catch (error) {
+    console.error(`Table Cheat Engine ${name} (${gameId}) :`, error);
+    throw new Error(tm('La table « {name} » est illisible : Cheat Engine ne peut pas l’ouvrir.', { name }));
+  }
+  await startCheatEngine(executable, session);
+}
+
+/**
+ * Table « au lancement » : Cheat Engine s'ouvre dès que le jeu a sa fenêtre
+ * (au plus tard après 20 s s'il a un processus), pour s'attacher au bon
+ * processus — un jeu NW.js en a plusieurs du même nom, et attendre le jeu
+ * par son nom depuis Cheat Engine tombait sur un processus sans fenêtre
+ * (observé). Abandonné si le jeu se ferme avant, ou n'apparaît pas en 60 s.
+ */
+async function openCheatSessionWhenStarted(executable: string, gameId: string, name: string): Promise<void> {
+  const gamePath = await getGameDir(gameId);
+  for (let tries = 1; tries <= 60 && runningGames.has(gameId); tries++) {
+    await delay(1000);
+    const processes = await listGameProcessInfo(gamePath);
+    if (processes.some(process => process.hasWindow) || (tries >= 20 && processes.length > 0)) {
+      if (runningGames.has(gameId)) await openCheatSession(executable, gameId, name, true);
+      return;
+    }
+  }
+}
+
 /** Table Cheat Engine à ouvrir au lancement de ce jeu, ou null. Lève si Cheat Engine ou la table manque. */
 async function cheatEngineLaunch(gameId: string): Promise<{ executable: string; table: string } | null> {
   const entry = ((await cacheStore.get(gameId)) ?? {}) as Partial<GameMetadata>;
@@ -322,8 +365,11 @@ async function cheatEngineLaunch(gameId: string): Promise<{ executable: string; 
   }
   const table = cheatTablePath(cheatTablesDir(settings, gameId), entry.cheatTableAuto);
   if (!table) throw new Error(tm('La table Cheat Engine « {name} » a disparu : choisis-en une autre sur la page du jeu.', { name: entry.cheatTableAuto }));
-  return { executable, table };
+  return { executable, table: entry.cheatTableAuto };
 }
+
+/** Copies de session données à Cheat Engine (userData) : régénérées à chaque ouverture. */
+const CHEAT_SESSIONS_DIR = 'cheat-engine-sessions';
 
 function cheatTablesDir(settings: AppSettings, gameId: string): string {
   return path.join(workspaceRoot(settings.workspaceFolder, app.getPath('documents')), gameId, CHEAT_TABLES_DIR);
@@ -1700,12 +1746,22 @@ export function setupIpcHandlers(
     const dir = await gameCheatTablesDir(gameId);
     const executable = resolveCheatEngine((await getSettings()).cheatEnginePath ?? '');
     if (!executable) throw new Error(tm('Cheat Engine introuvable (ni dans Program Files, ni dans le dossier choisi dans Paramètres › Lancement).'));
-    let table: string | null = null;
-    if (name !== null) {
-      table = cheatTablePath(dir, name);
-      if (!table) throw new Error(tm('Table introuvable.'));
-    }
-    await startCheatEngine(executable, table);
+    if (name === null) return startCheatEngine(executable, null);
+    if (!cheatTablePath(dir, name)) throw new Error(tm('Table introuvable.'));
+    await openCheatSession(executable, gameId, name, runningGames.has(gameId));
+  });
+  // Bouton de l'overlay : Cheat Engine attaché au jeu en cours, sur la table du jeu (créée vide s'il n'en a pas).
+  handle('open-game-cheat-engine', async (event: IpcMainInvokeEvent, gameId: string): Promise<string> => {
+    const dir = await gameCheatTablesDir(gameId);
+    if (!runningGames.has(gameId)) throw new Error(tm("Ce jeu n'est pas en cours."));
+    const executable = resolveCheatEngine((await getSettings()).cheatEnginePath ?? '');
+    if (!executable) throw new Error(tm('Cheat Engine introuvable (ni dans Program Files, ni dans le dossier choisi dans Paramètres › Lancement).'));
+    const entry = ((await cacheStore.get(gameId)) ?? {}) as Partial<GameMetadata>;
+    const name = await defaultCheatTable(dir, gameId, entry.cheatTableAuto);
+    await openCheatSession(executable, gameId, name, true);
+    // Cheat Engine prend le premier plan : l'overlay ne doit pas rester par-dessus.
+    gameOverlay.hide();
+    return name;
   });
   handle('delete-cheat-table', async (event: IpcMainInvokeEvent, gameId: string, name: string): Promise<CheatTable[]> => {
     const dir = await gameCheatTablesDir(gameId);
@@ -1798,7 +1854,8 @@ export function setupIpcHandlers(
     gameMacros: Object.fromEntries(runningGameMacros),
     textractor: Object.fromEntries([...textractorSessions].map(([id, session]) => [id, session.view()])),
     ocr: { enabled: ocrConfig.enabled && process.platform === 'win32', hotkey: ocrConfig.hotkey },
-    screenshot: { ...screenshotConfig, enabled: screenshotConfig.enabled && process.platform === 'win32' }
+    screenshot: { ...screenshotConfig, enabled: screenshotConfig.enabled && process.platform === 'win32' },
+    cheatEngine: process.platform === 'win32' && resolveCheatEngine((await getSettings()).cheatEnginePath ?? '') !== null
   }));
   handle('hide-overlay', () => gameOverlay.hide());
   // Témoin : réglages rapides (déplié seulement à l'arrêt, sinon les clics tomberaient dessus).
@@ -2185,8 +2242,8 @@ export function setupIpcHandlers(
     refreshOcr();
     refreshScreenshot();
     if (textractor) startTextractor(gameId, gamePath, textractor);
-    // Cheat Engine attend le processus du jeu (attache auto des tables) : ouvert juste avant, jamais fermé par DLSGM.
-    if (cheatEngine) await startCheatEngine(cheatEngine.executable, cheatEngine.table).catch(error => console.error('Cheat Engine :', error));
+    // Cheat Engine s'ouvre une fois le jeu apparu (attaché à son processus), jamais fermé par DLSGM.
+    if (cheatEngine) void openCheatSessionWhenStarted(cheatEngine.executable, gameId, cheatEngine.table).catch(error => console.error('Cheat Engine :', error));
     try {
       result = await startGameProcess(gameId, gamePath, executablePath);
     } finally {
