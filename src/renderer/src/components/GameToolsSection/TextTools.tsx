@@ -73,7 +73,7 @@ export default function TextTools({ gameId, info, textractorEnabled, onTextracto
       {isWindows && (
       <>
       <div>
-        <div className={`${LABEL_CLASS} mb-1`}>{t('Texte du jeu')}</div>
+        <h4 className="section-title m-0 mb-2">{t('Texte du jeu')}</h4>
         <label className="flex cursor-pointer items-center justify-between gap-3">
           {t('Lancer en japonais (Locale Emulator)')}
           <input type="checkbox" className="toggle" checked={localeEmulator} onChange={e => onLocaleEmulatorChange(e.target.checked)} />

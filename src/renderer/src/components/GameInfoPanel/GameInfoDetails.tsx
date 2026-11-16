@@ -284,11 +284,7 @@ export default function GameInfoDetails({
             </Section>
           )}
 
-          <Section title={t('Mes travaux')}>
-            <WorkspaceSection gameId={gameId} />
-          </Section>
         </div>
-
 
         <div className="flex flex-col gap-5">
           <Section
@@ -342,47 +338,55 @@ export default function GameInfoDetails({
             </Section>
           )}
 
-          <Section title={t('Exécutable')}>
-            <div className="flex items-center justify-between gap-3">
-              <span className="min-w-0 truncate text-[13px] text-text-secondary" title={gameData.executablePath || undefined}>
-                {gameData.executablePath || t('Détection automatique')}
-              </span>
-              <button type="button" onClick={() => onChooseExecutable(gameId)} className="btn flex-shrink-0 text-[13px]">
-                {t('Choisir…')}
-              </button>
-            </div>
-            <label className="mt-3 block">
-              <span className="mb-1 block text-[12px] text-text-secondary">{t('Arguments de lancement')}</span>
-              <LaunchArgumentsInput
-                value={gameData.launchArguments ?? ''}
-                onSave={launchArguments => onUpdateGame(gameId, { launchArguments })}
-              />
-            </label>
-          </Section>
-
-          <Section title={t('Captures')}>
-            <CaptureGallery gameId={gameId} limit={8} />
-          </Section>
-
-          <Section title={t('Outils')}>
-            <GameToolsSection
-              gameId={gameId}
-              executablePath={gameData.executablePath}
-              sandboxDisabled={Boolean(gameData.sandboxDisabled)}
-              lastPlayed={gameData.lastPlayed}
-
-              onSandboxDisabledChange={disabled => onUpdateGame(gameId, { sandboxDisabled: disabled })}
-              textractorEnabled={Boolean(gameData.textractorEnabled)}
-              onTextractorEnabledChange={enabled => onUpdateGame(gameId, { textractorEnabled: enabled })}
-              localeEmulator={Boolean(gameData.localeEmulator)}
-              onLocaleEmulatorChange={enabled => onUpdateGame(gameId, { localeEmulator: enabled })}
-              debugMode={Boolean(gameData.debugMode)}
-              onDebugModeChange={enabled => onUpdateGame(gameId, { debugMode: enabled })}
-              cheatTableAuto={gameData.cheatTableAuto ?? ''}
-              onCheatTableAutoChange={name => onUpdateGame(gameId, { cheatTableAuto: name })}
-            />
-          </Section>
         </div>
+      </div>
+
+      {/* Tuiles rangées en colonnes (autant que la largeur en permet), chacune à sa hauteur :
+          en une seule colonne de 360 px, elles faisaient défiler la page sur des écrans entiers. */}
+      <h3 className="section-title m-0 px-8">{t('Outils')}</h3>
+      <div className="columns-[340px] gap-5 px-8 pb-6 pt-3 [&>*]:mb-5 [&>*]:break-inside-avoid">
+        <Section title={t('Exécutable')}>
+          <div className="flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate text-[13px] text-text-secondary" title={gameData.executablePath || undefined}>
+              {gameData.executablePath || t('Détection automatique')}
+            </span>
+            <button type="button" onClick={() => onChooseExecutable(gameId)} className="btn flex-shrink-0 text-[13px]">
+              {t('Choisir…')}
+            </button>
+          </div>
+          <label className="mt-3 block">
+            <span className="mb-1 block text-[12px] text-text-secondary">{t('Arguments de lancement')}</span>
+            <LaunchArgumentsInput
+              value={gameData.launchArguments ?? ''}
+              onSave={launchArguments => onUpdateGame(gameId, { launchArguments })}
+            />
+          </label>
+        </Section>
+
+        <Section title={t('Captures')}>
+          <CaptureGallery gameId={gameId} limit={8} />
+        </Section>
+
+        <Section title={t('Mes travaux')}>
+          <WorkspaceSection gameId={gameId} />
+        </Section>
+
+          <GameToolsSection
+            gameId={gameId}
+            executablePath={gameData.executablePath}
+            sandboxDisabled={Boolean(gameData.sandboxDisabled)}
+            lastPlayed={gameData.lastPlayed}
+
+            onSandboxDisabledChange={disabled => onUpdateGame(gameId, { sandboxDisabled: disabled })}
+            textractorEnabled={Boolean(gameData.textractorEnabled)}
+            onTextractorEnabledChange={enabled => onUpdateGame(gameId, { textractorEnabled: enabled })}
+            localeEmulator={Boolean(gameData.localeEmulator)}
+            onLocaleEmulatorChange={enabled => onUpdateGame(gameId, { localeEmulator: enabled })}
+            debugMode={Boolean(gameData.debugMode)}
+            onDebugModeChange={enabled => onUpdateGame(gameId, { debugMode: enabled })}
+            cheatTableAuto={gameData.cheatTableAuto ?? ''}
+            onCheatTableAutoChange={name => onUpdateGame(gameId, { cheatTableAuto: name })}
+          />
       </div>
     </div>
   );

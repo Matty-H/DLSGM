@@ -95,7 +95,7 @@ export default function RpgSaveEditor({ gameId, lastPlayed, onSaved }: RpgSaveEd
 
   return (
     <div>
-      <div className={`${LABEL_CLASS} mb-1`}>{t('Éditeur de sauvegardes')}</div>
+      <h4 className="section-title m-0 mb-2">{t('Éditeur de sauvegardes')}</h4>
       {!open ? (
         <button type="button" onClick={() => setOpen(true)} className="btn text-[13px]">
           {t('Modifier une sauvegarde')}

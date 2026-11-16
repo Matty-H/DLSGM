@@ -75,7 +75,7 @@ export default function CheatTables({ gameId, autoTable, onAutoTableChange }: Ch
 
   return (
     <div>
-      <div className={`${LABEL_CLASS} mb-1`}>{t('Cheat Engine')}</div>
+      <h4 className="section-title m-0 mb-2">{t('Cheat Engine')}</h4>
       {found === false && <p className="mb-1 text-text-secondary">{t('Cheat Engine introuvable (ni dans Program Files, ni dans le dossier choisi dans Paramètres › Lancement).')}</p>}
 
       {tables !== null && tables.length === 0 && (

@@ -46,12 +46,16 @@ export interface GameToolsSectionProps {
 }
 
 const LABEL_CLASS = 'text-[12px] text-text-muted';
+// Une tuile par outil : la page du jeu les range en colonnes (GameInfoDetails).
+// `empty:hidden` : un outil qui n'affiche rien pour ce jeu ne laisse pas de tuile vide.
+const TILE_CLASS = 'panel flex flex-col gap-4 p-5 text-[13px] empty:hidden';
 
 /**
  * Moteur détecté, emplacements de sauvegarde, et patchs réversibles
  * (traduction automatique BepInEx + XUnity pour Unity Mono, patchs .zip ou
  * dossier fournis par l'utilisateur — décensure, traduction...), et sandbox
  * Sandboxie quand le lancement en sandbox est activé dans les paramètres.
+ * Rend une tuile par outil, sans conteneur : c'est la page qui les dispose.
  */
 export default function GameToolsSection({
   gameId,
@@ -117,9 +121,10 @@ export default function GameToolsSection({
   const engineDetails = info ? describeEngine(info) : '';
 
   return (
-    <div className="flex flex-col gap-4 text-[13px]">
+    <>
+      <section className={TILE_CLASS}>
       <div>
-        <div className={LABEL_CLASS}>{t('Moteur')}</div>
+        <h4 className="section-title m-0 mb-2">{t('Moteur')}</h4>
         {info ? (
           <div>
             {info.engine.label}
@@ -144,10 +149,13 @@ export default function GameToolsSection({
       )}
 
       <GameLocation gameId={gameId} onMoved={() => setLocationVersion(v => v + 1)} />
+      {error && <p className="text-danger">{error}</p>}
+      </section>
 
       {info && info.saveLocations.length > 0 && (
+        <section className={TILE_CLASS}>
         <div>
-          <div className={`${LABEL_CLASS} mb-1`}>{t('Sauvegardes')}</div>
+          <h4 className="section-title m-0 mb-2">{t('Sauvegardes')}</h4>
           {info.saveLocations.map((location, index) => (
             <div key={location.path} className="flex items-center justify-between gap-2">
               <span className="min-w-0 truncate" title={location.path}>
@@ -162,13 +170,13 @@ export default function GameToolsSection({
             </div>
           ))}
         </div>
+        <SaveBackups gameId={gameId} lastPlayed={lastPlayed} refreshKey={savesVersion} />
+        </section>
       )}
 
-      {info && info.saveLocations.length > 0 && <SaveBackups gameId={gameId} lastPlayed={lastPlayed} refreshKey={savesVersion} />}
-
       {info && isWindows && (isRpgMakerWeb || info.engine.engine === 'renpy') && (
-        <div>
-          <div className={`${LABEL_CLASS} mb-1`}>{t('Mode debug')}</div>
+        <section className={TILE_CLASS}>
+          <h4 className="section-title m-0 mb-2">{t('Mode debug')}</h4>
           <label className="flex cursor-pointer items-center justify-between gap-3">
             {isRpgMakerWeb ? t('Lancer en mode test') : t('Console et passage du texte non lu')}
             <input
@@ -188,13 +196,16 @@ export default function GameToolsSection({
               ? t("Menu de debug F9 sur la carte (interrupteurs, variables, téléportation), outils de développement F8 si le jeu les inclut. Rien n'est modifié dans le dossier du jeu.")
               : t("Console développeur (Maj+O), menu développeur (Maj+D) et passage du texte non lu. Un petit script est ajouté dans game/, retiré en décochant.")}
           </p>
-        </div>
+        </section>
       )}
 
       {(info?.engine.engine === 'rpgmaker-mv' || info?.engine.engine === 'rpgmaker-mz') && (
-        <RpgSaveEditor gameId={gameId} lastPlayed={lastPlayed} onSaved={() => setSavesVersion(v => v + 1)} />
+        <section className={TILE_CLASS}>
+          <RpgSaveEditor gameId={gameId} lastPlayed={lastPlayed} onSaved={() => setSavesVersion(v => v + 1)} />
+        </section>
       )}
 
+      <section className={TILE_CLASS}>
       <TextTools
         gameId={gameId}
         info={info}
@@ -204,13 +215,17 @@ export default function GameToolsSection({
         onLocaleEmulatorChange={onLocaleEmulatorChange}
         sandboxed={sandboxed}
       />
+      </section>
 
-      {isWindows && <CheatTables gameId={gameId} autoTable={cheatTableAuto} onAutoTableChange={onCheatTableAutoChange} />}
+      {isWindows && (
+        <section className={TILE_CLASS}>
+          <CheatTables gameId={gameId} autoTable={cheatTableAuto} onAutoTableChange={onCheatTableAutoChange} />
+        </section>
+      )}
 
       {info?.sandbox.globallyEnabled && (
-
-        <div>
-          <div className={`${LABEL_CLASS} mb-1`}>{t('Sandbox')}</div>
+        <section className={TILE_CLASS}>
+          <h4 className="section-title m-0 mb-2">{t('Sandbox')}</h4>
           <label className="flex cursor-pointer items-center justify-between gap-3">
             {t('Lancer ce jeu dans Sandboxie')}
             <input type="checkbox" className="toggle" checked={!sandboxDisabled} onChange={e => onSandboxDisabledChange(!e.target.checked)} />
@@ -231,12 +246,12 @@ export default function GameToolsSection({
               </button>
             </>
           )}
-        </div>
+        </section>
       )}
 
       {info && (
-        <div>
-          <div className={`${LABEL_CLASS} mb-1`}>{t('Patchs')}</div>
+        <section className={TILE_CLASS}>
+          <h4 className="section-title m-0 mb-2">{t('Patchs')}</h4>
 
           {canInstallAutoTranslator(info) && (
             <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -287,10 +302,8 @@ export default function GameToolsSection({
               </button>
             )}
           </div>
-        </div>
+        </section>
       )}
-
-      {error && <p className="text-danger">{error}</p>}
-    </div>
+    </>
   );
 }
