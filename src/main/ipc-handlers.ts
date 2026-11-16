@@ -13,7 +13,7 @@ import { applyDlsiteProxy, dlsiteFetch, protectProxySettings, testDlsiteConnecti
 import { detectEngine, findRpgMakerWebRoot, findSaveLocations, readPeArch, readPatches, applyUserPatch, installAutoTranslator, uninstallLastPatch, findDebugPatch, installRenpyDebug, uninstallPatch, type SaveSource } from './game-tools';
 import { boxFileRoot, boxNameFor, deleteGameBox, ensureGameBox, findSandboxieDir, sandboxedCommand, sandboxedPathFor } from './sandboxie';
 import { createSaveBackup, deleteSaveBackup, listSaveBackups, restoreSaveBackup } from './save-backups';
-import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports } from './archive-import';
+import { ARCHIVE_EXTENSIONS, ArchivePasswordError, archiveVolumes, importArchive, removeStaleImports, selectArchives } from './archive-import';
 import { findMisnamedFolders, renameMisnamedFolders } from './folder-rename';
 import { detectPlatforms } from './game-platforms';
 import { findExe, findMacApp } from './executables';
@@ -2370,29 +2370,45 @@ export function setupIpcHandlers(
       return result;
     }
   };
-  handle('import-game-archives', async (): Promise<ArchiveImportResult[]> => {
+  /** Importe un lot d'archives, l'une après l'autre ; `pick` renvoie leurs chemins (null = annulé). */
+  const importBatch = async (pick: () => Promise<unknown[] | null>): Promise<ArchiveImportResult[]> => {
     if (importing) throw new Error(tm('Un import est déjà en cours.'));
     importing = true;
     try {
       const { destinationFolder } = await getSettings();
       if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
-      const result = await showOpenDialog({
-        title: tm('Importer des jeux depuis leur archive'),
-        properties: ['openFile', 'multiSelections'],
-        filters: [{ name: tm('Archives (.zip, .rar, .7z, .part1.exe)'), extensions: ARCHIVE_EXTENSIONS }]
-      });
-      if (result.canceled) return [];
-      await removeStaleImports(destinationFolder);
+      const picked = await pick();
+      if (!picked) return [];
+      const { archives, rejected } = selectArchives(picked);
+      if (archives.length > 0) await removeStaleImports(destinationFolder);
 
-      const results: ArchiveImportResult[] = [];
-      for (const [i, file] of result.filePaths.entries()) {
-        results.push(await importOne(file, destinationFolder, { index: i + 1, total: result.filePaths.length }));
+      const results: ArchiveImportResult[] = [...rejected];
+      for (const [i, file] of archives.entries()) {
+        results.push(await importOne(file, destinationFolder, { index: i + 1, total: archives.length }));
       }
       return results;
     } finally {
       importing = false;
     }
-  });
+  };
+  handle('import-game-archives', () =>
+    importBatch(async () => {
+      const result = await showOpenDialog({
+        title: tm('Importer des jeux depuis leur archive'),
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: tm('Archives (.zip, .rar, .7z, .part1.exe)'), extensions: ARCHIVE_EXTENSIONS }]
+      });
+      return result.canceled ? null : result.filePaths;
+    })
+  );
+  // Archives lâchées sur la bibliothèque. Seul canal d'import qui reçoit des
+  // chemins : ils viennent du preload (`webUtils.getPathForFile` sur les
+  // fichiers du dépôt — une page ne peut pas en fabriquer, un `File` créé par
+  // script donne un chemin vide), et ne servent qu'à ce que le sélecteur
+  // permet déjà : extraire une archive de jeu dans la bibliothèque.
+  handle('import-dropped-archives', (event: IpcMainInvokeEvent, paths: unknown) =>
+    importBatch(async () => (Array.isArray(paths) ? paths.slice(0, 200) : []))
+  );
 
   handle('retry-archive-import', async (event: IpcMainInvokeEvent, retryId: string, password: string, remember: boolean): Promise<ArchiveImportResult> => {
     const file = typeof retryId === 'string' ? passwordRetries.get(retryId) : undefined;

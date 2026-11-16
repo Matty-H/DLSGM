@@ -34,7 +34,8 @@ export interface GameListItem {
   data: GameCacheEntry;
 }
 
-export function matchesFilters(game: GameCacheEntry, filters: GameFilters): boolean {
+/** `gameId` : l'ID DLsite du jeu (nom de son dossier), que la recherche trouve aussi. */
+export function matchesFilters(game: GameCacheEntry, filters: GameFilters, gameId?: string): boolean {
   const { selectedCategoryCode, searchTerm, selectedGenres, selectedRating, genreNames, creatorFilter, collectionFilter, collections } = filters;
   const gameName = game.work_name || '';
 
@@ -66,7 +67,7 @@ export function matchesFilters(game: GameCacheEntry, filters: GameFilters): bool
     return false;
   }
 
-  // Filtrage par terme de recherche (nom, cercle, auteur, tags)
+  // Filtrage par terme de recherche (nom, cercle, auteur, tags, ID DLsite)
   if (searchTerm) {
     const lowerSearchTerm = searchTerm.toLowerCase();
 
@@ -79,7 +80,11 @@ export function matchesFilters(game: GameCacheEntry, filters: GameFilters): bool
     const customTags = (game.customTags as string[]) || [];
     const tagsMatch = customTags.some(tag => tag.toLowerCase().includes(lowerSearchTerm));
 
-    if (!nameMatches && !circleMatches && !tagsMatch && !authorMatches) {
+    // ID : « RJ01234567 », « rj0123 », ou collé avec des espaces autour.
+    const idTerm = lowerSearchTerm.trim();
+    const idMatches = gameId !== undefined && idTerm !== '' && gameId.toLowerCase().includes(idTerm);
+
+    if (!nameMatches && !circleMatches && !tagsMatch && !authorMatches && !idMatches) {
       return false;
     }
   }

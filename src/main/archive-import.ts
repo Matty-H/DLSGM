@@ -78,6 +78,46 @@ export function archiveVolumes(archivePath: string): string[] {
     .map(name => path.join(dir, name));
 }
 
+/**
+ * Archives à importer parmi des chemins reçus (sélecteur, glisser-déposer) :
+ * une seule entrée par archive multi-volumes — lâcher `x.part1.exe`,
+ * `x.part2.rar` et `x.part3.rar` ensemble ne doit pas importer trois fois —
+ * et un refus motivé pour ce qui n'est pas un fichier d'archive (dossier,
+ * autre extension, chemin relatif). L'ordre reçu est gardé.
+ */
+export function selectArchives(paths: unknown[]): { archives: string[]; rejected: { file: string; error: string }[] } {
+  const archives: string[] = [];
+  const rejected: { file: string; error: string }[] = [];
+  const seen = new Set<string>();
+  for (const candidate of paths) {
+    if (typeof candidate !== 'string' || !path.isAbsolute(candidate)) continue;
+    const file = path.basename(candidate);
+    const extension = path.extname(candidate).slice(1).toLowerCase();
+    let isFile = false;
+    try {
+      isFile = fs.statSync(candidate).isFile();
+    } catch {
+      // introuvable : refusé ci-dessous
+    }
+    if (!isFile || !ARCHIVE_EXTENSIONS.includes(extension)) {
+      rejected.push({ file, error: tm("Ce n'est pas une archive prise en charge (.zip, .rar, .7z, .part1.exe).") });
+      continue;
+    }
+    // Clé : la première partie si elle existe, sinon le fichier lui-même (l'import dira ce qui manque).
+    let first = candidate;
+    try {
+      first = firstVolume(candidate);
+    } catch {
+      // première partie absente
+    }
+    const key = path.resolve(first).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    archives.push(candidate);
+  }
+  return { archives, rejected };
+}
+
 // --- 7-Zip (WASM) -----------------------------------------------------------
 
 /** Extraction 7-Zip/WASM dans un processus utilitaire (voir archive-7z-worker.ts). */

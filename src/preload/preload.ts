@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { ArchiveImportProgress, AutoClickerStatus, DictionaryStatus, ElectronAPI, GameDiskUsage, MacroRecorderStatus, OcrView, TextractorView, PixelTriggerStatus, TriggerZonesView, LanReceiverStatus, LanTransferProgress, UpdateDownloadProgress } from '../shared/ipc-types';
 import type { ActiveTheme } from '../shared/themes';
 
@@ -77,6 +77,9 @@ const electronAPI: ElectronAPI = {
   // Import d'archives
 
   importGameArchives: () => ipcRenderer.invoke('import-game-archives'),
+  // Les chemins sont lus ici, jamais par la page : un `File` qui ne vient pas du disque donne ''.
+  importDroppedArchives: files =>
+    ipcRenderer.invoke('import-dropped-archives', Array.from(files).map(file => webUtils.getPathForFile(file)).filter(Boolean)),
   trashImportedArchives: (importIds) => ipcRenderer.invoke('trash-imported-archives', importIds),
   retryArchiveImport: (retryId, password, remember) => ipcRenderer.invoke('retry-archive-import', retryId, password, remember),
   listArchivePasswords: () => ipcRenderer.invoke('list-archive-passwords'),

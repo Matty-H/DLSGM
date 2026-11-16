@@ -32,6 +32,19 @@ const noFilters: GameFilters = {
 };
 
 describe('matchesFilters', () => {
+  it("la recherche trouve aussi un jeu par son ID DLsite (casse, partiel, espaces collés)", () => {
+    const g = game({ work_name: '理想の生活', circle: '猫3' });
+    const search = (searchTerm: string, id?: string) => matchesFilters(g, { ...noFilters, searchTerm }, id);
+    expect(search('rj01234567', 'RJ01234567')).toBe(true);
+    expect(search('RJ0123', 'RJ01234567')).toBe(true);
+    expect(search(' rj01234567 ', 'RJ01234567')).toBe(true);
+    expect(search('rj09999999', 'RJ01234567')).toBe(false);
+    // Le titre et le cercle se cherchent toujours, et sans ID fourni rien ne change.
+    expect(search('猫', 'RJ01234567')).toBe(true);
+    expect(search('rj01234567')).toBe(false);
+    expect(search('   ', 'RJ01234567')).toBe(false);
+  });
+
   it('filtre par cercle / auteur en correspondance exacte (chaîne ou liste)', () => {
     const g = game({ circle: '猫3', author: ['Auteur Un', 'Auteur Deux'] });
     expect(matchesFilters(g, { ...noFilters, creatorFilter: { field: 'circle', value: '猫3' } })).toBe(true);

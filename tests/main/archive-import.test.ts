@@ -7,7 +7,7 @@ import { listTree, makeTempDir, makeZip, removeTempDir } from '../helpers';
 // chemin .zip (extracteur interne) est testé ici.
 vi.mock('electron', () => ({ utilityProcess: { fork: () => { throw new Error('non disponible en test'); } } }));
 
-import { ArchivePasswordError, archiveVolumes, decodeZipName, firstVolume, gameIdFromName, importArchive, nestedArchive } from '../../src/main/archive-import';
+import { ArchivePasswordError, archiveVolumes, decodeZipName, firstVolume, gameIdFromName, importArchive, nestedArchive, selectArchives } from '../../src/main/archive-import';
 import { run7z } from '../../src/main/archive-7z';
 import { readInstallInfo } from '../../src/main/release-names';
 import SevenZip from '7z-wasm';
@@ -358,5 +358,32 @@ describe("avancement de l'extraction (onProgress)", () => {
     const requests: unknown[] = [];
     await importArchive(archive, library, { extract7z: request => (requests.push(request.totalBytes), run7z(request)) });
     expect(requests).toEqual([undefined]);
+  });
+});
+
+describe('selectArchives (sélecteur, glisser-déposer)', () => {
+  it("garde les archives, refuse dossiers, autres fichiers et fichiers absents, ignore ce qui n'est pas un chemin absolu", () => {
+    const zip = writeZip('RJ01111116.zip', [{ name: 'Game.exe', data: 'x' }]);
+    const text = path.join(root, 'notes.txt');
+    fs.writeFileSync(text, 'x');
+    const folder = path.join(root, 'RJ01111117.zip'); // un dossier au nom d'archive
+    fs.mkdirSync(folder);
+    const { archives, rejected } = selectArchives([zip, text, folder, path.join(root, 'absent.rar'), 'relatif.zip', '', 42, null]);
+    expect(archives).toEqual([zip]);
+    expect(rejected.map(r => r.file)).toEqual(['notes.txt', 'RJ01111117.zip', 'absent.rar']);
+    expect(rejected.every(r => r.error.length > 0)).toBe(true);
+  });
+
+  it("ne compte qu'une fois les parties d'une même archive, et une archive lâchée deux fois", () => {
+    const parts = ['RJ01111118.part1.exe', 'RJ01111118.part2.rar', 'RJ01111118.part3.rar'].map(name => path.join(root, name));
+    for (const part of parts) fs.writeFileSync(part, '');
+    const zip = writeZip('RJ01111119.zip', [{ name: 'Game.exe', data: 'x' }]);
+    expect(selectArchives([parts[1], zip, parts[0], parts[2], zip]).archives).toEqual([parts[1], zip]);
+  });
+
+  it('garde une partie orpheline (sans sa partie 1) : l’import dira ce qui manque', () => {
+    const orphan = path.join(root, 'RJ01111120.part2.rar');
+    fs.writeFileSync(orphan, '');
+    expect(selectArchives([orphan])).toEqual({ archives: [orphan], rejected: [] });
   });
 });

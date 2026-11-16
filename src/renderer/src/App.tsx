@@ -16,6 +16,7 @@ import WishlistScreen from './components/WishlistScreen/WishlistScreen';
 import ImportResults from './components/ImportResults/ImportResults';
 import ArchiveCleanupToast from './components/ArchiveCleanupToast/ArchiveCleanupToast';
 import { useArchiveImport } from './hooks/useArchiveImport';
+import { useArchiveDrop } from './hooks/useArchiveDrop';
 import ArchivePasswordDialog from './components/ArchivePasswordDialog/ArchivePasswordDialog';
 import { useDiskUsage } from './hooks/useDiskUsage';
 import { useGamePlatforms } from './hooks/useGamePlatforms';
@@ -55,6 +56,8 @@ export default function App() {
   const lanShare = useLanShare({ onGameReceived: () => library.rescan() });
   // Même principe pour un jeu extrait de son archive.
   const archiveImport = useArchiveImport(library.rescan);
+  // Archives lâchées sur la bibliothèque : comme le bouton « Importer ».
+  const archiveDrop = useArchiveDrop(!archiveImport.running, archiveImport.startDropped);
   // Taille des jeux présents : mesurée en tâche de fond (tri, statistiques).
   const diskUsage = useDiskUsage(library.gameFolders);
   const diskSizes = useMemo(
@@ -191,7 +194,7 @@ export default function App() {
 
     return presentGames
       .filter(game => !playableOnly || isPlayableHere(gamePlatforms[game.id], host))
-      .filter(game => matchesFilters(game.data, filterState))
+      .filter(game => matchesFilters(game.data, filterState, game.id))
       .sort((a, b) => compareGames(a, b, filters.selectedSort, diskSizes));
   }, [
     presentGames,
@@ -419,7 +422,15 @@ export default function App() {
         // overflow-clip (et non hidden) : un conteneur overflow-hidden reste
         // défilable par script, et le scrollIntoView de la jaquette ciblée le
         // décalerait, masquant le haut de la page de jeu superposée.
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-clip" {...archiveDrop.handlers}>
+          {archiveDrop.dragging && (
+            // pointer-events-none : le dépôt reste reçu par le conteneur, sans clignotement.
+            <div className="pointer-events-none absolute inset-3 z-40 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-accent bg-bg-deep/85 text-center backdrop-blur-sm">
+              <PackagePlus size={40} strokeWidth={1.75} className="text-accent" />
+              <p className="m-0 text-[16px] font-bold">{t('Dépose les archives pour les importer')}</p>
+              <p className="m-0 text-[13px] text-text-secondary">{t('.zip, .rar, .7z, .part1.exe — extraites dans le dossier de la bibliothèque')}</p>
+            </div>
+          )}
           <LibraryToolbar
             searchTerm={filters.searchTerm}
             onSearchTermChange={filters.setSearchTerm}
@@ -632,7 +643,7 @@ export default function App() {
                 onClick={archiveImport.start}
                 disabled={importStatus !== null}
                 className="btn btn-ghost py-1 text-[12px]"
-                title={t('Extraire des archives de jeux (.zip, .rar, .7z, .part1.exe) dans le dossier de la bibliothèque')}
+                title={t('Extraire des archives de jeux (.zip, .rar, .7z, .part1.exe) dans le dossier de la bibliothèque — ou glisse-les sur la bibliothèque')}
               >
                 <PackagePlus size={14} strokeWidth={2.25} />
                 {importStatus ?? t('Importer')}

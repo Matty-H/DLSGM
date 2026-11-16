@@ -1251,6 +1251,8 @@ export interface ElectronAPI {
    * chacune dans le dossier de jeux sous son ID. [] si annulé.
    */
   importGameArchives(): Promise<ArchiveImportResult[]>;
+  /** Importe les archives lâchées sur la bibliothèque (fichiers du glisser-déposer, tels quels). */
+  importDroppedArchives(files: File[]): Promise<ArchiveImportResult[]>;
   /** Avancement de l'import ; renvoie la fonction de désabonnement. */
   onArchiveImportProgress(callback: (progress: ArchiveImportProgress) => void): () => void;
   /** Met à la corbeille les archives (et leurs parties) des imports réussis donnés. */

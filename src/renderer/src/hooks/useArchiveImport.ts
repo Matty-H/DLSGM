@@ -39,13 +39,17 @@ export function useArchiveImport(onImported: () => void) {
     []
   );
 
-  const start = useCallback(async () => {
+  const runningRef = useRef(false);
+  /** Lance un lot : `invoke` est l'appel à main (sélecteur de fichiers, ou archives lâchées). */
+  const run = useCallback(async (invoke: () => Promise<ArchiveImportResult[]>) => {
+    if (runningRef.current) return;
+    runningRef.current = true;
     setRunning(true);
     setResults(null);
     setSkipped(new Set());
     setCleanup(null);
     try {
-      const outcome = await window.electronAPI.importGameArchives();
+      const outcome = await invoke();
       if (outcome.length > 0) setResults(outcome);
       const importIds = outcome.flatMap(r => (r.importId ? [r.importId] : []));
       if (importIds.length > 0) setCleanup({ importIds, outcome: null, busy: false });
@@ -53,10 +57,20 @@ export function useArchiveImport(onImported: () => void) {
     } catch (error) {
       setResults([{ file: t('Import'), error: ipcErrorMessage(error) }]);
     } finally {
+      runningRef.current = false;
       setRunning(false);
       setProgress(null);
     }
   }, [onImported]);
+
+  const start = useCallback(() => run(() => window.electronAPI.importGameArchives()), [run]);
+  /** Archives glissées sur la bibliothèque : même import que le bouton, sans le sélecteur. */
+  const startDropped = useCallback(
+    (files: File[]) => {
+      if (files.length > 0) run(() => window.electronAPI.importDroppedArchives(files));
+    },
+    [run]
+  );
 
   /** Nouvel essai d'un import refusé faute de mot de passe ; remplace son résultat. */
   const retry = useCallback(async (retryId: string, password: string, remember: boolean) => {
@@ -98,6 +112,7 @@ export function useArchiveImport(onImported: () => void) {
 
   return {
     start,
+    startDropped,
     running,
     progress,
     results,

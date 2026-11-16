@@ -78,7 +78,7 @@ export default function LibraryToolbar({
           <input
             data-search-input
             className="input pl-9 pr-8"
-            placeholder={t('Rechercher un titre, un cercle…')}
+            placeholder={t('Rechercher un titre, un cercle, un ID…')}
             value={searchTerm}
             onChange={e => onSearchTermChange(e.target.value)}
           />
