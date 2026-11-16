@@ -1,0 +1,223 @@
+/*
+ * Animations de l'interface. Une animation = un bloc numéroté ci-dessous, avec
+ * le même identifiant que dans la galerie de validation
+ * (components/AnimationGallery, visible en `npm run dev` depuis Paramètres ›
+ * Affichage) : en retirer une, c'est supprimer son bloc (et sa classe `anim-*`
+ * dans les composants cités).
+ *
+ * Hors couche Tailwind, donc prioritaire sur les utilitaires. Les animations
+ * n'utilisent que `transform` / `opacity` / `box-shadow`, et `backwards`
+ * plutôt que `forwards` : une fois jouées, l'élément retrouve son style normal
+ * (survol, focus, `position: fixed` des descendants).
+ *
+ * Option « Animations » (Paramètres › Affichage, hooks/animations.ts) :
+ * `data-animations="off"` sur :root coupe tout, voir la fin du fichier.
+ */
+
+@keyframes anim-rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+}
+@keyframes anim-fade-in {
+  from { opacity: 0; }
+}
+
+/* ── 1. card-in : jaquettes de la grille en cascade (GamesGrid → GameCard) ── */
+@keyframes anim-card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+}
+.anim-card-in {
+  animation: anim-card-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--anim-i, 0) * 22ms);
+}
+
+/* ── 2. page-in : ouverture de la page d'un jeu (GameInfoPanel) ── */
+@keyframes anim-page-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+}
+.anim-page-in { animation: anim-page-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* ── 3. modal : voile en fondu, fenêtre qui surgit (classe sur le voile) ── */
+@keyframes anim-dialog-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.95); }
+}
+.anim-backdrop { animation: anim-fade-in 0.18s ease-out; }
+.anim-backdrop > * { animation: anim-dialog-in 0.26s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards; }
+
+/* ── 4. toast : notification qui glisse depuis la droite (ArchiveCleanupToast) ── */
+@keyframes anim-toast-in {
+  from { opacity: 0; transform: translateX(48px); }
+}
+.anim-toast-in { animation: anim-toast-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* ── 5. tab-pop : l'onglet pilule qui devient actif (barre du haut, catégories) ── */
+@keyframes anim-tab-pop {
+  from { transform: scale(0.9); }
+}
+@keyframes anim-icon-hop {
+  40% { transform: translateY(-3px); }
+}
+.pill-tab.is-active { animation: anim-tab-pop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+.pill-tab.is-active svg { animation: anim-icon-hop 0.36s ease-out; }
+
+/* ── 6. shine : reflet qui traverse la jaquette survolée / ciblée (.capsule) ── */
+.capsule::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.16) 50%, transparent 65%);
+  transform: translateX(-110%);
+}
+.capsule:hover::after, .capsule.is-focused::after {
+  transform: translateX(110%);
+  transition: transform 0.65s ease-out;
+}
+
+/* ── 7. play-breathe : halo du bouton Jouer au repos (jamais au survol/focus :
+      l'anneau blanc du focus doit rester visible) ── */
+@keyframes anim-play-breathe {
+  50% { box-shadow: 0 6px 30px rgba(1, 167, 91, 0.65), 0 0 0 1px rgba(134, 234, 47, 0.4); }
+}
+.btn-play:not(:disabled):not(.is-running):not(:hover):not(:focus) {
+  animation: anim-play-breathe 2.6s ease-in-out infinite;
+}
+
+/* ── 8. play-running : onde autour du bouton quand le jeu tourne ── */
+@keyframes anim-play-running {
+  from { box-shadow: 0 0 0 0 var(--color-accent-glow); }
+  to { box-shadow: 0 0 0 12px transparent; }
+}
+.btn-play.is-running:not(:hover):not(:focus) { animation: anim-play-running 1.8s ease-out infinite; }
+
+/* ── 9. progress : reflet qui parcourt les barres de progression ── */
+@keyframes anim-shimmer {
+  to { transform: translateX(100%); }
+}
+.anim-progress { position: relative; overflow: hidden; }
+.anim-progress::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  transform: translateX(-100%);
+  animation: anim-shimmer 1.4s linear infinite;
+}
+
+/* ── 10. image-in : fondu de l'image du bandeau quand on en change (Carousel ;
+       rejouée parce que l'image passe de display:none à affichée) ── */
+@keyframes anim-image-in {
+  from { opacity: 0; transform: scale(1.02); }
+}
+.anim-image-in { animation: anim-image-in 0.28s ease-out; }
+
+/* ── 11. star-pop : étoiles de la note qui se remplissent (RatingStars) ── */
+@keyframes anim-star-pop {
+  from { transform: scale(0.4); }
+  60% { transform: scale(1.3); }
+}
+.anim-star-pop {
+  animation: anim-star-pop 0.3s ease-out backwards;
+  animation-delay: calc(var(--anim-i, 0) * 35ms);
+}
+
+/* ── 12. stagger : enfants en cascade (étagères de l'accueil, blocs des stats
+       et du partage, menu et lignes des paramètres) ── */
+.anim-stagger > * { animation: anim-rise-in 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.anim-stagger > :nth-child(2) { animation-delay: 50ms; }
+.anim-stagger > :nth-child(3) { animation-delay: 100ms; }
+.anim-stagger > :nth-child(4) { animation-delay: 150ms; }
+.anim-stagger > :nth-child(5) { animation-delay: 200ms; }
+.anim-stagger > :nth-child(6) { animation-delay: 250ms; }
+.anim-stagger > :nth-child(7) { animation-delay: 300ms; }
+.anim-stagger > :nth-child(n + 8) { animation-delay: 350ms; }
+
+/* ── 13. section-in : changement de section dans les paramètres ── */
+@keyframes anim-section-in {
+  from { opacity: 0; transform: translateX(14px); }
+}
+.anim-section-in { animation: anim-section-in 0.22s ease-out; }
+
+/* ── 14. bar-grow : barres des statistiques qui se remplissent ── */
+@keyframes anim-bar-grow {
+  from { transform: scaleX(0); }
+}
+.anim-bar-grow { transform-origin: left; animation: anim-bar-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+
+/* ── 15. shake : code refusé sur l'écran de verrouillage ── */
+@keyframes anim-shake {
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+.anim-shake { animation: anim-shake 0.4s ease-in-out; }
+
+/* ── 16. drop-in : zone de dépôt d'archives sur la bibliothèque ── */
+@keyframes anim-drop-in {
+  from { opacity: 0; transform: scale(0.97); }
+}
+@keyframes anim-bob {
+  50% { transform: translateY(-6px); }
+}
+.anim-drop-in { animation: anim-drop-in 0.18s ease-out; }
+.anim-drop-in svg { animation: anim-bob 1s ease-in-out infinite; }
+
+/* ── 17. live : onde autour des pastilles « En cours » / « Réception ouverte » ── */
+@keyframes anim-live {
+  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-play) 70%, transparent); }
+  to { box-shadow: 0 0 0 7px transparent; }
+}
+.anim-live { animation: anim-live 1.6s ease-out infinite; }
+
+/* ── 18. card-new : jeu qui vient d'arriver dans la bibliothèque (import,
+       réception réseau) — ses voisines glissent pour lui faire place (GamesGrid),
+       puis la jaquette surgit, cerclée d'un halo de la couleur
+       d'accent qui s'éteint. Le halo est un pseudo-élément : le box-shadow de
+       la jaquette (survol, focus) reste libre. ── */
+@keyframes anim-card-new {
+  from { opacity: 0; transform: scale(0.6); }
+  55% { opacity: 1; transform: scale(1.08); }
+}
+@keyframes anim-card-new-halo {
+  from { opacity: 1; }
+  70% { opacity: 1; }
+  to { opacity: 0; }
+}
+/* Attend que les jaquettes voisines lui aient fait place (glissement de GamesGrid, SHIFT_MS). */
+.anim-card-new { --anim-new-delay: 0.32s; animation: anim-card-new 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) var(--anim-new-delay) backwards; }
+.anim-card-new::before {
+  content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 3px var(--color-accent), inset 0 0 26px 2px var(--color-accent-glow);
+  opacity: 0;
+  animation: anim-card-new-halo 2s ease-out var(--anim-new-delay);
+}
+
+/* ── 19. library-back : retour à la grille depuis la page d'un jeu — la
+       cascade (1) rejouée sur les jaquettes visibles. Classe et rang
+       `--anim-back-i` posés par GamesGrid ; nom d'animation distinct de
+       card-in pour qu'elle reparte à coup sûr. ── */
+@keyframes anim-card-back {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+}
+.anim-cascade-replay > .capsule {
+  animation: anim-card-back 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--anim-back-i, 0) * 22ms);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Animations désactivées : plus aucune animation décorative ni transition
+   (les états restent, ils changent d'un coup). Restent celles qui portent
+   une information : indicateurs d'activité (`animate-spin`, `animate-pulse`)
+   et `data-essential-motion` — le compte à rebours du toaster, dont la fin
+   d'animation est ce qui le ferme.
+   ══════════════════════════════════════════════════════════════════════ */
+:root[data-animations="off"] *:not(.animate-spin):not(.animate-pulse):not([data-essential-motion]),
+:root[data-animations="off"] *::before,
+:root[data-animations="off"] *::after {
+  animation: none !important;
+}
+:root[data-animations="off"] *,
+:root[data-animations="off"] *::before,
+:root[data-animations="off"] *::after {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}
+/* Le reflet des jaquettes est un pseudo-élément décoratif : masqué plutôt que figé en travers. */
+:root[data-animations="off"] .capsule::after,
+:root[data-animations="off"] .anim-progress::after {
+  display: none;
+}

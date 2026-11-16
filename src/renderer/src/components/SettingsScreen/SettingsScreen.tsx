@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { Power, Camera, ChevronDown, ChevronRight, Clapperboard, Download, ExternalLink, Eye, FolderOpen, Gamepad2, Globe, HardDrive, Layers, Languages, Library, MousePointerClick, PanelsTopLeft, RefreshCw, ScanEye, type LucideIcon } from 'lucide-react';
 import { resetAndRedownloadImages, updateAllMetadata, type BulkUpdateResult } from '../../lib/dataFetcher.js';
@@ -34,6 +35,9 @@ import Select from '../Select/Select';
 import ThemePicker from '../ThemePicker/ThemePicker';
 import { DEFAULT_THEME } from '../../../../shared/themes';
 import { msg, t, tr, uiLanguages } from '../../lib/i18n.js';
+
+// Galerie de validation des animations : en développement seulement (absente du build).
+const AnimationGallery = import.meta.env.DEV ? lazy(() => import('../AnimationGallery/AnimationGallery')) : null;
 
 
 export interface SettingsScreenProps {
@@ -268,6 +272,8 @@ export default function SettingsScreen({
   const [uiLanguage, setUiLanguageSetting] = useState(settings.uiLanguage ?? 'system');
   const [theme, setTheme] = useState(settings.theme ?? DEFAULT_THEME);
   const [blurAdultContent, setBlurAdultContent] = useState(settings.blurAdultContent);
+  const [animations, setAnimations] = useState(settings.animations !== false);
+  const [showAnimationGallery, setShowAnimationGallery] = useState(false);
   const [sandboxLaunch, setSandboxLaunch] = useState(settings.sandboxLaunch);
   const [startFullscreen, setStartFullscreen] = useState(settings.startFullscreen);
   const storedProxyForm = useMemo(() => parseProxyForm(settings.dlsiteProxy ?? ''), [settings.dlsiteProxy]);
@@ -323,6 +329,7 @@ export default function SettingsScreen({
     setUiLanguageSetting(settings.uiLanguage ?? 'system');
     setTheme(settings.theme ?? DEFAULT_THEME);
     setBlurAdultContent(settings.blurAdultContent);
+    setAnimations(settings.animations !== false);
     setSandboxLaunch(settings.sandboxLaunch);
     setStartFullscreen(settings.startFullscreen);
     setProxyForm(parseProxyForm(settings.dlsiteProxy ?? '') ?? EMPTY_PROXY_FORM);
@@ -423,6 +430,7 @@ export default function SettingsScreen({
     uiLanguage !== (settings.uiLanguage ?? 'system') ||
     theme !== (settings.theme ?? DEFAULT_THEME) ||
     blurAdultContent !== settings.blurAdultContent ||
+    animations !== (settings.animations !== false) ||
     sandboxLaunch !== settings.sandboxLaunch ||
     startFullscreen !== settings.startFullscreen ||
     proxyDirty ||
@@ -466,6 +474,7 @@ export default function SettingsScreen({
       uiLanguage,
       theme,
       blurAdultContent,
+      animations,
       sandboxLaunch,
       startFullscreen,
       dlsiteProxy,
@@ -508,7 +517,7 @@ export default function SettingsScreen({
 
   return (
     <div className="animate-steam-in flex min-h-0 flex-1 gap-6 overflow-hidden px-6 pb-6 pt-4">
-      <nav className="flex w-[240px] flex-shrink-0 flex-col gap-1">
+      <nav className="anim-stagger flex w-[240px] flex-shrink-0 flex-col gap-1">
         <h1 className="mb-4 px-3">{t('Paramètres')}</h1>
         {SECTIONS.map(({ id, label, Icon }) => (
           <button
@@ -550,6 +559,8 @@ export default function SettingsScreen({
       </nav>
 
       <div data-scroll-root className="panel max-h-full min-h-0 flex-1 self-start overflow-y-auto px-6 py-2">
+        {/* key : le contenu est remonté à chaque section, ce qui rejoue son entrée (animations.css, section-in). */}
+        <div key={section} className="anim-section-in anim-stagger">
         {section === 'library' && (
           <>
             <SettingRow label={t('Dossier principal de la bibliothèque')} description={destinationFolder || t('Aucun dossier sélectionné')}>
@@ -779,6 +790,23 @@ export default function SettingsScreen({
                 aria-label={t('Flouter le contenu adulte')}
                 checked={blurAdultContent}
                 onChange={e => setBlurAdultContent(e.target.checked)}
+              />
+            </SettingRow>
+            <SettingRow
+              label={t('Animations')}
+              description={t("Apparitions en cascade, transitions et reflets de l'interface. Désactivé : tout s'affiche d'un coup ; seuls les indicateurs d'activité restent animés.")}
+            >
+              {AnimationGallery && (
+                <button type="button" className="btn btn-ghost" onClick={() => setShowAnimationGallery(true)}>
+                  Galerie (dev)
+                </button>
+              )}
+              <input
+                type="checkbox"
+                className="toggle"
+                aria-label={t('Animations')}
+                checked={animations}
+                onChange={e => setAnimations(e.target.checked)}
               />
             </SettingRow>
             <SettingRow
@@ -1139,7 +1167,14 @@ export default function SettingsScreen({
           </>
         )}
 
+        </div>
       </div>
+      {AnimationGallery && showAnimationGallery && createPortal(
+        <Suspense fallback={null}>
+          <AnimationGallery onClose={() => setShowAnimationGallery(false)} />
+        </Suspense>,
+        document.body
+      )}
     </div>
   );
 }

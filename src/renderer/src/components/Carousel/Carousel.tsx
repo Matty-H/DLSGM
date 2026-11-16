@@ -40,7 +40,7 @@ export default function Carousel({ workImageSrc, sampleSrcs, activeIndex, onPrev
             if (i === 0) e.currentTarget.src = PLACEHOLDER_IMAGE;
             else e.currentTarget.style.display = 'none';
           }}
-          className={`relative h-full w-full object-contain ${current === i ? 'block' : 'hidden'} ${blurred ? 'scale-105 blur-3xl' : ''}`}
+          className={`anim-image-in relative h-full w-full object-contain ${current === i ? 'block' : 'hidden'} ${blurred ? 'scale-105 blur-3xl' : ''}`}
         />
       ))}
 

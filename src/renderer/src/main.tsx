@@ -10,7 +10,9 @@ import OcrViewApp from './components/OcrView/OcrViewApp';
 import LockScreen from './components/LockScreen/LockScreen';
 import { getUiLanguage, resolveUiLanguage, setUiLanguage } from './lib/i18n.js';
 import { initActiveTheme } from './hooks/activeTheme';
+import { applyAnimationsSetting } from './hooks/animations';
 import './index.css';
+import './animations.css';
 
 const container = document.getElementById('root');
 if (!container) {
@@ -38,6 +40,8 @@ async function initLanguage(): Promise<void> {
       window.electronAPI.getSystemLanguages()
     ]);
     setUiLanguage(resolveUiLanguage(settings?.uiLanguage, systemLanguages));
+    // Option « Animations » : connue ici, donc posée avant le premier rendu.
+    applyAnimationsSetting(settings?.animations !== false);
   } catch {
     setUiLanguage(resolveUiLanguage(undefined, navigator.languages));
   }

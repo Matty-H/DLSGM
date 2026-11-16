@@ -19,7 +19,7 @@ export default function UpdateProgressBar({ progress }: { progress: UpdateDownlo
       title={label}
       className="h-[3px] flex-shrink-0 bg-bg-deep"
     >
-      <div className="h-full bg-accent transition-[width] duration-300" style={{ width: `${percent}%` }} />
+      <div className="anim-progress h-full bg-accent transition-[width] duration-300" style={{ width: `${percent}%` }} />
     </div>
   );
 }

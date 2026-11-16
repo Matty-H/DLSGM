@@ -20,6 +20,8 @@ export default function LockScreen() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Codes refusés : chaque refus remonte le formulaire, ce qui rejoue sa secousse (animations.css, shake).
+  const [refusals, setRefusals] = useState(0);
   const [waitUntil, setWaitUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const inputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +52,7 @@ export default function LockScreen() {
       const result = await window.electronAPI.unlockApp(code);
       if (result.ok) return; // main cache cette fenêtre et ouvre l'application
       setCode('');
+      setRefusals(count => count + 1);
       setError(kind === 'pin' ? t('Code PIN incorrect.') : t('Mot de passe incorrect.'));
       if (result.retryInMs) {
         setWaitUntil(Date.now() + result.retryInMs);
@@ -87,7 +90,8 @@ export default function LockScreen() {
         {kind === 'pin' ? t('Entre ton code PIN') : t('Entre ton mot de passe')}
       </div>
       <form
-        className="flex w-full max-w-[300px] gap-2"
+        key={refusals}
+        className={`flex w-full max-w-[300px] gap-2 ${refusals > 0 ? 'anim-shake' : ''}`}
         onSubmit={event => {
           event.preventDefault();
           void submit();

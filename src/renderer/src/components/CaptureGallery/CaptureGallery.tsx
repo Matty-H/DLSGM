@@ -79,7 +79,7 @@ export default function CaptureGallery({ gameId, limit, inOverlay = false }: Cap
       {error && <p className="m-0 text-[12px] text-danger">{error}</p>}
 
       {current && open !== null && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/85 p-6" role="dialog" aria-label={t('Capture')}>
+        <div className="anim-backdrop fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/85 p-6" role="dialog" aria-label={t('Capture')}>
           <img src={captureSrc(gameId, current.file)} alt="" className="max-h-[80vh] max-w-full rounded-sm object-contain shadow-2xl" />
           <div className="flex items-center gap-2 text-[13px] text-white">
             <button type="button" className="btn btn-icon" disabled={open === 0} onClick={() => setOpen(open - 1)} aria-label={t('Plus récente')}>

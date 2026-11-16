@@ -61,7 +61,7 @@ export default function CollectionGamePicker({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onClose}>
+    <div className="anim-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

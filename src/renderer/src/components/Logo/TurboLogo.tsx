@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { generateTurboTheme } from '../../../../shared/themes';
+import { animationsEnabled } from '../../hooks/animations';
 import Logo from './Logo';
 
 const INTERVAL_MS = 900;
@@ -13,7 +14,7 @@ export default function TurboLogo({ height }: { height: number }) {
   const [theme, setTheme] = useState(() => generateTurboTheme());
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !animationsEnabled()) return;
     const interval = setInterval(() => setTheme(generateTurboTheme()), INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);

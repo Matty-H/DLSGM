@@ -91,6 +91,7 @@ const settingsStore = new Store('settings.db', {
   refreshRate: 5,
   language: 'en_US',
   blurAdultContent: true,
+  animations: true,
   sandboxLaunch: false,
   startFullscreen: false,
   lanSharePort: DEFAULT_LAN_PORT,
@@ -2189,6 +2190,19 @@ export function setupIpcHandlers(
     if (!fs.existsSync(gamePath)) return false;
     const error = await shell.openPath(gamePath);
     return error === '';
+  });
+
+  // Bouton « Supprimer » de la page du jeu : le dossier part à la corbeille
+  // (récupérable), jamais de suppression définitive. La fiche du cache reste,
+  // comme pour tout jeu dont le dossier disparaît. Le chemin vient de l'ID
+  // validé, jamais du renderer.
+  handle('trash-game-folder', async (event: IpcMainInvokeEvent, gameId: string) => {
+    assertGameId(gameId);
+    if (runningGames.has(gameId)) throw new Error(tm("Le jeu est en cours d'exécution : ferme-le d'abord."));
+    const gamePath = locateGame(await getLibraryRoots(), gameId);
+    if (!gamePath) return false;
+    await shell.trashItem(gamePath);
+    return true;
   });
 
   handle('open-external', async (event: IpcMainInvokeEvent, url: string) => {

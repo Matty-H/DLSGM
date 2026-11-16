@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Star } from 'lucide-react';
 
 export interface RatingStarsProps {
@@ -26,9 +27,11 @@ export default function RatingStars({ value, onChange, max = 5, size = 18, class
           <span
             key={starValue}
             onClick={interactive ? () => onChange!(starValue) : undefined}
+            // Étoile qui se remplit (animations.css, star-pop) : la classe arrive avec `filled`.
             className={`${interactive ? 'cursor-pointer transition-transform hover:scale-125' : ''} ${
-              filled ? 'text-accent' : 'text-surface-3'
+              filled ? `text-accent ${interactive ? 'anim-star-pop' : ''}` : 'text-surface-3'
             }`}
+            style={interactive ? ({ '--anim-i': starValue - 1 } as CSSProperties) : undefined}
           >
             <Star size={size} strokeWidth={0} fill="currentColor" />
           </span>

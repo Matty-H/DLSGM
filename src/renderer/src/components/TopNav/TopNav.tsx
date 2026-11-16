@@ -80,7 +80,7 @@ export default function TopNav({ activeTab, onTabChange, isFullscreen, onToggleF
               <Icon size={15} strokeWidth={2.25} />
               <span className={active ? 'hidden sm:inline' : 'hidden min-[1180px]:inline'}>{tr(label)}</span>
               {id === 'share' && isReceiving && (
-                <span className="h-2 w-2 rounded-full bg-play" title={t('Réception ouverte')} aria-label={t('Réception ouverte')} />
+                <span className="anim-live h-2 w-2 rounded-full bg-play" title={t('Réception ouverte')} aria-label={t('Réception ouverte')} />
               )}
             </button>
           );

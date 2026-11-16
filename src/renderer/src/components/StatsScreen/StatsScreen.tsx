@@ -71,7 +71,7 @@ function BarRow({ label, count, width, labelWidthClass }: { label: string; count
     <div className={`mb-2.5 grid items-center gap-3 ${labelWidthClass}`}>
       <span className="truncate text-[13px] text-text-secondary">{label}</span>
       <div className="relative h-2 overflow-hidden rounded-full bg-bg-deep">
-        <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-accent to-accent-hover" style={{ width }} />
+        <div className="anim-bar-grow absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-accent to-accent-hover" style={{ width }} />
       </div>
       <span className="text-right text-[13px] font-semibold tabular-nums">{count}</span>
     </div>
@@ -94,10 +94,10 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
   const nameOf = (gameId: string) => cache[gameId]?.work_name || gameId;
 
   return (
-    <div data-scroll-root className="animate-steam-in min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4">
+    <div data-scroll-root className="anim-stagger min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-4">
       <h1 className="mb-5">{t('Ma collection')}</h1>
 
-      <div className="mb-5 grid grid-cols-5 items-stretch gap-4">
+      <div className="anim-stagger mb-5 grid grid-cols-5 items-stretch gap-4">
         <StatTile kicker={t('Œuvres')} value={String(stats.totalGames)} />
         <StatTile kicker={t('Temps de jeu cumulé')} value={t('{h} h', { h: totalHours })} />
         <StatTile kicker={t('Taille de la collection')} value={diskUsage && measured > 0 ? formatBytes(collectionBytes(diskUsage)) : '…'} />
@@ -113,7 +113,7 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
         )}
       </div>
 
-      <div className="mb-4 grid grid-cols-[1.4fr_1fr] items-stretch gap-4">
+      <div className="anim-stagger mb-4 grid grid-cols-[1.4fr_1fr] items-stretch gap-4">
         <div className="panel p-5">
           <div className="section-title mb-4">{t('Temps de jeu par semaine')}</div>
           {sessions.length === 0 ? (
@@ -197,7 +197,7 @@ export default function StatsScreen({ cache, getWorkImageSrc, genreNames, onOpen
         )}
       </div>
 
-      <div className="grid grid-cols-[1.4fr_1fr] items-start gap-4">
+      <div className="anim-stagger grid grid-cols-[1.4fr_1fr] items-start gap-4">
         <div className="panel p-5">
           <div className="section-title mb-4">{t('Répartition par genre')}</div>
 

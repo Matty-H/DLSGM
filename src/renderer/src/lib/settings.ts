@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: Settings = {
   refreshRate: 5,
   language: 'en_US',
   blurAdultContent: true,
+  animations: true,
   sandboxLaunch: false,
   startFullscreen: false,
   lanSharePort: 47821,

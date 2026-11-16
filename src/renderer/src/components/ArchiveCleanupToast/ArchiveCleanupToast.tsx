@@ -32,7 +32,7 @@ export default function ArchiveCleanupToast({ cleanup, onTrash, onDismiss }: Arc
       role="status"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="panel animate-steam-in fixed bottom-14 right-6 z-50 w-[360px] max-w-[calc(100vw-32px)] overflow-hidden text-[13px] shadow-2xl"
+      className="panel anim-toast-in fixed bottom-14 right-6 z-50 w-[360px] max-w-[calc(100vw-32px)] overflow-hidden text-[13px] shadow-2xl"
     >
       <div className="flex items-start gap-3 px-4 py-3">
         {!outcome ? (
@@ -81,6 +81,8 @@ export default function ArchiveCleanupToast({ cleanup, onTrash, onDismiss }: Arc
           pour les deux. `key` relance l'animation à chaque étape. */}
       <div
         key={outcome ? 'done' : 'proposal'}
+        // Sa fin ferme le toaster : jamais coupée par l'option « Animations » (animations.css).
+        data-essential-motion
         onAnimationEnd={onDismiss}
         className="h-[3px] origin-left bg-accent"
         style={{ animation: `toast-countdown ${duration}ms linear forwards`, animationPlayState: paused ? 'paused' : 'running' }}

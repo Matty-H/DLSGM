@@ -8,6 +8,8 @@ export interface AppSettings {
   refreshRate: number;
   language: string;
   blurAdultContent: boolean;
+  /** Animations de l'interface (hooks/animations.ts) ; absent = activées. */
+  animations?: boolean;
   sandboxLaunch: boolean;
   startFullscreen: boolean;
   lanSharePort: number;

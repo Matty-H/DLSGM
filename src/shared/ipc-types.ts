@@ -44,6 +44,8 @@ export interface AppSettings {
   language: string;
   /** Floute les jaquettes R18 dans la bibliothèque jusqu'au clic (par jeu, pour la session). */
   blurAdultContent: boolean;
+  /** Animations de l'interface (renderer : animations.css) ; absent = activées. */
+  animations?: boolean;
   /**
    * Lance les jeux dans Sandboxie-Plus (Windows), une sandbox par jeu —
    * voir src/main/sandboxie.ts. Si Sandboxie est introuvable, le lancement
@@ -1224,6 +1226,8 @@ export interface ElectronAPI {
   /** Sélecteur de fichier pour la fenêtre de travail du super bouton panique (null : annulé). */
   chooseSuperPanicTarget(): Promise<string | null>;
   openGameFolder(gameId: string): Promise<boolean>;
+  /** Met le dossier du jeu à la corbeille (jamais une suppression définitive) ; la fiche du cache est conservée. `false` : dossier déjà absent. */
+  trashGameFolder(gameId: string): Promise<boolean>;
   openExternal(url: string): Promise<boolean>;
   launchGame(gameId: string): Promise<LaunchGameResult>;
   /** Ouvre un sélecteur dans le dossier du jeu ; renvoie le chemin relatif mémorisé, ou null si annulé. */

@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { CircleCheck, ExternalLink, FolderOpen, Pencil, Play } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { CircleCheck, ExternalLink, FolderOpen, Pencil, Play, Trash2 } from 'lucide-react';
 import Carousel from '../Carousel/Carousel';
 import RatingStars from '../RatingStars/RatingStars';
 import CustomTagsEditor from '../CustomTagsEditor/CustomTagsEditor';
@@ -37,6 +37,8 @@ export interface GameInfoDetailsProps {
   isAnyGameRunning: boolean;
   onUpdateGame: (gameId: string, patch: Record<string, any>) => void;
   onOpenFolder: (gameId: string) => void;
+  /** Ctrl + clic sur le bouton rouge : dossier du jeu à la corbeille. */
+  onDeleteFolder: (gameId: string) => void;
   onChooseExecutable: (gameId: string) => void;
   onGenreClick: (genre: string) => void;
   /** Filtre la bibliothèque sur un cercle, un auteur, une série... */
@@ -95,6 +97,7 @@ export default function GameInfoDetails({
   isAnyGameRunning,
   onUpdateGame,
   onOpenFolder,
+  onDeleteFolder,
   onChooseExecutable,
   onGenreClick,
   onCreatorClick,
@@ -123,6 +126,22 @@ export default function GameInfoDetails({
   const customTags: string[] = gameData.customTags || [];
   const totalImages = 1 + sampleImages.length;
   const playDisabled = isAnyGameRunning && !isRunning;
+  // Bouton « Supprimer » : affiché seulement tant que Ctrl est enfoncé (invisible
+  // sinon, donc jamais cliqué par mégarde). Relâché aussi quand la fenêtre perd
+  // le focus : le keyup de Ctrl ne nous parviendrait pas.
+  const [ctrlHeld, setCtrlHeld] = useState(false);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => setCtrlHeld(event.ctrlKey);
+    const release = () => setCtrlHeld(false);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKey);
+    window.addEventListener('blur', release);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKey);
+      window.removeEventListener('blur', release);
+    };
+  }, []);
   const ageCategory: string | undefined = gameData.age_category;
   const playButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -232,6 +251,21 @@ export default function GameInfoDetails({
           >
             <ExternalLink size={17} strokeWidth={2.25} />
           </a>
+          {ctrlHeld && (
+            <button
+              type="button"
+              disabled={isRunning}
+              onClick={e => {
+                // Ctrl revérifié au clic : c'est lui qui tient lieu de confirmation.
+                if (e.ctrlKey) onDeleteFolder(gameId);
+              }}
+              className="btn btn-icon bg-danger text-white hover:bg-danger hover:text-white hover:brightness-110 focus-visible:bg-danger focus-visible:text-white"
+              title={t('Supprimer le dossier du jeu : il part à la corbeille, la fiche est conservée.')}
+              aria-label={t('Supprimer le dossier du jeu')}
+            >
+              <Trash2 size={17} strokeWidth={2.25} />
+            </button>
+          )}
         </div>
       </div>
 

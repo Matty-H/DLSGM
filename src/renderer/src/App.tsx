@@ -35,6 +35,8 @@ import { useGamepadNavigation } from './hooks/useGamepadNavigation';
 import { useFullscreen } from './hooks/useFullscreen';
 import { useFileDropGuard } from './hooks/useFileDropGuard';
 import { useLanShare } from './hooks/useLanShare';
+import { applyAnimationsSetting } from './hooks/animations';
+import { useNewGames } from './hooks/useNewGames';
 import { collectAllCategories, collectAllGenres } from './lib/metadataManager.js';
 import { matchesFilters, compareGames, type CreatorFilter } from './lib/filterManager.js';
 import { addCollection, buildShelves, collectionFilterOptions, normalizeCollectionFilter, type Shelf } from './lib/collections.js';
@@ -42,6 +44,7 @@ import { collectCanonicalGenres, makeGenreNames } from './lib/genreNames.js';
 import { useGenreTranslations } from './hooks/useGenreTranslations';
 import { collectLibraryCircles } from './lib/followedCircles.js';
 import { openGameFolder } from './lib/osHandler.js';
+import { ipcErrorMessage } from './lib/gameTools.js';
 import { PAD_LABELS } from './lib/gamepadLayout.js';
 import { t } from './lib/i18n.js';
 
@@ -92,6 +95,8 @@ export default function App() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [revealedGames, setRevealedGames] = useState<Set<string>>(new Set());
+  // Retours à la grille depuis la page d'un jeu : à chacun, la grille rejoue sa cascade (animations.css, library-back).
+  const [libraryReturns, setLibraryReturns] = useState(0);
   const updateProgress = useUpdateDownloadProgress();
 
   const sortSyncedRef = useRef(false);
@@ -127,6 +132,12 @@ export default function App() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings?.refreshRate]);
+
+  // Option « Animations » : appliquée dès l'enregistrement (main.tsx l'a posée au chargement).
+  useEffect(() => {
+    if (settings) applyAnimationsSetting(settings.animations !== false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.animations]);
 
   useEffect(() => {
     setCarouselIndex(0);
@@ -168,6 +179,9 @@ export default function App() {
     () => library.gameFolders.filter(id => library.cache[id]).map(id => ({ id, data: library.cache[id] })),
     [library.gameFolders, library.cache]
   );
+  // Jeux arrivés depuis le premier affichage (import, réception) : jaquette mise en avant à son entrée.
+  const presentGameIds = useMemo(() => presentGames.map(game => game.id), [presentGames]);
+  const newGameIds = useNewGames(presentGameIds, library.status === 'ok' || library.status === 'empty');
   const libraryCircles = useMemo(() => collectLibraryCircles(presentGames), [presentGames]);
   const homeShelves = settings?.homeShelves;
   const shelves = useMemo(
@@ -262,6 +276,7 @@ export default function App() {
       setActiveTab(returnTab);
       return;
     }
+    setLibraryReturns(count => count + 1);
     if (gameId) {
       requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)?.focus({ preventScroll: true }));
     }
@@ -274,9 +289,30 @@ export default function App() {
       const gameId = selectedGameId;
       setReturnTab(null);
       setSelectedGameId(null);
+      setLibraryReturns(count => count + 1);
       requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-game-id="${gameId}"]`)?.focus({ preventScroll: true }));
     }
     setActiveTab(tab);
+  };
+
+  // Dossier introuvable (supprimé ou déplacé hors de DLSGM) : la bibliothèque
+  // affichée est périmée, on la relit — le jeu quitte la grille, sa fiche reste.
+  const handleOpenFolder = async (gameId: string) => {
+    if (await openGameFolder(gameId)) return;
+    if (selectedGameId === gameId) handleCloseGame();
+    library.rescan();
+  };
+
+  /** Bouton rouge de la page du jeu (Ctrl + clic) : dossier à la corbeille, fiche conservée. */
+  const handleDeleteGameFolder = async (gameId: string) => {
+    try {
+      await window.electronAPI.trashGameFolder(gameId);
+    } catch (error) {
+      alert(ipcErrorMessage(error));
+      return;
+    }
+    if (selectedGameId === gameId) handleCloseGame();
+    library.rescan();
   };
 
   const handleReveal = (gameId: string) => {
@@ -287,6 +323,7 @@ export default function App() {
   const showFilteredLibrary = () => {
     setReturnTab(null);
     setSelectedGameId(null);
+    setLibraryReturns(count => count + 1);
   };
 
   // "Œuvres de ce cercle" : dans toute la bibliothèque, pas dans la
@@ -425,7 +462,7 @@ export default function App() {
         <div className="relative flex min-h-0 flex-1 flex-col overflow-clip" {...archiveDrop.handlers}>
           {archiveDrop.dragging && (
             // pointer-events-none : le dépôt reste reçu par le conteneur, sans clignotement.
-            <div className="pointer-events-none absolute inset-3 z-40 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-accent bg-bg-deep/85 text-center backdrop-blur-sm">
+            <div className="anim-drop-in pointer-events-none absolute inset-3 z-40 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-accent bg-bg-deep/85 text-center backdrop-blur-sm">
               <PackagePlus size={40} strokeWidth={1.75} className="text-accent" />
               <p className="m-0 text-[16px] font-bold">{t('Dépose les archives pour les importer')}</p>
               <p className="m-0 text-[13px] text-text-secondary">{t('.zip, .rar, .7z, .part1.exe — extraites dans le dossier de la bibliothèque')}</p>
@@ -457,7 +494,6 @@ export default function App() {
             <ImportResults
               results={archiveImport.results}
               onDismiss={archiveImport.dismiss}
-              onOpenGame={handleOpenGame}
               onAskPassword={archiveImport.askPassword}
             />
           )}
@@ -507,6 +543,8 @@ export default function App() {
                 focusedGameId={focusedGameId}
                 blurAdultContent={settings?.blurAdultContent ?? true}
                 revealedGames={revealedGames}
+                newGameIds={newGameIds}
+                replayToken={libraryReturns}
                 getWorkImageSrc={library.getWorkImageSrc}
                 onOpenInfo={handleOpenGame}
                 onReveal={handleReveal}
@@ -531,7 +569,8 @@ export default function App() {
             onReplaceGame={library.replaceGame}
             onRemoveGame={library.removeGame}
             onChooseExecutable={library.chooseExecutable}
-            onOpenFolder={openGameFolder}
+            onOpenFolder={handleOpenFolder}
+            onDeleteFolder={handleDeleteGameFolder}
             onGenreClick={genre => {
               filters.setSelectedGenres([genre]);
               showFilteredLibrary();

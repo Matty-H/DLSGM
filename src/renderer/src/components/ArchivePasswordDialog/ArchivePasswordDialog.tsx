@@ -46,7 +46,7 @@ export default function ArchivePasswordDialog({ file, wrongPassword, busy, onSub
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onSkip}>
+    <div className="anim-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6" onClick={onSkip}>
       <form
         role="dialog"
         aria-modal="true"

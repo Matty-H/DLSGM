@@ -26,7 +26,7 @@ export default function ImportProgressBar({ progress }: { progress: ArchiveImpor
       title={label}
       className="h-1 flex-shrink-0 bg-bg-deep"
     >
-      <div className="h-full bg-accent transition-[width] duration-200" style={{ width: `${percent}%` }} />
+      <div className="anim-progress h-full bg-accent transition-[width] duration-200" style={{ width: `${percent}%` }} />
     </div>
   );
 }

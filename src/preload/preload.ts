@@ -40,6 +40,7 @@ const electronAPI: ElectronAPI = {
     return () => ipcRenderer.removeListener('library-move-progress', listener);
   },
   openGameFolder: (gameId) => ipcRenderer.invoke('open-game-folder', gameId),
+  trashGameFolder: (gameId) => ipcRenderer.invoke('trash-game-folder', gameId),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   launchGame: (gameId) => ipcRenderer.invoke('launch-game', gameId),
   chooseGameExecutable: (gameId) => ipcRenderer.invoke('choose-game-executable', gameId),

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { animationsEnabled } from '../../hooks/animations';
 import { Check, Clock, EyeOff, Play, TriangleAlert } from 'lucide-react';
 import { PLACEHOLDER_IMAGE } from '../../lib/constants.js';
 import { formatPlayTime } from '../../lib/timeFormatter.js';
@@ -19,6 +20,10 @@ export interface GameCardProps {
   onReveal: (gameId: string) => void;
   /** Focus DOM reçu (souris, Tab, manette) : synchronise la jaquette ciblée. */
   onFocusGame: (gameId: string) => void;
+  /** Grille : rang dans la cascade d'apparition (animations.css, card-in) ; absent = pas d'animation. */
+  enterIndex?: number;
+  /** Jeu qui vient d'arriver dans la bibliothèque : entrée mise en avant (card-new) au lieu de la cascade. */
+  isNew?: boolean;
 }
 
 /**
@@ -34,9 +39,15 @@ export default function GameCard({
   isBlurred,
   onOpenInfo,
   onReveal,
-  onFocusGame
+  onFocusGame,
+  enterIndex,
+  isNew = false
 }: GameCardProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  // Rang figé au montage : le changer en cours d'animation la ferait sauter.
+  const [enterRank] = useState(enterIndex);
+  // Figé de même : la classe ne doit pas changer (et relancer une animation) quand le jeu cesse d'être « nouveau ».
+  const [enteredAsNew] = useState(isNew);
   const gameName = gameData.work_name || gameId;
   const playTimeText = formatPlayTime(gameData.totalPlayTime || 0);
   const category = gameData.category ? categoryLabel(gameData.category) : t('Inconnu');
@@ -47,7 +58,7 @@ export default function GameCard({
   useEffect(() => {
     if (!isFocused || !rootRef.current) return;
     if (document.activeElement !== rootRef.current) rootRef.current.focus({ preventScroll: true });
-    rootRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    rootRef.current.scrollIntoView({ block: 'nearest', behavior: animationsEnabled() ? 'smooth' : 'auto' });
   }, [isFocused]);
 
   return (
@@ -60,7 +71,8 @@ export default function GameCard({
       aria-label={gameName}
       onFocus={() => onFocusGame(gameId)}
       onClick={() => onOpenInfo(gameId)}
-      className={`capsule aspect-[4/3] ${isFocused ? 'is-focused' : ''}`}
+      className={`capsule aspect-[4/3] ${isFocused ? 'is-focused' : ''} ${enteredAsNew ? 'anim-card-new' : enterRank !== undefined ? 'anim-card-in' : ''}`}
+      style={enterRank && !enteredAsNew ? ({ '--anim-i': enterRank } as CSSProperties) : undefined}
     >
       <img
         // Jaquette arrivée après l'affichage de la carte (fiche écrite avant ses
@@ -99,7 +111,7 @@ export default function GameCard({
           </span>
         )}
         {isRunning && (
-          <span className="flex items-center gap-1 rounded-sm bg-play px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
+          <span className="anim-live flex items-center gap-1 rounded-sm bg-play px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
             <Play size={10} strokeWidth={0} fill="currentColor" />
             {t('En cours')}
           </span>

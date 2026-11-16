@@ -20,17 +20,20 @@ export async function getGamesFolderPath(): Promise<string | null> {
 }
 
 /**
- * Ouvre le dossier d'un jeu dans l'explorateur de fichiers.
+ * Ouvre le dossier d'un jeu dans l'explorateur de fichiers ; `false` s'il n'a pas pu l'être.
  */
-export async function openGameFolder(gameId: string): Promise<void> {
+export async function openGameFolder(gameId: string): Promise<boolean> {
   try {
     const success = await window.electronAPI.openGameFolder(gameId);
     if (!success) {
       throw new Error("Impossible d'ouvrir le dossier");
     }
+    return true;
   } catch (error) {
     alert((error as Error).message);
     console.error("Erreur lors de l'ouverture du dossier:", error);
+    // L'appelant relit la bibliothèque : le dossier a sans doute disparu.
+    return false;
   }
 }
 

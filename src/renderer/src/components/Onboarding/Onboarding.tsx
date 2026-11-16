@@ -74,7 +74,7 @@ export default function Onboarding({ settings, onSave }: OnboardingProps) {
   ];
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-deep/95 p-6">
+    <div className="anim-backdrop fixed inset-0 z-50 flex items-center justify-center bg-bg-deep/95 p-6">
       <div role="dialog" aria-modal="true" aria-label={t('Bienvenue dans DLSGM')} data-nav-scope className="panel flex max-h-full w-[760px] max-w-full flex-col gap-4 overflow-y-auto p-6">
         <div className="flex items-center gap-4">
           <Logo variant="horizontal" height={36} />

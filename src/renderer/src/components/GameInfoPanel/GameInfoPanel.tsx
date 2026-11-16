@@ -29,6 +29,7 @@ export interface GameInfoPanelProps {
   onRemoveGame: (gameId: string) => Promise<void>;
   onChooseExecutable: (gameId: string) => void;
   onOpenFolder: (gameId: string) => void;
+  onDeleteFolder: (gameId: string) => void;
   onGenreClick: (genre: string) => void;
   onCreatorClick: (filter: CreatorFilter) => void;
   onAfterRetryFetch: () => void;
@@ -67,6 +68,7 @@ export default function GameInfoPanel({
   onRemoveGame,
   onChooseExecutable,
   onOpenFolder,
+  onDeleteFolder,
   onGenreClick,
   onCreatorClick,
   onAfterRetryFetch,
@@ -91,7 +93,7 @@ export default function GameInfoPanel({
   return (
     // data-nav-scope : la manette ne navigue que dans cette page tant qu'elle
     // est ouverte (pas dans la grille cachée dessous).
-    <div key={gameId} data-nav-scope className="animate-steam-in absolute inset-0 z-20 overflow-y-auto bg-bg">
+    <div key={gameId} data-nav-scope className="anim-page-in absolute inset-0 z-20 overflow-y-auto bg-bg">
       <button
         type="button"
         onClick={onClose}
@@ -115,6 +117,7 @@ export default function GameInfoPanel({
           isAnyGameRunning={isAnyGameRunning}
           onUpdateGame={onUpdateGame}
           onOpenFolder={onOpenFolder}
+          onDeleteFolder={onDeleteFolder}
           onChooseExecutable={onChooseExecutable}
           onGenreClick={onGenreClick}
           onCreatorClick={onCreatorClick}

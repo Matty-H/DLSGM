@@ -164,7 +164,7 @@ export default function ShareScreen({ share, games, port, onPortChange, getWorkI
   };
 
   return (
-    <div data-scroll-root className="animate-steam-in flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6 pt-4">
+    <div data-scroll-root className="anim-stagger flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6 pt-4">
       <h1>{t('Partage en réseau local')}</h1>
 
       {share.error && (
@@ -173,7 +173,7 @@ export default function ShareScreen({ share, games, port, onPortChange, getWorkI
         </div>
       )}
 
-      <div className="grid min-h-0 grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      <div className="anim-stagger grid min-h-0 grid-cols-1 items-start gap-4 lg:grid-cols-2">
         {/* --- Réception --- */}
         <section className="panel flex flex-col gap-4 p-5">
           <div className="flex items-start justify-between gap-4">

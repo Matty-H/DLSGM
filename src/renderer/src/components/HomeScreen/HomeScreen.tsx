@@ -43,7 +43,7 @@ export default function HomeScreen({
   onEditCollection
 }: HomeScreenProps) {
   return (
-    <div data-scroll-root className="animate-steam-in min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-4">
+    <div data-scroll-root className="anim-stagger min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-4">
       {isLibraryEmpty && (
         <p className="text-text-secondary">{t('Aucun jeu dans la bibliothèque. Choisis ton dossier de jeux dans les paramètres.')}</p>
       )}
@@ -87,9 +87,10 @@ export default function HomeScreen({
           ) : (
             // Padding : le halo de focus des jaquettes ne doit pas être rogné par le défilement horizontal.
             <div className="-mx-2 flex gap-5 overflow-x-auto px-2 py-2">
-              {shelf.games.map(({ id, data }) => (
+              {shelf.games.map(({ id, data }, index) => (
                 <div key={id} className={`${CARD_WIDTH[shelf.size]} flex-shrink-0`}>
                   <GameCard
+                    enterIndex={Math.min(index, 10)}
                     gameId={id}
                     gameData={data}
                     imageSrc={getWorkImageSrc(id)}

@@ -73,7 +73,7 @@ export default function LibraryMove({ currentFolder, disabledReason, onMoved }: 
 
       {state.step !== 'idle' &&
         createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
+          <div className="anim-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
             <div role="dialog" aria-modal="true" aria-label={t('Déplacer la bibliothèque')} data-nav-scope className="panel flex w-[600px] max-w-full flex-col gap-3 p-5">
               <h2 className="m-0 flex items-center gap-2 text-[18px] font-bold">
                 <FolderInput size={18} strokeWidth={2.25} className="text-accent" />
