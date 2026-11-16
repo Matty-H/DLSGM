@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS: Settings = {
   overlayEnabled: true,
   autoBackupSaves: true,
   closeToTray: false,
+  autoTrashImportedArchives: false,
   checkUpdatesOnStartup: true,
   uiLanguage: 'system',
   theme: 'neon',

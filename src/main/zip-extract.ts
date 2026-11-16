@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import { Transform } from 'stream';
 import { pipeline } from 'stream/promises';
 import yauzl from 'yauzl';
 import { tm } from './i18n';
@@ -61,10 +62,20 @@ export class EncryptedZipError extends Error {}
 /**
  * Extrait `archive` dans `destination`. Un fichier déjà présent fait
  * échouer, sauf avec `overwrite` (deux archives superposées dans un même
- * dossier temporaire, ex. BepInEx puis XUnity).
+ * dossier temporaire, ex. BepInEx puis XUnity). `onProgress` reçoit la part
+ * de l'archive déjà extraite (0 à 1, en octets compressés).
  */
-export async function extractZip(archive: string, destination: string, { overwrite = false }: { overwrite?: boolean } = {}): Promise<void> {
+export async function extractZip(
+  archive: string,
+  destination: string,
+  { overwrite = false, onProgress }: { overwrite?: boolean; onProgress?: (fraction: number) => void } = {}
+): Promise<void> {
   const zip = await openZip(archive);
+  const totalBytes = onProgress ? fs.statSync(archive).size : 0;
+  let doneBytes = 0;
+  const report = (bytes: number) => {
+    if (totalBytes > 0) onProgress?.(Math.min(1, bytes / totalBytes));
+  };
   await new Promise<void>((resolve, reject) => {
     const fail = (error: unknown) => {
       zip.close();
@@ -87,7 +98,23 @@ export async function extractZip(archive: string, destination: string, { overwri
           const stream = await new Promise<NodeJS.ReadableStream>((res, rej) =>
             zip.openReadStream(entry, (error, s) => (error || !s ? rej(error ?? new Error(tm('Entrée illisible.'))) : res(s)))
           );
-          await pipeline(stream, fs.createWriteStream(target, { flags: overwrite ? 'w' : 'wx' }));
+          const output = fs.createWriteStream(target, { flags: overwrite ? 'w' : 'wx' });
+          if (onProgress && entry.uncompressedSize > 0) {
+            // Avancement à l'intérieur d'un gros fichier, au prorata de sa taille compressée.
+            let written = 0;
+            const counter = new Transform({
+              transform(chunk: Buffer, _encoding, callback) {
+                written += chunk.length;
+                report(doneBytes + entry.compressedSize * Math.min(1, written / entry.uncompressedSize));
+                callback(null, chunk);
+              }
+            });
+            await pipeline(stream, counter, output);
+          } else {
+            await pipeline(stream, output);
+          }
+          doneBytes += entry.compressedSize;
+          report(doneBytes);
         }
         zip.readEntry();
       })().catch(fail);

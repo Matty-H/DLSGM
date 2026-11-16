@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ArchiveImportProgress, ArchiveImportResult } from '../../../shared/ipc-types';
 import { ipcErrorMessage } from '../lib/gameTools.js';
 import { t } from '../lib/i18n.js';
@@ -16,8 +16,9 @@ export type ImportResultView = ArchiveImportResult & { wrongPassword?: boolean }
 
 /**
  * Import de jeux depuis leurs archives (sélecteur côté main, extraction dans
- * le dossier de jeux). `onImported` est appelé si au moins un jeu a été
- * ajouté (le parent rescanne la bibliothèque pour le faire apparaître).
+ * le dossier de jeux). `onImported` est appelé dès qu'un jeu est ajouté —
+ * archive par archive, sans attendre la fin du lot — et le parent rescanne
+ * la bibliothèque pour le faire apparaître.
  */
 export function useArchiveImport(onImported: () => void) {
   const [progress, setProgress] = useState<ArchiveImportProgress | null>(null);
@@ -27,7 +28,16 @@ export function useArchiveImport(onImported: () => void) {
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
   const [cleanup, setCleanup] = useState<ArchiveCleanup | null>(null);
 
-  useEffect(() => window.electronAPI.onArchiveImportProgress(setProgress), []);
+  const onImportedRef = useRef(onImported);
+  onImportedRef.current = onImported;
+  useEffect(
+    () =>
+      window.electronAPI.onArchiveImportProgress(update => {
+        setProgress(update);
+        if (update.importedGameId) onImportedRef.current();
+      }),
+    []
+  );
 
   const start = useCallback(async () => {
     setRunning(true);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import TopNav, { TABS, type AppTab } from './components/TopNav/TopNav';
 import UpdateProgressBar from './components/UpdateProgressBar/UpdateProgressBar';
+import ImportProgressBar from './components/ImportProgressBar/ImportProgressBar';
 import { useUpdateDownloadProgress } from './hooks/useUpdateDownloadProgress';
 import LibraryToolbar from './components/LibraryToolbar/LibraryToolbar';
 import AdvancedFilterPanel from './components/AdvancedFilterPanel/AdvancedFilterPanel';
@@ -71,7 +72,11 @@ export default function App() {
   const folderRename = useFolderRename(`${library.status}:${library.gameFolders.join('|')}`, library.rescan);
   const importStatus = archiveImport.running
     ? archiveImport.progress
-      ? t('Import {index}/{total}…', { index: archiveImport.progress.index, total: archiveImport.progress.total })
+      ? t('Import {index}/{total} : {percent} %', {
+          index: archiveImport.progress.index,
+          total: archiveImport.progress.total,
+          percent: archiveImport.progress.percent
+        })
       : t('Import…')
     : null;
 
@@ -615,6 +620,7 @@ export default function App() {
       )}
 
       <UpdateProgressBar progress={updateProgress} />
+      <ImportProgressBar progress={archiveImport.running ? archiveImport.progress : null} />
       <FooterHints
         hints={footerHints}
         actions={

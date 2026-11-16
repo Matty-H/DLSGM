@@ -1,7 +1,7 @@
 import { utilityProcess } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { isPasswordFailure, type SevenZipRequest, type SevenZipResult } from './archive-7z';
+import { isPasswordFailure, type SevenZipProgress, type SevenZipRequest, type SevenZipResult } from './archive-7z';
 import { gameIdFromName, gameIdsIn, isAddressOnlyText, isSiteFileName, mergeReleaseNames, passwordsFromArchiveName, passwordsFromFolder, readText, siteNames, writeInstallInfo } from './release-names';
 import { tm } from './i18n';
 import { EncryptedZipError, extractZip } from './zip-extract';
@@ -81,11 +81,15 @@ export function archiveVolumes(archivePath: string): string[] {
 // --- 7-Zip (WASM) -----------------------------------------------------------
 
 /** Extraction 7-Zip/WASM dans un processus utilitaire (voir archive-7z-worker.ts). */
-export function extractWith7z(request: SevenZipRequest): Promise<SevenZipResult> {
+export function extractWith7z(request: SevenZipRequest, onProgress?: (fraction: number) => void): Promise<SevenZipResult> {
   return new Promise((resolve, reject) => {
     const child = utilityProcess.fork(path.join(__dirname, 'archive-7z-worker.js'), [], { serviceName: 'DLSGM extraction' });
     let answered = false;
-    child.on('message', (result: SevenZipResult) => {
+    child.on('message', (result: SevenZipResult | SevenZipProgress) => {
+      if ('progress' in result) {
+        onProgress?.(result.progress);
+        return;
+      }
       answered = true;
       child.kill();
       resolve(result);
@@ -115,25 +119,30 @@ async function emptyDir(dir: string): Promise<void> {
   await fs.promises.mkdir(dir, { recursive: true });
 }
 
-type Extract7z = (request: SevenZipRequest) => Promise<SevenZipResult>;
+type Extract7z = (request: SevenZipRequest, onProgress?: (fraction: number) => void) => Promise<SevenZipResult>;
+type OnProgress = ((fraction: number) => void) | undefined;
 
 /**
  * Extrait `archive` dans `destination` (vide). Zip non chiffré : yauzl.
  * Sinon 7-Zip, sans mot de passe puis avec chaque candidat, tant que
- * l'échec ressemble à un mauvais mot de passe.
+ * l'échec ressemble à un mauvais mot de passe. `onProgress` : part de
+ * l'archive extraite (0 à 1) ; repart de 0 à chaque nouvel essai.
  */
-async function extractArchive(archive: string, destination: string, passwords: string[], extract7z: Extract7z, inner = false): Promise<void> {
+async function extractArchive(archive: string, destination: string, passwords: string[], extract7z: Extract7z, onProgress: OnProgress, inner = false): Promise<void> {
+  onProgress?.(0);
   if (archive.toLowerCase().endsWith('.zip')) {
     try {
-      await extractZip(archive, destination);
+      await extractZip(archive, destination, { onProgress });
       return;
     } catch (error) {
       if (!(error instanceof EncryptedZipError)) throw error;
     }
   }
+  const totalBytes = onProgress ? archiveVolumes(archive).reduce((sum, file) => sum + fs.statSync(file).size, 0) : undefined;
   for (const password of [undefined, ...new Set(passwords.filter(Boolean))]) {
     await emptyDir(destination);
-    const result = await extract7z({ archive, destination, password });
+    onProgress?.(0);
+    const result = await extract7z({ archive, destination, password, totalBytes }, onProgress);
     if (result.code < 2) return;
     if (!isPasswordFailure(result)) {
       const text = result.errors.join(' ');
@@ -258,6 +267,11 @@ export interface ImportOptions {
   extract7z?: Extract7z;
   /** Le jeu existe déjà dans un autre dossier de bibliothèque : jamais importé une seconde fois. */
   isInLibrary?: (gameId: string) => boolean;
+  /**
+   * Avancement de l'extraction en cours (0 à 1). Repart de 0 pour une archive
+   * interne ou un nouvel essai de mot de passe : c'est celui de l'étape, pas de l'import entier.
+   */
+  onProgress?: (fraction: number) => void;
 }
 
 /**
@@ -285,7 +299,7 @@ export async function importArchive(archivePath: string, destinationFolder: stri
     const candidates = () => [...(options.password ? [options.password] : []), ...guesses, ...(options.passwords ?? [])];
     let current = path.join(staging, '0');
     await fs.promises.mkdir(current);
-    await extractArchive(archive, current, candidates(), extract7z);
+    await extractArchive(archive, current, candidates(), extract7z, options.onProgress);
 
     let root: string;
     for (let level = 1; ; level++) {
@@ -299,7 +313,7 @@ export async function importArchive(archivePath: string, destinationFolder: stri
       guesses = [...unwrapped.passwords, ...passwordsFromArchiveName(path.basename(inner)), ...guesses];
       const next = path.join(staging, String(level));
       await fs.promises.mkdir(next);
-      await extractArchive(inner, next, candidates(), extract7z, true);
+      await extractArchive(inner, next, candidates(), extract7z, options.onProgress, true);
       await fs.promises.rm(current, { recursive: true, force: true });
       current = next;
     }

@@ -23,6 +23,7 @@ export interface AppSettings {
   overlayEnabled: boolean;
   autoBackupSaves: boolean;
   closeToTray: boolean;
+  autoTrashImportedArchives?: boolean;
   workspaceFolder: string;
   /** Autres dossiers de bibliothèque (le principal est destinationFolder). */
   extraLibraryFolders?: string[];

@@ -103,6 +103,7 @@ const settingsStore = new Store('settings.db', {
   overlayEnabled: true,
   autoBackupSaves: true,
   closeToTray: false,
+  autoTrashImportedArchives: false,
   workspaceFolder: '',
   piaRetry: false,
   piaRegion: 'jp-tokyo',
@@ -2313,14 +2314,53 @@ export function setupIpcHandlers(
   const importedArchives = new Map<string, string[]>();
   // Imports en échec faute de mot de passe, par retryId (même principe : pas de chemin venant du renderer).
   const passwordRetries = new Map<string, string>();
-  const importOne = async (file: string, destinationFolder: string, password?: string): Promise<ArchiveImportResult> => {
+  /** Met des fichiers à la corbeille (jamais de suppression définitive : récupérable en cas d'erreur). */
+  const trashFiles = async (files: string[], result: TrashArchivesResult): Promise<void> => {
+    for (const file of files) {
+      if (!fs.existsSync(file)) continue;
+      try {
+        await shell.trashItem(file);
+        result.trashed++;
+      } catch (error) {
+        result.errors.push(`${path.basename(file)} : ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  };
+  const importOne = async (file: string, destinationFolder: string, position: { index: number; total: number }, password?: string): Promise<ArchiveImportResult> => {
+    // Avancement de l'extraction : un message par point de pourcentage au plus.
+    const progress = { file: path.basename(file), ...position };
+    let lastPercent = -1;
+    const report = (fraction: number) => {
+      const percent = Math.max(0, Math.min(100, Math.floor(fraction * 100)));
+      if (percent === lastPercent) return;
+      lastPercent = percent;
+      getWindow()?.webContents.send('archive-import-progress', { ...progress, percent });
+    };
+    report(0);
     try {
       // Saisi, puis devinés d'après les noms et les fichiers texte, puis ceux du gestionnaire.
       const roots = await getLibraryRoots();
-      const { gameId, version, dlc } = await importArchive(file, destinationFolder, { password, passwords: await archivePasswords(), isInLibrary: id => locateGame(roots, id) !== null });
+      const { gameId, version, dlc } = await importArchive(file, destinationFolder, {
+        password,
+        passwords: await archivePasswords(),
+        isInLibrary: id => locateGame(roots, id) !== null,
+        onProgress: report
+      });
+      // Le jeu est en place : le renderer rescanne tout de suite, sans attendre les archives suivantes.
+      getWindow()?.webContents.send('archive-import-progress', { ...progress, percent: 100, importedGameId: gameId });
+      const result: ArchiveImportResult = { file: path.basename(file), gameId, version, dlc };
+      const volumes = archiveVolumes(file);
+      if ((await getSettings()).autoTrashImportedArchives === true) {
+        // Option « supprimer les archives importées » : seulement ici, donc après un import sans erreur.
+        const trashed: TrashArchivesResult = { trashed: 0, errors: [] };
+        await trashFiles(volumes, trashed);
+        if (trashed.errors.length === 0) return { ...result, archiveTrashed: true };
+        console.error(`Archive de ${gameId} non mise à la corbeille :`, trashed.errors.join(' ; '));
+      }
+      // Sinon (ou si la corbeille a échoué) : proposé par le renderer, qui ne fournit jamais de chemin.
       const importId = crypto.randomUUID();
-      importedArchives.set(importId, archiveVolumes(file));
-      return { file: path.basename(file), gameId, importId, version, dlc };
+      importedArchives.set(importId, volumes);
+      return { ...result, importId };
     } catch (error) {
       const result: ArchiveImportResult = { file: path.basename(file), error: error instanceof Error ? error.message : String(error) };
       if (error instanceof ArchivePasswordError) {
@@ -2346,8 +2386,7 @@ export function setupIpcHandlers(
 
       const results: ArchiveImportResult[] = [];
       for (const [i, file] of result.filePaths.entries()) {
-        getWindow()?.webContents.send('archive-import-progress', { file: path.basename(file), index: i + 1, total: result.filePaths.length });
-        results.push(await importOne(file, destinationFolder));
+        results.push(await importOne(file, destinationFolder, { index: i + 1, total: result.filePaths.length }));
       }
       return results;
     } finally {
@@ -2365,8 +2404,7 @@ export function setupIpcHandlers(
       const { destinationFolder } = await getSettings();
       if (!destinationFolder || !fs.existsSync(destinationFolder)) throw new Error(tm('Dossier de jeux non configuré ou introuvable.'));
       await removeStaleImports(destinationFolder);
-      getWindow()?.webContents.send('archive-import-progress', { file: path.basename(file), index: 1, total: 1 });
-      const result = await importOne(file, destinationFolder, password);
+      const result = await importOne(file, destinationFolder, { index: 1, total: 1 }, password);
       passwordRetries.delete(retryId);
       if (result.gameId && remember) await addArchivePassword(password);
       return result;
@@ -2428,15 +2466,7 @@ export function setupIpcHandlers(
       const files = importedArchives.get(importId);
       if (!files) continue;
       importedArchives.delete(importId);
-      for (const file of files) {
-        if (!fs.existsSync(file)) continue;
-        try {
-          await shell.trashItem(file);
-          result.trashed++;
-        } catch (error) {
-          result.errors.push(`${path.basename(file)} : ${error instanceof Error ? error.message : String(error)}`);
-        }
-      }
+      await trashFiles(files, result);
     }
     return result;
   });

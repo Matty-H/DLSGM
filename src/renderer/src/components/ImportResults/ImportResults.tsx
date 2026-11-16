@@ -28,6 +28,7 @@ export default function ImportResults({ results, onDismiss, onOpenGame, onAskPas
                     {result.gameId}
                   </button>
                   {releaseLabel(result) && <span className="text-text-secondary"> ({releaseLabel(result)})</span>}
+                  {result.archiveTrashed && <span className="text-text-secondary"> · {t('archive mise à la corbeille')}</span>}
                 </span>
               </>
             ) : (

@@ -36,7 +36,20 @@ export function useGamesLibrary() {
     try {
       do {
         rescanPendingRef.current = false;
-        const result = await scanGames();
+        // Affichage au fil du scan : les jeux déjà en cache dès que les dossiers
+        // sont listés, puis chaque nouveau jeu dès que sa fiche est écrite —
+        // sans attendre les images des autres (un jeu importé restait
+        // invisible jusqu'à la fin du scan entier).
+        const result = await scanGames({
+          onFolders: async folders => {
+            await reloadCache();
+            setGameFolders(folders);
+            setStatus('ok');
+          },
+          onEntryChanged: async () => {
+            await reloadCache();
+          }
+        });
         if (result.status === 'ok') {
           setGameFolders(result.gameFolders ?? []);
           await reloadCache();

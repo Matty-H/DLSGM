@@ -19,9 +19,10 @@ const ipcMessage = (error: unknown) => (error as Error).message.replace(/^Error 
 
 /**
  * Récupère les métadonnées d'un jeu via un fetch Node direct vers DLsite.
- * Renvoie true si la fiche a été récupérée.
+ * Renvoie true si la fiche a été récupérée. `onSaved` est appelé une fois la
+ * fiche écrite, avant le téléchargement des images (le plus long).
  */
-export async function fetchGameMetadata(gameId: string): Promise<boolean> {
+export async function fetchGameMetadata(gameId: string, onSaved?: () => void | Promise<void>): Promise<boolean> {
   try {
     console.log(`Récupération des métadonnées pour ${gameId}...`);
     const data = await window.electronAPI.fetchGameMetadata(gameId) as GameCacheEntry;
@@ -33,6 +34,8 @@ export async function fetchGameMetadata(gameId: string): Promise<boolean> {
     }
 
     await replaceCacheEntry(gameId, data);
+    // Un rappel qui échoue (affichage) ne doit pas faire passer la fiche pour un échec de fetch.
+    await Promise.resolve(onSaved?.()).catch(error => console.error(error));
 
     // Le téléchargement d'images est isolé dans son propre try/catch : s'il
     // échoue (réseau, timeout...), imagesComplete doit rester explicitement

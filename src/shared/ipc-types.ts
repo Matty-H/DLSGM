@@ -88,6 +88,8 @@ export interface AppSettings {
   autoBackupSaves: boolean;
   /** Fermer la fenêtre la cache dans la zone de notification au lieu de quitter. */
   closeToTray: boolean;
+  /** Mettre à la corbeille l'archive (toutes ses parties) d'un jeu importé sans erreur. */
+  autoTrashImportedArchives?: boolean;
   /**
    * Racine des dossiers de travaux (data mining...) : `<racine>/<ID>/`.
    * Vide = Documents/DLSGM/Work. Voir src/main/workspace.ts.
@@ -792,6 +794,8 @@ export interface ArchiveImportResult {
   error?: string;
   /** Import réussi : identifiant permettant de mettre son archive à la corbeille. */
   importId?: string;
+  /** Import réussi et archive déjà mise à la corbeille (option `autoTrashImportedArchives`) : pas d'`importId`. */
+  archiveTrashed?: boolean;
   /** Version et DLC lus dans les noms (archive, archive interne, dossiers). */
   version?: string | null;
   dlc?: boolean;
@@ -863,6 +867,13 @@ export interface ArchiveImportProgress {
   file: string;
   index: number;
   total: number;
+  /**
+   * Extraction en cours de cette archive, 0 à 100. Peut repartir de 0 :
+   * archive dans l'archive, nouvel essai avec un autre mot de passe.
+   */
+  percent: number;
+  /** Cette archive vient d'être importée sous cet ID : le jeu est dans la bibliothèque. */
+  importedGameId?: string;
 }
 
 export interface SaveRestoreResult {

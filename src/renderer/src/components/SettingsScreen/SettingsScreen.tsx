@@ -294,6 +294,7 @@ export default function SettingsScreen({
   const [overlayEnabled, setOverlayEnabled] = useState(settings.overlayEnabled);
   const [autoBackupSaves, setAutoBackupSaves] = useState(settings.autoBackupSaves);
   const [closeToTray, setCloseToTray] = useState(settings.closeToTray);
+  const [autoTrashArchives, setAutoTrashArchives] = useState(settings.autoTrashImportedArchives === true);
   const [superPanic, setSuperPanic] = useState(settings.superPanic ?? DEFAULT_SUPER_PANIC_SETTINGS);
   const [checkUpdatesOnStartup, setCheckUpdatesOnStartup] = useState(settings.checkUpdatesOnStartup !== false);
   const [workspaceFolder, setWorkspaceFolder] = useState(settings.workspaceFolder ?? '');
@@ -340,6 +341,7 @@ export default function SettingsScreen({
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
     setCloseToTray(settings.closeToTray);
+    setAutoTrashArchives(settings.autoTrashImportedArchives === true);
     setSuperPanic(settings.superPanic ?? DEFAULT_SUPER_PANIC_SETTINGS);
     setCheckUpdatesOnStartup(settings.checkUpdatesOnStartup !== false);
     setWorkspaceFolder(settings.workspaceFolder ?? '');
@@ -426,6 +428,7 @@ export default function SettingsScreen({
     proxyDirty ||
     autoBackupSaves !== settings.autoBackupSaves ||
     closeToTray !== settings.closeToTray ||
+    autoTrashArchives !== (settings.autoTrashImportedArchives === true) ||
     JSON.stringify(superPanic) !== JSON.stringify(settings.superPanic ?? DEFAULT_SUPER_PANIC_SETTINGS) ||
     checkUpdatesOnStartup !== (settings.checkUpdatesOnStartup !== false) ||
     workspaceFolder !== (settings.workspaceFolder ?? '') ||
@@ -481,6 +484,7 @@ export default function SettingsScreen({
       overlayEnabled,
       autoBackupSaves,
       closeToTray,
+      autoTrashImportedArchives: autoTrashArchives,
       superPanic,
       checkUpdatesOnStartup,
       workspaceFolder,
@@ -628,6 +632,19 @@ export default function SettingsScreen({
                 <FolderOpen size={16} strokeWidth={2.25} />
                 {t('Parcourir')}
               </button>
+            </SettingRow>
+
+            <SettingRow
+              label={t('Supprimer les archives importées')}
+              description={t("Quand un jeu est importé sans erreur, son archive (toutes ses parties) est mise à la corbeille automatiquement. Désactivé : DLSGM le propose après chaque import.")}
+            >
+              <input
+                type="checkbox"
+                className="toggle"
+                aria-label={t('Supprimer les archives importées')}
+                checked={autoTrashArchives}
+                onChange={e => setAutoTrashArchives(e.target.checked)}
+              />
             </SettingRow>
 
             <SettingRow

@@ -63,6 +63,9 @@ export default function GameCard({
       className={`capsule aspect-[4/3] ${isFocused ? 'is-focused' : ''}`}
     >
       <img
+        // Jaquette arrivée après l'affichage de la carte (fiche écrite avant ses
+        // images) : même URL, donc l'image est remontée pour quitter le substitut.
+        key={String(gameData.imagesComplete === true)}
         src={imageSrc}
         alt={gameName}
         loading="lazy"

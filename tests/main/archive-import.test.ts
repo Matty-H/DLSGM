@@ -308,3 +308,55 @@ describe('nestedArchive', () => {
     expect(nestedArchive(root)).toBeNull();
   });
 });
+
+describe("avancement de l'extraction (onProgress)", () => {
+  /** Fractions reçues : toutes entre 0 et 1, jamais en recul entre deux remises à zéro. */
+  const expectSteps = (fractions: number[]) => {
+    expect(fractions.length).toBeGreaterThan(1);
+    expect(fractions[0]).toBe(0);
+    for (const [i, fraction] of fractions.entries()) {
+      expect(fraction).toBeGreaterThanOrEqual(0);
+      expect(fraction).toBeLessThanOrEqual(1);
+      if (i > 0 && fraction !== 0) expect(fraction).toBeGreaterThanOrEqual(fractions[i - 1]);
+    }
+  };
+
+  it('zip : avance au fil des fichiers, sans jamais dépasser 1', async () => {
+    const zip = writeZip('RJ01111112.zip', [
+      { name: 'Game.exe', data: 'x'.repeat(4000) },
+      { name: 'data/a.bin', data: 'y'.repeat(4000) },
+      { name: 'data/b.bin', data: 'z'.repeat(4000) }
+    ]);
+    const fractions: number[] = [];
+    await importArchive(zip, library, { onProgress: f => fractions.push(f) });
+    expectSteps(fractions);
+    // Trois fichiers de même taille : au moins trois paliers distincts, le dernier proche de la fin.
+    expect(new Set(fractions).size).toBeGreaterThanOrEqual(4);
+    expect(fractions.at(-1)).toBeGreaterThan(0.8);
+  });
+
+  it("7-Zip : part de l'archive lue, jusqu'à 1", async () => {
+    const archive = await make7z(root, 'RJ01111113.7z', { 'Game.exe': 'x'.repeat(200_000), 'data/a.bin': 'y'.repeat(200_000) }, ['-mx0']);
+    const fractions: number[] = [];
+    await importArchive(archive, library, { extract7z: run7z, onProgress: f => fractions.push(f) });
+    expectSteps(fractions);
+    expect(fractions.at(-1)).toBe(1);
+    expect(fractions.some(f => f > 0 && f < 1)).toBe(true);
+  });
+
+  it('repart de 0 à chaque essai de mot de passe', async () => {
+    const archive = await make7z(root, 'RJ01111114.7z', { 'Game.exe': 'x' }, ['-pSECRET', '-mhe=on']);
+    const fractions: number[] = [];
+    await importArchive(archive, library, { extract7z: run7z, passwords: ['faux', 'SECRET'], onProgress: f => fractions.push(f) });
+    expectSteps(fractions);
+    // Sans mot de passe, « faux », puis « SECRET » : trois extractions tentées.
+    expect(fractions.filter(f => f === 0).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("sans onProgress, run7z ne mesure rien (pas de taille demandée)", async () => {
+    const archive = await make7z(root, 'RJ01111115.7z', { 'Game.exe': 'x' });
+    const requests: unknown[] = [];
+    await importArchive(archive, library, { extract7z: request => (requests.push(request.totalBytes), run7z(request)) });
+    expect(requests).toEqual([undefined]);
+  });
+});
