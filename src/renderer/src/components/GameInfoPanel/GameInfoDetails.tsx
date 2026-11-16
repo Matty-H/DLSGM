@@ -378,6 +378,8 @@ export default function GameInfoDetails({
               onLocaleEmulatorChange={enabled => onUpdateGame(gameId, { localeEmulator: enabled })}
               debugMode={Boolean(gameData.debugMode)}
               onDebugModeChange={enabled => onUpdateGame(gameId, { debugMode: enabled })}
+              cheatTableAuto={gameData.cheatTableAuto ?? ''}
+              onCheatTableAutoChange={name => onUpdateGame(gameId, { cheatTableAuto: name })}
             />
           </Section>
         </div>

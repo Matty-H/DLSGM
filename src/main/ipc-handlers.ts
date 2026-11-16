@@ -29,6 +29,7 @@ import { TextractorSession, findTextractorCli } from './textractor';
 import { extractRpgMakerAssets } from './rpgmaker-assets';
 import { listSaveSlots, readSave, writeSave } from './rpgmaker-saves';
 import { findLeProc, leInstalled, runWithLocaleEmulator } from './locale-emulator';
+import { CHEAT_TABLES_DIR, cheatTablePath, importCheatTables, listCheatTables, resolveCheatEngine } from './cheat-engine';
 import { elevatedStartCommand, parseLaunchArguments } from './launch-args';
 import { DiskUsageScanner, diskInfo } from './disk-usage';
 import { DEFAULT_SCREENSHOT, ScreenCapturer, captureFileName, isCaptureName, listCaptures, sanitizeScreenshotSettings } from './screenshots';
@@ -53,7 +54,7 @@ import { TriggerZonesWindow } from './trigger-zones';
 import { checkForUpdates, getAppUpdateInfo } from './updater';
 import { setMainLanguage, systemLanguages, tm } from './i18n';
 import { DEFAULT_PIXEL_TRIGGER, PixelTriggerDetector, activeTriggers, sanitizePixelTriggerSettings, sanitizePixelTriggers, triggerVisibility } from './pixel-trigger';
-import type { AppSettings, CaptureInfo, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, RpgSavePatch, SandboxieStatus } from '../shared/ipc-types';
+import type { AppSettings, CaptureInfo, CheatTable, CheatTableImportResult, ScreenshotSettings, DiskUsageReport, GameDiskUsage, OcrTranslateSettings, OcrView, RpgMakerExtractResult, TextractorThread, TextractorView, FolderRenameResult, MisnamedFolder, GameMacro, GameMacros, MacroRecorderSettings, MacroRecorderStatus, MacroStep, AutoClickerSettings, AutoClickerStatus, PixelTrigger, PixelTriggerSettings, PixelTriggerStatus, ArchiveImportResult, OverlayState, TrashArchivesResult, GameImagesPlan, GameMetadata, GameToolsInfo, LanSendRequest, LaunchGameResult, PlaySession, RpgSavePatch, SandboxieStatus } from '../shared/ipc-types';
 import type { OsPlatform } from '../shared/platforms';
 import { applyThemeIcon, applyThemeSetting, buildThemeIcon, getActiveTheme, iconPngsFromDataUrls, rerollTheme } from './theme';
 import { appIconLayout } from '../shared/logo';
@@ -111,6 +112,7 @@ const settingsStore = new Store('settings.db', {
   rpgMakerExtractor: false,
   ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'dictionary', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
   localeEmulatorPath: '',
+  cheatEnginePath: '',
   screenshot: { enabled: true, hotkey: 'Ctrl+F8' },
   superPanic: DEFAULT_SUPER_PANIC,
   checkUpdatesOnStartup: true,
@@ -286,6 +288,44 @@ function startElevated(executablePath: string, args: string[]): Promise<TrackedL
       resolve(error ? { success: false, error: tm("Le jeu exige les droits administrateur et n'a pas pu être lancé.") } : { success: true, duration: 0, untracked: true });
     });
   });
+}
+
+/**
+ * Ouvre Cheat Engine (avec une table) sans le suivre : il vit sa vie à côté
+ * du jeu. Si Windows exige l'élévation, repli sur l'invite UAC.
+ */
+function startCheatEngine(executablePath: string, table: string | null): Promise<void> {
+  const args = table ? [table] : [];
+  return new Promise((resolve, reject) => {
+    const child = spawn(executablePath, args, { cwd: path.dirname(executablePath), detached: true, stdio: 'ignore' });
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+    child.once('error', (error: NodeJS.ErrnoException) => {
+      if (error.code !== 'EACCES') return reject(new Error(tm('Impossible de lancer Cheat Engine : {error}', { error: error.message })));
+      startElevated(executablePath, args).then(result => (result.success ? resolve() : reject(new Error(tm('Impossible de lancer Cheat Engine en administrateur.')))));
+    });
+  });
+}
+
+/** Table Cheat Engine à ouvrir au lancement de ce jeu, ou null. Lève si Cheat Engine ou la table manque. */
+async function cheatEngineLaunch(gameId: string): Promise<{ executable: string; table: string } | null> {
+  const entry = ((await cacheStore.get(gameId)) ?? {}) as Partial<GameMetadata>;
+  // Comme Textractor : Windows seulement, sans objet ailleurs.
+  if (!entry.cheatTableAuto || process.platform !== 'win32') return null;
+  const settings = await getSettings();
+  const executable = resolveCheatEngine(settings.cheatEnginePath ?? '');
+  if (!executable) {
+    throw new Error(tm('Cheat Engine introuvable (Paramètres › Lancement) : décoche « Au lancement » sur la page du jeu, ou choisis le dossier de Cheat Engine.'));
+  }
+  const table = cheatTablePath(cheatTablesDir(settings, gameId), entry.cheatTableAuto);
+  if (!table) throw new Error(tm('La table Cheat Engine « {name} » a disparu : choisis-en une autre sur la page du jeu.', { name: entry.cheatTableAuto }));
+  return { executable, table };
+}
+
+function cheatTablesDir(settings: AppSettings, gameId: string): string {
+  return path.join(workspaceRoot(settings.workspaceFolder, app.getPath('documents')), gameId, CHEAT_TABLES_DIR);
 }
 
 /**
@@ -1633,6 +1673,52 @@ export function setupIpcHandlers(
     return { x86: findTextractorCli(target, 'x86') !== null, x64: findTextractorCli(target, 'x64') !== null };
   });
 
+  // --- Cheat Engine : tables par jeu dans le dossier de travaux ---
+  const gameCheatTablesDir = async (gameId: string) => {
+    assertGameId(gameId);
+    return cheatTablesDir(await getSettings(), gameId);
+  };
+  // Exécutable trouvé (dossier donné, sinon celui des paramètres ; vide : installation habituelle), ou null.
+  handle('check-cheat-engine', async (event: IpcMainInvokeEvent, dir?: string) => {
+    const target = typeof dir === 'string' ? dir : (await getSettings()).cheatEnginePath ?? '';
+    return process.platform === 'win32' ? resolveCheatEngine(target) : null;
+  });
+  handle('list-cheat-tables', async (event: IpcMainInvokeEvent, gameId: string): Promise<CheatTable[]> => listCheatTables(await gameCheatTablesDir(gameId)));
+  // Les fichiers viennent de la boîte de dialogue de main, jamais d'un chemin donné par le renderer.
+  handle('import-cheat-tables', async (event: IpcMainInvokeEvent, gameId: string): Promise<CheatTableImportResult | null> => {
+    const dir = await gameCheatTablesDir(gameId);
+    const result = await showOpenDialog({
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: tm('Tables Cheat Engine'), extensions: ['CT', 'ct'] }]
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const { imported, skipped } = await importCheatTables(dir, result.filePaths);
+    return { tables: await listCheatTables(dir), imported, skipped };
+  });
+  handle('open-cheat-table', async (event: IpcMainInvokeEvent, gameId: string, name: string | null) => {
+    const dir = await gameCheatTablesDir(gameId);
+    const executable = resolveCheatEngine((await getSettings()).cheatEnginePath ?? '');
+    if (!executable) throw new Error(tm('Cheat Engine introuvable (ni dans Program Files, ni dans le dossier choisi dans Paramètres › Lancement).'));
+    let table: string | null = null;
+    if (name !== null) {
+      table = cheatTablePath(dir, name);
+      if (!table) throw new Error(tm('Table introuvable.'));
+    }
+    await startCheatEngine(executable, table);
+  });
+  handle('delete-cheat-table', async (event: IpcMainInvokeEvent, gameId: string, name: string): Promise<CheatTable[]> => {
+    const dir = await gameCheatTablesDir(gameId);
+    const table = cheatTablePath(dir, name);
+    if (table) await shell.trashItem(table);
+    return listCheatTables(dir);
+  });
+  handle('open-cheat-tables-folder', async (event: IpcMainInvokeEvent, gameId: string) => {
+    const dir = await gameCheatTablesDir(gameId);
+    await fs.promises.mkdir(dir, { recursive: true });
+    const error = await shell.openPath(dir);
+    if (error) throw new Error(tm("Impossible d'ouvrir le dossier : {error}", { error }));
+  });
+
   handle('extract-rpgmaker-assets', async (event: IpcMainInvokeEvent, gameId: string): Promise<RpgMakerExtractResult> => {
     assertGameId(gameId);
     if (!(await getSettings()).rpgMakerExtractor) throw new Error(tm("L'extracteur RPG Maker est désactivé (Paramètres › Lancement)."));
@@ -2060,6 +2146,8 @@ export function setupIpcHandlers(
     // Lancement avec Textractor demandé : sans Textractor, le lancement échoue
     // plutôt que de se faire sans (l'option a été choisie pour ce jeu).
     const textractor = await textractorLaunch(gameId);
+    // Idem pour la table Cheat Engine à ouvrir avec le jeu.
+    const cheatEngine = await cheatEngineLaunch(gameId);
 
     let result: TrackedLaunchResult;
     runningGames.add(gameId);
@@ -2096,6 +2184,8 @@ export function setupIpcHandlers(
     refreshOcr();
     refreshScreenshot();
     if (textractor) startTextractor(gameId, gamePath, textractor);
+    // Cheat Engine attend le processus du jeu (attache auto des tables) : ouvert juste avant, jamais fermé par DLSGM.
+    if (cheatEngine) await startCheatEngine(cheatEngine.executable, cheatEngine.table).catch(error => console.error('Cheat Engine :', error));
     try {
       result = await startGameProcess(gameId, gamePath, executablePath);
     } finally {

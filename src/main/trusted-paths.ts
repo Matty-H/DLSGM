@@ -2,8 +2,9 @@ import type { AppSettings } from '../shared/ipc-types';
 
 /**
  * Réglages qui désignent un programme lancé par DLSGM : dossier de Locale
- * Emulator (LEProc.exe), de Textractor (TextractorCLI.exe), fenêtre de
- * travail du super bouton panique (`shell.openPath`). Le renderer ne peut
+ * Emulator (LEProc.exe), de Textractor (TextractorCLI.exe), de Cheat
+ * Engine, fenêtre de travail du super bouton panique (`shell.openPath`).
+ * Le renderer ne peut
  * pas y écrire un chemin de son choix via `save-settings` : un nouveau
  * chemin n'est retenu que s'il vient d'une boîte de dialogue ouverte par
  * main pendant cette session (choix de l'utilisateur). Sinon, une page
@@ -37,7 +38,8 @@ export function guardExecutablePaths(next: AppSettings, previous: AppSettings, p
   const guarded: AppSettings = {
     ...next,
     localeEmulatorPath: guardPath(next.localeEmulatorPath, previous.localeEmulatorPath ?? '', picked),
-    textractorPath: guardPath(next.textractorPath, previous.textractorPath ?? '', picked)
+    textractorPath: guardPath(next.textractorPath, previous.textractorPath ?? '', picked),
+    cheatEnginePath: guardPath(next.cheatEnginePath, previous.cheatEnginePath ?? '', picked)
   };
   if (next.superPanic) {
     guarded.superPanic = {

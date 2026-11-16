@@ -112,6 +112,8 @@ export interface AppSettings {
   ocrTranslate: OcrTranslateSettings;
   /** Dossier de Locale Emulator (LEProc.exe), pour « Lancer en japonais ». */
   localeEmulatorPath: string;
+  /** Dossier de Cheat Engine (Cheat Engine.exe), pour les tables de triche par jeu ; vide : installation habituelle (Program Files). */
+  cheatEnginePath: string;
   /** Captures d'écran du jeu (raccourci pendant une partie, overlay). */
   screenshot: ScreenshotSettings;
   /** Super bouton panique (Paramètres › Affichage). */
@@ -464,6 +466,20 @@ export interface GameWorkspaceEntry {
 }
 
 /** Dossier de travaux d'un jeu (créé seulement à la première ouverture). */
+/** Table Cheat Engine d'un jeu (`<travaux>/<ID>/cheat-tables/`). */
+export interface CheatTable {
+  name: string;
+  size: number;
+  modified: string;
+}
+
+export interface CheatTableImportResult {
+  tables: CheatTable[];
+  imported: string[];
+  /** Fichiers refusés (pas une table .CT, trop gros, illisibles). */
+  skipped: string[];
+}
+
 export interface GameWorkspaceInfo {
   path: string;
   exists: boolean;
@@ -1008,6 +1024,8 @@ export interface GameMetadata {
   debugMode?: boolean;
   /** Hookcode du fil Textractor choisi pour ce jeu (retrouvé aux lancements suivants). */
   textractorHook?: string;
+  /** Table Cheat Engine (nom dans `<travaux>/<ID>/cheat-tables/`) ouverte au lancement du jeu. Donnée personnelle, jamais partagée en LAN. */
+  cheatTableAuto?: string;
   /** Zones du détecteur de rythme pour ce jeu. Donnée personnelle, jamais partagée en LAN. */
   pixelTriggers?: PixelTrigger[];
   /** IDs des collections (AppSettings.collections) du jeu. Donnée personnelle, jamais partagée en LAN. */
@@ -1337,6 +1355,17 @@ export interface ElectronAPI {
   /** Textractor trouvé (TextractorCLI x86 / x64) dans ce dossier, ou celui des paramètres. */
   checkTextractor(dir?: string): Promise<{ x86: boolean; x64: boolean }>;
   onTextractorChanged(callback: (gameId: string, view: TextractorView) => void): () => void;
+  // Cheat Engine (src/main/cheat-engine.ts)
+  /** Exécutable de Cheat Engine trouvé dans ce dossier (ou celui des paramètres ; vide : installation habituelle), ou null. */
+  checkCheatEngine(dir?: string): Promise<string | null>;
+  listCheatTables(gameId: string): Promise<CheatTable[]>;
+  /** Choisit des tables .CT (boîte de dialogue de main) et les copie dans le dossier du jeu ; null si annulé. */
+  importCheatTables(gameId: string): Promise<CheatTableImportResult | null>;
+  /** Ouvre Cheat Engine avec cette table (null : sans table). */
+  openCheatTable(gameId: string, name: string | null): Promise<void>;
+  /** Met la table à la corbeille. */
+  deleteCheatTable(gameId: string, name: string): Promise<CheatTable[]>;
+  openCheatTablesFolder(gameId: string): Promise<void>;
   /** Déchiffre images et sons d'un jeu RPG Maker MV/MZ dans son dossier de travaux. */
   extractRpgMakerAssets(gameId: string): Promise<RpgMakerExtractResult>;
   onRpgMakerExtractProgress(callback: (progress: { gameId: string; done: number; total: number }) => void): () => void;

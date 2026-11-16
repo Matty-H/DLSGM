@@ -43,6 +43,7 @@ const DEFAULT_SETTINGS: Settings = {
   rpgMakerExtractor: false,
   ocrTranslate: { enabled: false, hotkey: 'F10', source: 'ja', target: 'fr', engine: 'dictionary', localUrl: 'http://127.0.0.1:11434/v1', localModel: '' },
   localeEmulatorPath: '',
+  cheatEnginePath: '',
   screenshot: { enabled: true, hotkey: 'Ctrl+F8' },
   superPanic: { enabled: false, hotkey: 'Ctrl+Shift+Space', target: '', mute: true },
   selectedSort: 'name_asc'

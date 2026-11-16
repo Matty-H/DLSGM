@@ -177,6 +177,12 @@ const electronAPI: ElectronAPI = {
   getPixelTriggerState: () => ipcRenderer.invoke('get-pixel-trigger-state'),
   setTextractorHook: (gameId, hookcode) => ipcRenderer.invoke('set-textractor-hook', gameId, hookcode),
   checkTextractor: dir => ipcRenderer.invoke('check-textractor', dir),
+  checkCheatEngine: dir => ipcRenderer.invoke('check-cheat-engine', dir),
+  listCheatTables: gameId => ipcRenderer.invoke('list-cheat-tables', gameId),
+  importCheatTables: gameId => ipcRenderer.invoke('import-cheat-tables', gameId),
+  openCheatTable: (gameId, name) => ipcRenderer.invoke('open-cheat-table', gameId, name),
+  deleteCheatTable: (gameId, name) => ipcRenderer.invoke('delete-cheat-table', gameId, name),
+  openCheatTablesFolder: gameId => ipcRenderer.invoke('open-cheat-tables-folder', gameId),
   onTextractorChanged: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, gameId: string, view: TextractorView) => callback(gameId, view);
     ipcRenderer.on('textractor-changed', listener);

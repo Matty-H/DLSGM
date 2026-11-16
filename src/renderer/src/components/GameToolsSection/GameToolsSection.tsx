@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Select from '../Select/Select';
 import SaveBackups from '../SaveBackups/SaveBackups';
 import TextTools from './TextTools';
+import CheatTables from './CheatTables';
 import RpgSaveEditor from './RpgSaveEditor';
 import GameLocation from './GameLocation';
 import {
@@ -39,6 +40,9 @@ export interface GameToolsSectionProps {
   /** Mode debug RPG Maker MV/MZ (entrée de cache `debugMode`) ; Ren'Py passe par un patch. */
   debugMode: boolean;
   onDebugModeChange: (enabled: boolean) => void;
+  /** Table Cheat Engine ouverte au lancement (entrée `cheatTableAuto`, vide : aucune). */
+  cheatTableAuto: string;
+  onCheatTableAutoChange: (name: string) => void;
 }
 
 const LABEL_CLASS = 'text-[12px] text-text-muted';
@@ -60,7 +64,9 @@ export default function GameToolsSection({
   localeEmulator,
   onLocaleEmulatorChange,
   debugMode,
-  onDebugModeChange
+  onDebugModeChange,
+  cheatTableAuto,
+  onCheatTableAutoChange
 }: GameToolsSectionProps) {
   const [info, setInfo] = useState<GameToolsInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -198,6 +204,8 @@ export default function GameToolsSection({
         onLocaleEmulatorChange={onLocaleEmulatorChange}
         sandboxed={sandboxed}
       />
+
+      {isWindows && <CheatTables gameId={gameId} autoTable={cheatTableAuto} onAutoTableChange={onCheatTableAutoChange} />}
 
       {info?.sandbox.globallyEnabled && (
 

@@ -5,16 +5,18 @@ import { guardExecutablePaths, PickedPaths } from '../../src/main/trusted-paths'
 const settings = (fields: Partial<AppSettings> & { target?: string }): AppSettings => ({
   localeEmulatorPath: fields.localeEmulatorPath ?? '',
   textractorPath: fields.textractorPath ?? '',
+  cheatEnginePath: fields.cheatEnginePath ?? '',
   superPanic: { enabled: true, hotkey: 'Ctrl+Shift+Space', target: fields.target ?? '', mute: true }
 }) as AppSettings;
 
 describe('guardExecutablePaths', () => {
-  const previous = settings({ localeEmulatorPath: 'C:\\LE', textractorPath: 'C:\\Textractor', target: 'C:\\Work\\a.docx' });
+  const previous = settings({ localeEmulatorPath: 'C:\\LE', textractorPath: 'C:\\Textractor', cheatEnginePath: 'C:\\CE', target: 'C:\\Work\\a.docx' });
 
   it('garde les anciens chemins quand la page en envoie de nouveaux, non choisis', () => {
-    const guarded = guardExecutablePaths(settings({ localeEmulatorPath: 'D:\\evil', textractorPath: 'D:\\evil', target: 'D:\\evil\\run.exe' }), previous, new PickedPaths());
+    const guarded = guardExecutablePaths(settings({ localeEmulatorPath: 'D:\\evil', textractorPath: 'D:\\evil', cheatEnginePath: 'D:\\evil', target: 'D:\\evil\\run.exe' }), previous, new PickedPaths());
     expect(guarded.localeEmulatorPath).toBe('C:\\LE');
     expect(guarded.textractorPath).toBe('C:\\Textractor');
+    expect(guarded.cheatEnginePath).toBe('C:\\CE');
     expect(guarded.superPanic.target).toBe('C:\\Work\\a.docx');
   });
 

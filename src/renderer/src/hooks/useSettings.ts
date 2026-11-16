@@ -34,6 +34,7 @@ export interface AppSettings {
   rpgMakerExtractor: boolean;
   ocrTranslate: OcrTranslateSettings;
   localeEmulatorPath: string;
+  cheatEnginePath: string;
   screenshot: ScreenshotSettings;
   superPanic: SuperPanicSettings;
   checkUpdatesOnStartup: boolean;

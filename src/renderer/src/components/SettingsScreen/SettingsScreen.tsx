@@ -285,6 +285,9 @@ export default function SettingsScreen({
   const [rpgMakerExtractor, setRpgMakerExtractor] = useState(Boolean(settings.rpgMakerExtractor));
   const [ocrTranslate, setOcrTranslate] = useState<OcrTranslateSettings>(settings.ocrTranslate);
   const [localeEmulatorPath, setLocaleEmulatorPath] = useState(settings.localeEmulatorPath ?? '');
+  const [cheatEnginePath, setCheatEnginePath] = useState(settings.cheatEnginePath ?? '');
+  // Exécutable trouvé (undefined : vérification en cours).
+  const [cheatEngineExe, setCheatEngineExe] = useState<string | null | undefined>(undefined);
   const [screenshot, setScreenshot] = useState<ScreenshotSettings>(settings.screenshot);
   const [leStatus, setLeStatus] = useState<{ found: boolean; installed: boolean } | null>(null);
   const [textractorFound, setTextractorFound] = useState<{ x86: boolean; x64: boolean } | null>(null);
@@ -332,6 +335,7 @@ export default function SettingsScreen({
     setRpgMakerExtractor(Boolean(settings.rpgMakerExtractor));
     setOcrTranslate(settings.ocrTranslate);
     setLocaleEmulatorPath(settings.localeEmulatorPath ?? '');
+    setCheatEnginePath(settings.cheatEnginePath ?? '');
     setScreenshot(settings.screenshot);
     setOverlayEnabled(settings.overlayEnabled);
     setAutoBackupSaves(settings.autoBackupSaves);
@@ -369,6 +373,19 @@ export default function SettingsScreen({
       cancelled = true;
     };
   }, [textractorPath]);
+
+  // Cheat Engine présent dans le dossier choisi, ou (sans dossier) dans Program Files.
+  useEffect(() => {
+    let cancelled = false;
+    setCheatEngineExe(undefined);
+    window.electronAPI
+      .checkCheatEngine(cheatEnginePath)
+      .then(exe => !cancelled && setCheatEngineExe(exe))
+      .catch(() => !cancelled && setCheatEngineExe(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [cheatEnginePath]);
 
   // Racine effective quand le champ est vide (Documents/DLSGM/Work), pour l'afficher.
   useEffect(() => {
@@ -423,6 +440,7 @@ export default function SettingsScreen({
     rpgMakerExtractor !== Boolean(settings.rpgMakerExtractor) ||
     ocrDirty ||
     localeEmulatorPath !== (settings.localeEmulatorPath ?? '') ||
+    cheatEnginePath !== (settings.cheatEnginePath ?? '') ||
     JSON.stringify(screenshot) !== JSON.stringify(settings.screenshot) ||
     overlayEnabled !== settings.overlayEnabled;
 
@@ -458,6 +476,7 @@ export default function SettingsScreen({
       rpgMakerExtractor,
       ocrTranslate,
       localeEmulatorPath,
+      cheatEnginePath,
       screenshot,
       overlayEnabled,
       autoBackupSaves,
@@ -926,6 +945,47 @@ export default function SettingsScreen({
                 </label>
               ))}
             </div>
+          </SettingRow>
+          <SettingRow
+            label={t('Dossier de Cheat Engine')}
+            description={
+              <>
+                {t('Pour les tables de triche (.CT) de la page du jeu : les ouvrir dans Cheat Engine, à la demande ou à chaque lancement du jeu.')}
+                <span className={`mt-1 block ${cheatEngineExe === null ? 'text-danger' : 'text-text-secondary'}`}>
+                  {cheatEngineExe === undefined
+                    ? cheatEnginePath
+                    : cheatEnginePath
+                      ? cheatEngineExe
+                        ? t('{path} — prêt', { path: cheatEnginePath })
+                        : t('{path} — Cheat Engine.exe introuvable', { path: cheatEnginePath })
+                      : cheatEngineExe
+                        ? t('Détecté automatiquement : {path}', { path: cheatEngineExe })
+                        : t('Aucun dossier choisi, et Cheat Engine introuvable dans Program Files.')}
+                </span>
+                {cheatEngineExe === null && !cheatEnginePath && (
+                  <button
+                    type="button"
+                    className="mt-1 inline-flex items-center gap-1 font-semibold text-accent hover:underline"
+                    onClick={() => window.electronAPI.openExternal('https://www.cheatengine.org/downloads.php')}
+                  >
+                    <Download size={13} strokeWidth={2.5} />
+                    {t('Télécharger Cheat Engine')}
+                  </button>
+                )}
+              </>
+            }
+          >
+            <button
+              type="button"
+              onClick={async () => {
+                const folder = await window.electronAPI.openFolderDialog();
+                if (folder) setCheatEnginePath(folder);
+              }}
+              className="btn"
+            >
+              <FolderOpen size={16} strokeWidth={2.25} />
+              {t('Parcourir')}
+            </button>
           </SettingRow>
           </>
           )}
